@@ -1,0 +1,344 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f7f6f2;
+  --raised: #fdfdfb;
+  --sunken: #efede6;
+  --ink: #1b1b18;
+  --ink-2: #4a4943;
+  --ink-3: #6b6961;
+  --rule: #e2dfd6;
+  --rule-strong: #c9c5b9;
+  --accent: #2a4bb0;
+  --accent-ink: #ffffff;
+  --accent-soft: #e8ecf8;
+  --signal-strong: #23683f;
+  --signal-strong-soft: #e1efe5;
+  --signal-partial: #86530a;
+  --signal-partial-soft: #f5e9d2;
+  --signal-gap: #9e3226;
+  --signal-gap-soft: #f6e0dc;
+  /* Fills for meters and dots; validated for CVD separation against --paper. */
+  --mark-strong: #2b7a4b;
+  --mark-partial: #b7801a;
+  --mark-gap: #a3352a;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #131312;
+    --raised: #1a1a18;
+    --sunken: #0d0d0c;
+    --ink: #ebeae4;
+    --ink-2: #b8b6ad;
+    --ink-3: #87857c;
+    --rule: #2a2926;
+    --rule-strong: #403e39;
+    --accent: #93a9f2;
+    --accent-ink: #0e1324;
+    --accent-soft: #1b2340;
+    --signal-strong: #6dc394;
+    --signal-strong-soft: #13281c;
+    --signal-partial: #e0a64b;
+    --signal-partial-soft: #2c2312;
+    --signal-gap: #ef8b7d;
+    --signal-gap-soft: #321a16;
+    --mark-strong: #3f9c6b;
+    --mark-partial: #bd8b2a;
+    --mark-gap: #bb4034;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-signal-strong: var(--signal-strong);
+  --color-signal-strong-soft: var(--signal-strong-soft);
+  --color-signal-partial: var(--signal-partial);
+  --color-signal-partial-soft: var(--signal-partial-soft);
+  --color-signal-gap: var(--signal-gap);
+  --color-signal-gap-soft: var(--signal-gap-soft);
+  --color-mark-strong: var(--mark-strong);
+  --color-mark-partial: var(--mark-partial);
+  --color-mark-gap: var(--mark-gap);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-serif-display), ui-serif, Georgia, serif;
+  --font-mono: var(--font-mono-code), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--paper);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  textarea,
+  input,
+  select {
+    font: inherit;
+  }
+
+  /* Code is read character by character here: no ligatures turning === into a glyph. */
+  code,
+  pre,
+  .font-mono,
+  .field-mono {
+    font-variant-ligatures: none;
+    font-feature-settings: "calt" 0, "liga" 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Small uppercase labels used for metadata: stage numbers, phases, sections. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .prose {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--ink);
+  }
+  .prose > * + * {
+    margin-top: 0.85em;
+  }
+  .prose ul,
+  .prose ol {
+    padding-left: 1.25em;
+  }
+  .prose ul {
+    list-style: none;
+  }
+  .prose ul > li {
+    position: relative;
+  }
+  .prose ul > li::before {
+    content: "";
+    position: absolute;
+    left: -1em;
+    top: 0.8em;
+    width: 0.45em;
+    height: 1px;
+    background: var(--ink-3);
+  }
+  .prose ol {
+    list-style: decimal;
+  }
+  .prose ol > li::marker {
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+  }
+  .prose li + li {
+    margin-top: 0.4em;
+  }
+  .prose strong {
+    font-weight: 600;
+  }
+  .prose code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--sunken);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.05em 0.3em;
+    overflow-wrap: anywhere;
+  }
+  .prose pre {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    background: var(--sunken);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+  }
+  .prose pre code {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: inherit;
+    overflow-wrap: normal;
+  }
+  .prose blockquote {
+    border-left: 2px solid var(--rule-strong);
+    padding-left: 1rem;
+    font-family: var(--font-serif);
+    font-size: 1.0625rem;
+    color: var(--ink-2);
+  }
+  .prose .table-wrap {
+    overflow-x: auto;
+  }
+  .prose table {
+    width: 100%;
+    min-width: 480px;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .prose th,
+  .prose td {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.5rem 0.75rem 0.5rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .prose thead th {
+    font-weight: 400;
+    color: var(--ink-3);
+  }
+  .prose tbody th {
+    font-weight: 500;
+  }
+  .prose td {
+    color: var(--ink-2);
+  }
+  .prose-sm {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+  }
+
+  .concept-link {
+    color: inherit;
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+  }
+  .concept-link:hover {
+    color: var(--accent);
+    text-decoration-style: solid;
+  }
+
+  .field {
+    width: 100%;
+    background: var(--raised);
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    padding: 0.625rem 0.75rem;
+    color: var(--ink);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .field::placeholder {
+    color: var(--ink-3);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .field-mono {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    tab-size: 2;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 6px;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    border: 1px solid transparent;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .btn-primary:not(:disabled):hover {
+    background: color-mix(in srgb, var(--ink) 85%, var(--paper));
+  }
+  .btn-secondary {
+    background: var(--raised);
+    border-color: var(--rule-strong);
+    color: var(--ink);
+  }
+  .btn-secondary:not(:disabled):hover {
+    border-color: var(--ink-3);
+  }
+  .btn-ghost {
+    color: var(--ink-2);
+  }
+  .btn-ghost:not(:disabled):hover {
+    color: var(--ink);
+    background: var(--sunken);
+  }
+  .btn-danger {
+    background: var(--raised);
+    border-color: var(--rule-strong);
+    color: var(--signal-gap);
+  }
+  .btn-danger:not(:disabled):hover {
+    border-color: var(--signal-gap);
+  }
+
+  .link {
+    color: var(--accent);
+    text-decoration-line: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    text-underline-offset: 3px;
+  }
+  .link:hover {
+    text-decoration-color: var(--accent);
+  }
+}

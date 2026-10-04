@@ -1,0 +1,115 @@
+import { describe, expect, it } from "vitest";
+import { exerciseKey, parseExerciseKey, type Attempt, type Project } from "./learner";
+import {
+  addAttempt,
+  assessAttempt,
+  createLearnerState,
+  deleteProject,
+  finishInterview,
+  linkInterviewAttempt,
+  parseLearnerState,
+  saveProject,
+  startInterview,
+} from "./learner-state";
+
+const now = "2026-01-01T00:00:00.000Z";
+
+const project: Project = {
+  id: "p1",
+  name: "P",
+  summary: "",
+  source: { type: "manual" },
+  components: [],
+  flows: [],
+  invariants: [],
+  createdAt: now,
+  updatedAt: now,
+};
+
+const attempt = (id: string, exercise: Attempt["exercise"]): Attempt => ({
+  id,
+  exercise,
+  context: "practice",
+  response: { kind: "open", text: "answer" },
+  submittedAt: now,
+  selfAssessment: null,
+  evidence: null,
+});
+
+describe("exercise keys", () => {
+  it("round-trip every kind of ref", () => {
+    const refs = [
+      { kind: "stage", investigationId: "inv", stageId: "s" },
+      { kind: "concept-claims", conceptId: "c" },
+      { kind: "concept-explain", conceptId: "c" },
+      { kind: "project-question", projectId: "p", questionId: "trace.flow" },
+    ] as const;
+    for (const ref of refs) expect(parseExerciseKey(exerciseKey(ref))).toEqual(ref);
+  });
+
+  it("rejects malformed keys", () => {
+    for (const key of ["", "stage:x", "claims:a/b", "nope:x", "stage:A/b", "project:p/a.b.c"]) {
+      expect(parseExerciseKey(key), key).toBeNull();
+    }
+  });
+});
+
+describe("learner state transitions", () => {
+  it("records and assesses attempts immutably", () => {
+    const s0 = createLearnerState("me", now);
+    const s1 = addAttempt(s0, attempt("a1", { kind: "concept-explain", conceptId: "c" }));
+    expect(s0.attempts).toHaveLength(0);
+    const evidence = {
+      signal: "strong" as const,
+      basis: "self-assessed" as const,
+      parts: [{ label: "Explanation", signal: "strong" as const, basis: "self-assessed" as const }],
+      dimensions: [],
+      conceptIds: [],
+      competencyIds: [],
+    };
+    const s2 = assessAttempt(s1, "a1", { x: "covered" }, evidence);
+    expect(s2.attempts[0]?.evidence).toEqual(evidence);
+    expect(s1.attempts[0]?.evidence).toBeNull();
+  });
+
+  it("removes a project's answers and interview items with it", () => {
+    let s = saveProject(createLearnerState("me", now), project);
+    s = addAttempt(s, attempt("a1", { kind: "project-question", projectId: "p1", questionId: "retry" }));
+    s = addAttempt(s, attempt("a2", { kind: "concept-claims", conceptId: "c" }));
+    s = startInterview(s, {
+      id: "i1",
+      startedAt: now,
+      durationMinutes: 30,
+      focus: "balanced",
+      items: [{ exercise: { kind: "project-question", projectId: "p1", questionId: "retry" }, section: "Defend", attemptId: null }],
+      finishedAt: null,
+    });
+    s = deleteProject(s, "p1");
+    expect(s.projects).toHaveLength(0);
+    expect(s.attempts.map((a) => a.id)).toEqual(["a2"]);
+    expect(s.interviews).toHaveLength(0);
+  });
+
+  it("links interview attempts and finishes sessions once", () => {
+    let s = startInterview(createLearnerState("me", now), {
+      id: "i1",
+      startedAt: now,
+      durationMinutes: 30,
+      focus: "balanced",
+      items: [{ exercise: { kind: "concept-claims", conceptId: "c" }, section: "Recall", attemptId: null }],
+      finishedAt: null,
+    });
+    s = linkInterviewAttempt(s, "i1", 0, "a9");
+    expect(s.interviews[0]?.items[0]?.attemptId).toBe("a9");
+    s = finishInterview(s, "i1", "2026-01-02T00:00:00.000Z");
+    s = finishInterview(s, "i1", "2026-01-03T00:00:00.000Z");
+    expect(s.interviews[0]?.finishedAt).toBe("2026-01-02T00:00:00.000Z");
+  });
+
+  it("parses stored state and rejects invalid data", () => {
+    const state = saveProject(createLearnerState("me", now), project);
+    expect(parseLearnerState(JSON.stringify(state))).toEqual({ ok: true, state });
+    expect(parseLearnerState("{not json").ok).toBe(false);
+    expect(parseLearnerState(JSON.stringify({ ...state, version: 99 })).ok).toBe(false);
+  });
+});
