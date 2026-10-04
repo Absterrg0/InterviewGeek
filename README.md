@@ -1,4 +1,4 @@
-# InterviewGeek
+# SysGeeks
 
 An environment for developing engineering judgment. Interview preparation is the reason people arrive; the product is understanding *why* systems are built the way they are, how they fail, and what changes when constraints change.
 

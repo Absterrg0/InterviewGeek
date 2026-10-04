@@ -7,6 +7,7 @@
  * instead of flashing "no progress". Unreadable data is never thrown away: it
  * is copied to a quarantine key and the learner is told.
  */
+import { track } from "@vercel/analytics";
 import { useSyncExternalStore } from "react";
 import type { Interaction } from "@/lib/domain/content";
 import { evaluate, type ExerciseTags } from "@/lib/domain/evaluate";
@@ -20,8 +21,10 @@ import type {
   Response,
   SelfAssessment,
 } from "@/lib/domain/learner";
+import { exerciseKey } from "@/lib/domain/learner";
 import * as transitions from "@/lib/domain/learner-state";
 
+// Keys keep the original "interviewgeek" prefix so existing progress survives the rename.
 const STORAGE_KEY = "interviewgeek.learner";
 
 export type StoreStatus = {
@@ -172,6 +175,10 @@ export function submitAttempt(input: {
     evidence: evaluate(input.interaction, input.response, null, input.tags),
   };
   commit(transitions.addAttempt(current(), attempt));
+  // Which exercises get answered, never what was answered. Project ids stay out of analytics.
+  track("answer_submitted", {
+    exercise: input.exercise.kind === "project-question" ? "project-question" : exerciseKey(input.exercise),
+  });
   return attempt;
 }
 

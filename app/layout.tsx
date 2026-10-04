@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Funnel_Display, Funnel_Sans, Geist_Mono, Geist_Pixel } from "next/font/google";
 import { SiteHeader, SiteSidebar } from "@/components/site-header";
 import type { NavInvestigation } from "@/components/site-nav";
 import { StorageNotice } from "@/components/storage-notice";
 import { listConcepts, listInvestigations } from "@/lib/content";
-import { SITE_URL } from "@/lib/site-url";
+import { jsonLd } from "@/lib/metadata";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const sans = Funnel_Sans({ subsets: ["latin"], variable: "--font-funnel-sans", display: "swap" });
@@ -16,11 +18,30 @@ const pixel = Geist_Pixel({ subsets: ["latin"], variable: "--font-geist-pixel", 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "InterviewGeek: learn how systems actually work",
-    template: "%s · InterviewGeek",
+    default: SITE_TITLE,
+    template: `%s · ${SITE_NAME}`,
   },
-  description:
-    "Prepare for system design interviews by working through real engineering investigations: requirements, decisions, tradeoffs, failures and changing constraints.",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "system design interview",
+    "system design practice",
+    "system design interview questions",
+    "high level design",
+    "HLD interview",
+    "distributed systems",
+    "software engineering interview prep",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "/",
+    siteName: SITE_NAME,
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
 };
 
 export const viewport: Viewport = {
@@ -67,11 +88,23 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </main>
             <footer className="flex flex-col gap-2 px-5 py-6 text-[0.75rem] text-ink-3 sm:flex-row sm:items-center sm:justify-between sm:px-10">
               <p>Your progress is stored in this browser only. Export it from Understanding.</p>
-              <p className="font-mono text-[0.625rem] uppercase tracking-wider">No accounts · No cookies · No AI grading</p>
+              <p className="font-mono text-[0.625rem] uppercase tracking-wider">Free · No accounts · No cookies · No AI grading</p>
             </footer>
           </div>
         </div>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLd({
+              "@type": "WebSite",
+              name: SITE_NAME,
+              url: SITE_URL,
+              description: SITE_DESCRIPTION,
+            }),
+          }}
+        />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

@@ -4,6 +4,7 @@ import { md } from "../md";
 export const notificationSystem = {
   id: "notification-system",
   title: "Notifications without spam or silence",
+  searchTitle: "Design a Notification System",
   premise:
     "Product events become emails, push notifications and inbox items for millions of users. Respect every preference immediately, never notify twice, survive provider outages, and get the security alert out while a five-million-email announcement is in flight.",
   difficulty: "intermediate",

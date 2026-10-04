@@ -4,6 +4,7 @@ import { md } from "../md";
 export const videoPipeline = {
   id: "video-processing-pipeline",
   title: "Reliable video processing pipeline",
+  searchTitle: "Design a Video Processing Pipeline",
   premise:
     "Instructors upload multi-gigabyte lectures that take minutes to transcode. Workers crash, deploys interrupt jobs, and the same job can run twice. Every accepted upload must end in exactly one correct, visible outcome.",
   difficulty: "intermediate",

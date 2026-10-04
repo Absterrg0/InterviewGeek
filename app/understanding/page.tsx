@@ -5,11 +5,14 @@ import { UnderstandingView, type InvestigationOutline } from "@/components/under
 import { listConcepts, listInvestigations } from "@/lib/content";
 import { listExercises } from "@/lib/content/exercises";
 import type { CuratedLabels } from "@/lib/exercise-labels";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Understanding",
-  description: "What your answers demonstrate, by dimension, investigation and concept.",
-};
+  description:
+    "What your answers demonstrate, by dimension, investigation and concept.",
+  path: "/understanding",
+});
 
 export default function UnderstandingPage() {
   const investigations: InvestigationOutline[] = listInvestigations().map((inv) => ({

@@ -5,11 +5,14 @@ import { PageHeader, Section } from "@/components/page-header";
 import { Prose } from "@/components/prose";
 import { listConcepts } from "@/lib/content";
 import { listExercises } from "@/lib/content/exercises";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Practice",
-  description: "Claim checks and targeted practice by dimension.",
-};
+export const metadata: Metadata = pageMetadata({
+  title: "System Design Practice",
+  description:
+    "Quick system design practice: check common engineering claims and drill the dimensions interviewers probe.",
+  path: "/practice",
+});
 
 export default function PracticePage() {
   const concepts: DrillConcept[] = listConcepts().map((c) => ({

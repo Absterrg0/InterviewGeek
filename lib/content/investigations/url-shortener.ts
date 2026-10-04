@@ -4,6 +4,7 @@ import { md } from "../md";
 export const urlShortener = {
   id: "url-shortener",
   title: "A URL shortener, without the cargo cult",
+  searchTitle: "Design a URL Shortener",
   premise:
     "The classic interview question, done with numbers instead of reflexes: generate short codes that never collide, redirect fast for users everywhere, count clicks without slowing redirects, and take down a malicious link immediately.",
   difficulty: "foundational",

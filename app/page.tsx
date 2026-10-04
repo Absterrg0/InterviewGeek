@@ -6,7 +6,7 @@ import { InlineText } from "@/components/prose-core";
 import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
 import { VERDICT_LABEL } from "@/components/ui";
-import { getConcept, getInvestigation, listInvestigations } from "@/lib/content";
+import { getConcept, getInvestigation, listConcepts, listInvestigations } from "@/lib/content";
 import { CLAIM_VERDICTS } from "@/lib/domain/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 
@@ -41,6 +41,7 @@ export default function Home() {
     title: inv.title,
     stages: inv.stages.map((s) => ({ id: s.id, title: s.title, phase: s.phase })),
   }));
+  const conceptCount = listConcepts().length;
   const first = investigations[0];
   const example = getConcept("caching")?.claims.find((c) => c.id === "redis-faster");
   const scene = heroScene();
@@ -50,9 +51,9 @@ export default function Home() {
   return (
     <div>
       <section className="section rise">
-        <p className="eyebrow">Engineering investigations</p>
+        <p className="eyebrow">Free system design interview practice</p>
         <h1 className="mt-4 max-w-[22ch] font-display text-[2.25rem] leading-[1.05] text-balance sm:text-[2.875rem]">
-          Prepare for interviews by learning how systems actually work.
+          Practise system design the way the interview tests it.
         </h1>
         <p className="mt-4 max-w-[62ch] text-[0.9375rem] leading-relaxed text-ink-2 text-pretty">
           You can build a job queue, a payment flow, a WebSocket app. The interview asks something else: why it is built
@@ -68,6 +69,9 @@ export default function Home() {
             Browse investigations
           </Link>
         </div>
+        <p className="mt-4 font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
+          Free · No signup · {investigations.length} systems · {conceptCount} concepts
+        </p>
 
         {scene && stage && visible && (
           <figure

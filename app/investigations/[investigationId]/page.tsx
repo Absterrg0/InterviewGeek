@@ -4,11 +4,14 @@ import { notFound } from "next/navigation";
 import { ContinueLink, StageOutline, type StageLink } from "@/components/investigation/progress";
 import { Prose } from "@/components/prose";
 import { DIFFICULTY } from "@/components/investigation/investigation-tile";
+import { ShareButton } from "@/components/share";
 import { SystemThumb } from "@/components/system-thumb";
 import { PageHeader, Section } from "@/components/page-header";
 import { getConcept, getInvestigation, listInvestigations } from "@/lib/content";
 import { DIMENSION_LABELS, DIMENSIONS } from "@/lib/domain/content";
 import { visibleAfter } from "@/lib/domain/visibility";
+import { jsonLd, pageMetadata } from "@/lib/metadata";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
   return listInvestigations().map((inv) => ({ investigationId: inv.id }));
@@ -19,7 +22,12 @@ export const dynamicParams = false;
 export async function generateMetadata(props: PageProps<"/investigations/[investigationId]">): Promise<Metadata> {
   const { investigationId } = await props.params;
   const inv = getInvestigation(investigationId);
-  return inv ? { title: inv.title, description: inv.premise } : {};
+  if (!inv) return {};
+  return pageMetadata({
+    title: `${inv.searchTitle} · System Design Interview`,
+    description: inv.premise,
+    path: `/investigations/${inv.id}`,
+  });
 }
 
 function Bulleted({ items, muted = false }: { items: readonly string[]; muted?: boolean }) {
@@ -53,6 +61,24 @@ export default async function InvestigationPage(props: PageProps<"/investigation
 
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd({
+            "@type": "LearningResource",
+            name: `${inv.searchTitle}: ${inv.title}`,
+            description: inv.premise,
+            url: `${SITE_URL}/investigations/${inv.id}`,
+            learningResourceType: "Interactive exercise",
+            educationalLevel: inv.difficulty,
+            timeRequired: `PT${inv.estimatedMinutes}M`,
+            teaches: inv.competencies.map((c) => c.label),
+            isAccessibleForFree: true,
+            inLanguage: "en",
+            provider: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+          }),
+        }}
+      />
       <PageHeader
         title={inv.title}
         meta={
@@ -68,6 +94,11 @@ export default async function InvestigationPage(props: PageProps<"/investigation
             <Link href={`/investigations/${inv.id}/review`} className="btn btn-ghost">
               Skip to the finished design
             </Link>
+            <ShareButton
+              url={`${SITE_URL}/investigations/${inv.id}`}
+              title={`${inv.searchTitle} · ${SITE_NAME}`}
+              text={`${inv.searchTitle}, worked through like a real system design interview.`}
+            />
           </>
         }
         aside={

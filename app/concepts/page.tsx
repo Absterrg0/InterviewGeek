@@ -4,11 +4,14 @@ import { ConceptStanding } from "@/components/concept-standing";
 import { PageHeader, Section } from "@/components/page-header";
 import { conceptsByDomain, listConcepts, stagesUsingConcept } from "@/lib/content";
 import { CONCEPT_DOMAINS, DOMAIN_LABELS } from "@/lib/domain/content";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Concepts",
-  description: "The mechanisms behind the systems: what problem each solves, how it works, and how it fails.",
-};
+export const metadata: Metadata = pageMetadata({
+  title: "System Design Concepts",
+  description:
+    "The mechanisms behind system design interviews: caching, idempotency, replication, queues and more. What each solves, how it works and how it fails.",
+  path: "/concepts",
+});
 
 export default function ConceptsPage() {
   const groups = conceptsByDomain();

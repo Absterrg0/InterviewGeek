@@ -287,6 +287,8 @@ export type Competency = z.infer<typeof competency>;
 export const investigation = z.object({
   id: slug,
   title: z.string().min(1),
+  /** The phrase people search for, e.g. "Design a URL shortener". Used in page titles, not headings. */
+  searchTitle: z.string().min(1).max(48),
   premise: z.string().min(1),
   difficulty: z.enum(["foundational", "intermediate", "advanced"]),
   estimatedMinutes: z.number().int().positive(),

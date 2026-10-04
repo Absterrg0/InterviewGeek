@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/page-header";
 import { ProjectList } from "@/components/projects/project-list";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Your projects",
-  description: "Describe a system you built and answer the questions an interviewer would ask about it.",
-};
+  description:
+    "Describe a system you built and answer the questions an interviewer would ask about it.",
+  path: "/projects",
+});
 
 export default function ProjectsPage() {
   return (

@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { InvestigationTile } from "@/components/investigation/investigation-tile";
 import { PageHeader } from "@/components/page-header";
 import { listInvestigations } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
-  title: "Investigations",
-  description: "Real systems, worked through from requirements to failure modes.",
-};
+export const metadata: Metadata = pageMetadata({
+  title: "System Design Interview Questions",
+  description:
+    "Classic system design interview questions worked through from requirements: URL shortener, rate limiter, payments, notifications, video pipeline and a collaborative editor.",
+  path: "/investigations",
+});
 
 export default function InvestigationsPage() {
   const investigations = listInvestigations();

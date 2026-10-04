@@ -5,10 +5,13 @@ import { ConceptStanding } from "@/components/concept-standing";
 import { buildSlots } from "@/components/exercise/slots";
 import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { Prose } from "@/components/prose";
+import { ShareButton } from "@/components/share";
 import { PageHeader, Section } from "@/components/page-header";
 import { resolveExercise } from "@/lib/content/exercises";
 import { conceptsReferencing, getConcept, listConcepts, stagesUsingConcept } from "@/lib/content";
 import { DOMAIN_LABELS, PHASE_LABELS } from "@/lib/domain/content";
+import { jsonLd, pageMetadata } from "@/lib/metadata";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
   return listConcepts().map((c) => ({ conceptId: c.id }));
@@ -19,7 +22,8 @@ export const dynamicParams = false;
 export async function generateMetadata(props: PageProps<"/concepts/[conceptId]">): Promise<Metadata> {
   const { conceptId } = await props.params;
   const c = getConcept(conceptId);
-  return c ? { title: c.title, description: c.summary } : {};
+  if (!c) return {};
+  return pageMetadata({ title: `${c.title} in System Design`, description: c.summary, path: `/concepts/${c.id}` });
 }
 
 function Bullets({ items }: { items: { title: string; body: string }[] }) {
@@ -71,6 +75,18 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
   let n = 0;
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd({
+            "@type": "DefinedTerm",
+            name: concept.title,
+            description: concept.summary,
+            url: `${SITE_URL}/concepts/${concept.id}`,
+            inDefinedTermSet: { "@type": "DefinedTermSet", name: `${SITE_NAME} system design concepts`, url: `${SITE_URL}/concepts` },
+          }),
+        }}
+      />
       <PageHeader
         title={concept.title}
         meta={<span className="chip">{DOMAIN_LABELS[concept.domain]}</span>}
@@ -87,6 +103,11 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
                 Explain it before reading
               </a>
             )}
+            <ShareButton
+              url={`${SITE_URL}/concepts/${concept.id}`}
+              title={`${concept.title} in System Design · ${SITE_NAME}`}
+              text={`${concept.title}, explained for system design interviews.`}
+            />
           </>
         }
       >

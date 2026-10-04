@@ -82,22 +82,24 @@ export function ArrowIcon() {
   );
 }
 
+/** 8x8 cells; 1 = lit node, 2 = lit flow. Shared with the social card renderer. */
+export const PIXEL_MARK_GRID = [
+  "11100000",
+  "11122200",
+  "11100200",
+  "00000200",
+  "00000200",
+  "00000111",
+  "00000111",
+  "00000111",
+] as const;
+
 /**
  * The mark: a pixel grid in which two nodes and the flow between them are lit,
  * set like a small display.
  */
 export function PixelMark({ size = 44 }: { size?: number }) {
-  // 8x8 cells; 1 = lit node, 2 = lit flow.
-  const grid = [
-    "11100000",
-    "11122200",
-    "11100200",
-    "00000200",
-    "00000200",
-    "00000111",
-    "00000111",
-    "00000111",
-  ];
+  const grid = PIXEL_MARK_GRID;
   return (
     <svg width={size} height={size} viewBox="0 0 8 8" aria-hidden="true" className="shrink-0 overflow-hidden rounded-[10px]">
       <rect width="8" height="8" fill="#0a0a0a" />

@@ -46,7 +46,7 @@ export function SiteSidebar(props: Omit<Props, "titles">) {
         <div className="px-2">
           <Brand />
           <p className="mt-4 text-[0.8125rem] leading-relaxed text-ink">
-            Engineering investigations for system design interviews: decide, explain, break it, defend it.
+            Free system design interview practice: decide, explain, break it, defend it.
           </p>
         </div>
         <div className="my-6 border-t border-dashed border-rule" />

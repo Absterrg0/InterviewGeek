@@ -4,6 +4,7 @@ import { md } from "../md";
 export const realtimeCollaboration = {
   id: "realtime-collaboration",
   title: "Real-time collaborative editor",
+  searchTitle: "Design a Collaborative Editor (Google Docs)",
   premise:
     "Many people edit the same document at once over unreliable connections. Every client must converge on the same text, no acknowledged keystroke may be lost, and daily deploys must not kick anyone out.",
   difficulty: "advanced",

@@ -11,6 +11,8 @@ import { Prose } from "@/components/prose";
 import { getConcept, getStage, listInvestigations } from "@/lib/content";
 import { PHASE_LABELS } from "@/lib/domain/content";
 import { visibleAfter } from "@/lib/domain/visibility";
+import { pageMetadata } from "@/lib/metadata";
+import { proseToPlainText } from "@/lib/prose";
 
 export function generateStaticParams() {
   return listInvestigations().flatMap((inv) =>
@@ -26,7 +28,14 @@ export async function generateMetadata(
   const { investigationId, stageId } = await props.params;
   const found = getStage(investigationId, stageId);
   if (!found) return {};
-  return { title: `${found.stage.title} · ${found.investigation.title}` };
+  const { investigation, stage, index } = found;
+  return pageMetadata({
+    title: `${stage.title} · ${investigation.searchTitle}`,
+    description: stage.event
+      ? proseToPlainText(`${stage.event.title} — ${stage.event.detail}`)
+      : `Stage ${index + 1} of ${investigation.stages.length} in "${investigation.title}": ${investigation.premise}`,
+    path: `/investigations/${investigation.id}/${stage.id}`,
+  });
 }
 
 export default async function StagePage(props: PageProps<"/investigations/[investigationId]/[stageId]">) {

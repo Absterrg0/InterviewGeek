@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CompetencyBreakdown } from "@/components/investigation/competencies";
+import { ShareResult } from "@/components/investigation/share-result";
 import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
 import { PageHeader, Section } from "@/components/page-header";
 import { getInvestigation, listInvestigations } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
+import { SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
   return listInvestigations().map((inv) => ({ investigationId: inv.id }));
@@ -18,7 +21,12 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { investigationId } = await props.params;
   const inv = getInvestigation(investigationId);
-  return inv ? { title: `The design, defended · ${inv.title}` } : {};
+  if (!inv) return {};
+  return pageMetadata({
+    title: `${inv.searchTitle}: the final design`,
+    description: `The finished architecture for "${inv.title}": why it works, what it relies on, its tradeoffs and where it stops working.`,
+    path: `/investigations/${inv.id}/review`,
+  });
 }
 
 export default async function ReviewPage(props: PageProps<"/investigations/[investigationId]/review">) {
@@ -143,6 +151,12 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
           competencies={inv.competencies}
           stageCount={inv.stages.length}
           firstStageId={inv.stages[0]?.id ?? ""}
+        />
+        <ShareResult
+          investigationId={inv.id}
+          searchTitle={inv.searchTitle}
+          stageCount={inv.stages.length}
+          url={`${SITE_URL}/investigations/${inv.id}`}
         />
       </Section>
 

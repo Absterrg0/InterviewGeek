@@ -58,7 +58,7 @@ export function Brand({ onNavigate }: { onNavigate?: () => void }) {
     <Link href="/" onClick={onNavigate} className="flex w-fit items-center gap-2.5 rounded-lg">
       <PixelMark size={28} />
       <span className="font-pixel text-[1.0625rem] leading-none">
-        interview<span className="text-ink-3">geek</span>
+        sys<span className="text-ink-3">geeks</span>
       </span>
     </Link>
   );

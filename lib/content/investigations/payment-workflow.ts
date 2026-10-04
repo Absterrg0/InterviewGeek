@@ -4,6 +4,7 @@ import { md } from "../md";
 export const paymentWorkflow = {
   id: "payment-workflow",
   title: "A payment workflow that never double-charges",
+  searchTitle: "Design a Payment System",
   premise:
     "Checkout calls a payment provider that can be slow, can time out after it succeeded, and sends webhooks more than once and out of order. Keep every order's payment state correct through retries, crashes and uncertainty.",
   difficulty: "advanced",

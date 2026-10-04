@@ -4,6 +4,7 @@ import { md } from "../md";
 export const rateLimiter = {
   id: "api-rate-limiter",
   title: "Rate limiting a public API",
+  searchTitle: "Design an API Rate Limiter",
   premise:
     "A public API must hold every customer to their plan across thirty stateless servers, absorb honest bursts, stop abuse, and never let the limiter itself become the outage.",
   difficulty: "intermediate",
