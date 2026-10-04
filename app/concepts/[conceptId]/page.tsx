@@ -5,7 +5,7 @@ import { ConceptStanding } from "@/components/concept-standing";
 import { buildSlots } from "@/components/exercise/slots";
 import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { Prose } from "@/components/prose";
-import { SectionHeading } from "@/components/ui";
+import { PageHeader, Section } from "@/components/page-header";
 import { resolveExercise } from "@/lib/content/exercises";
 import { conceptsReferencing, getConcept, listConcepts, stagesUsingConcept } from "@/lib/content";
 import { DOMAIN_LABELS, PHASE_LABELS } from "@/lib/domain/content";
@@ -24,11 +24,11 @@ export async function generateMetadata(props: PageProps<"/concepts/[conceptId]">
 
 function Bullets({ items }: { items: { title: string; body: string }[] }) {
   return (
-    <dl className="space-y-4">
+    <dl className="grid gap-2 sm:grid-cols-2">
       {items.map((item) => (
-        <div key={item.title}>
-          <dt className="font-medium">{item.title}</dt>
-          <dd className="mt-1 text-[0.9375rem] leading-relaxed text-ink-2">{item.body}</dd>
+        <div key={item.title} className="panel p-4">
+          <dt className="text-[0.875rem] font-medium">{item.title}</dt>
+          <dd className="mt-1 text-[0.8125rem] leading-relaxed text-ink-2">{item.body}</dd>
         </div>
       ))}
     </dl>
@@ -43,114 +43,146 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
   const uses = stagesUsingConcept(concept.id);
   const related = [
     ...concept.relatedConceptIds,
-    ...conceptsReferencing(concept.id).map((c) => c.id).filter((id) => !concept.relatedConceptIds.includes(id)),
+    ...conceptsReferencing(concept.id)
+      .map((c) => c.id)
+      .filter((id) => !concept.relatedConceptIds.includes(id)),
   ].flatMap((id) => {
     const c = getConcept(id);
     return c ? [c] : [];
   });
-  const claims = resolveExercise({ kind: "concept-claims", conceptId: concept.id });
-  const explain = resolveExercise({ kind: "concept-explain", conceptId: concept.id });
+  const claims = resolveExercise({
+    kind: "concept-claims",
+    conceptId: concept.id,
+  });
+  const explain = resolveExercise({
+    kind: "concept-explain",
+    conceptId: concept.id,
+  });
   const byInvestigation = new Map<string, { title: string; stages: typeof uses }>();
   for (const use of uses) {
-    const entry = byInvestigation.get(use.investigation.id) ?? { title: use.investigation.title, stages: [] };
+    const entry = byInvestigation.get(use.investigation.id) ?? {
+      title: use.investigation.title,
+      stages: [],
+    };
     entry.stages.push(use);
     byInvestigation.set(use.investigation.id, entry);
   }
 
+  let n = 0;
   return (
-    <div className="mx-auto max-w-6xl px-5 sm:px-8 pt-10 lg:pt-14">
-      <nav aria-label="Breadcrumb" className="mb-6 text-sm text-ink-2">
-        <Link href="/concepts" className="hover:text-ink">Concepts</Link>
-        <span aria-hidden="true" className="mx-2">/</span>
-        <span>{DOMAIN_LABELS[concept.domain]}</span>
-      </nav>
-      <header className="max-w-3xl">
-        <p className="eyebrow">Concept · {DOMAIN_LABELS[concept.domain]}</p>
-        <h1 className="mt-3 font-serif text-4xl sm:text-5xl leading-[1.08] tracking-tight text-balance">{concept.title}</h1>
-        <p className="mt-5 text-lg leading-relaxed text-ink-2 text-pretty">{concept.summary}</p>
-        <div className="mt-4 flex flex-wrap items-center gap-4 text-sm">
-          <ConceptStanding conceptId={concept.id} />
-          <a href="#check" className="link">Check yourself</a>
-          <a href="#explain" className="link">Explain it before reading</a>
+    <div>
+      <PageHeader
+        title={concept.title}
+        meta={<span className="chip">{DOMAIN_LABELS[concept.domain]}</span>}
+        actions={
+          <>
+            <ConceptStanding conceptId={concept.id} />
+            {claims && (
+              <a href="#check" className="btn btn-secondary">
+                Check yourself
+              </a>
+            )}
+            {explain && (
+              <a href="#explain" className="btn btn-ghost">
+                Explain it before reading
+              </a>
+            )}
+          </>
+        }
+      >
+        {concept.summary}
+      </PageHeader>
+
+      <Section id="problem" n={++n} title="The problem">
+        <div className="max-w-[66ch]">
+          <Prose text={concept.problem} />
         </div>
-      </header>
-
-      <div className="mt-14 grid gap-14 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="min-w-0 max-w-[46rem] space-y-14">
-          <section aria-labelledby="problem">
-            <SectionHeading id="problem">The problem</SectionHeading>
-            <Prose text={concept.problem} />
-          </section>
-          <section aria-labelledby="mechanism">
-            <SectionHeading id="mechanism">How it works</SectionHeading>
-            <Prose text={concept.mechanism} />
-          </section>
-          <section aria-labelledby="assumptions">
-            <SectionHeading id="assumptions">What it assumes</SectionHeading>
-            <ul className="space-y-2.5 text-[0.9375rem] leading-relaxed">
-              {concept.assumptions.map((a) => (
-                <li key={a} className="pl-4 relative before:absolute before:left-0 before:top-[0.7em] before:h-px before:w-2 before:bg-ink-3">{a}</li>
-              ))}
-            </ul>
-          </section>
-          <section aria-labelledby="failures">
-            <SectionHeading id="failures">How it goes wrong</SectionHeading>
-            <Bullets items={concept.failureModes.map((f) => ({ title: f.name, body: f.description }))} />
-          </section>
-          <section aria-labelledby="alternatives">
-            <SectionHeading id="alternatives">Alternatives</SectionHeading>
-            <Bullets items={concept.alternatives.map((a) => ({ title: a.name, body: a.when }))} />
-          </section>
-          <section aria-labelledby="implementations">
-            <SectionHeading id="implementations">In practice, from simplest to most specialised</SectionHeading>
-            <ol className="divide-y divide-rule border-y border-rule">
-              {concept.implementations.map((impl) => (
-                <li key={impl.name} className="py-3 sm:flex sm:gap-6">
-                  <span className="font-medium sm:w-64 shrink-0 block">{impl.name}</span>
-                  <span className="text-sm text-ink-2 leading-relaxed">{impl.note}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          {claims && (
-            <section aria-labelledby="check" className="border-t border-rule pt-10">
-              <SectionHeading id="check">Check yourself</SectionHeading>
-              <ExerciseWorkspace
-                spec={{ ref: claims.summary.ref, interaction: claims.interaction, tags: claims.tags }}
-                slots={buildSlots(claims.interaction)}
-                context="practice"
-              />
-            </section>
-          )}
-          {explain && (
-            <section aria-labelledby="explain" className="border-t border-rule pt-10">
-              <SectionHeading id="explain">Explain it in your own words</SectionHeading>
-              <ExerciseWorkspace
-                spec={{ ref: explain.summary.ref, interaction: explain.interaction, tags: explain.tags }}
-                slots={buildSlots(explain.interaction)}
-                context="practice"
-              />
-            </section>
-          )}
+      </Section>
+      <Section id="mechanism" n={++n} title="How it works">
+        <div className="max-w-[66ch]">
+          <Prose text={concept.mechanism} />
         </div>
+      </Section>
+      <Section id="assumptions" n={++n} title="What it assumes">
+        <ul className="space-y-2 text-[0.875rem] leading-relaxed">
+          {concept.assumptions.map((a) => (
+            <li key={a} className="flex gap-2.5">
+              <span className="mt-[0.6rem] h-px w-2 shrink-0 bg-ink-3" aria-hidden="true" />
+              <span>{a}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+      <Section id="failures" n={++n} title="How it goes wrong">
+        <Bullets items={concept.failureModes.map((f) => ({ title: f.name, body: f.description }))} />
+      </Section>
+      <Section id="alternatives" n={++n} title="Alternatives">
+        <Bullets items={concept.alternatives.map((a) => ({ title: a.name, body: a.when }))} />
+      </Section>
+      <Section id="implementations" n={++n} title="In practice" description="From simplest to most specialised.">
+        <ol className="space-y-px">
+          {concept.implementations.map((impl, i) => (
+            <li key={impl.name} className="flex items-baseline gap-3 py-1.5 text-[0.8125rem]">
+              <span className="w-5 shrink-0 font-mono text-[0.625rem] tabular-nums text-ink-3">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span>
+                <span className="font-medium">{impl.name}</span>
+                <span className="text-ink-3" aria-hidden="true">
+                  {" · "}
+                </span>
+                <span className="text-ink-2">{impl.note}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </Section>
 
-        <aside className="space-y-10 lg:border-l lg:border-rule lg:pl-8">
-          <section aria-labelledby="used-in">
-            <SectionHeading id="used-in">Where it shows up</SectionHeading>
+      {claims && (
+        <Section id="check" n={++n} title="Check yourself">
+          <ExerciseWorkspace
+            spec={{ ref: claims.summary.ref, interaction: claims.interaction, tags: claims.tags }}
+            slots={buildSlots(claims.interaction)}
+            context="practice"
+          />
+        </Section>
+      )}
+      {explain && (
+        <Section id="explain" n={++n} title="Explain it in your own words">
+          <ExerciseWorkspace
+            spec={{ ref: explain.summary.ref, interaction: explain.interaction, tags: explain.tags }}
+            slots={buildSlots(explain.interaction)}
+            context="practice"
+          />
+        </Section>
+      )}
+
+      <Section id="used-in" n={++n} title="Where it shows up">
+        <div className="grid gap-8 sm:grid-cols-2">
+          <div>
+            <p className="eyebrow mb-3">Investigations</p>
             {byInvestigation.size === 0 ? (
-              <p className="text-sm text-ink-2">Not yet exercised by an investigation; it supports the concepts linked below.</p>
+              <p className="text-[0.8125rem] text-ink-2">
+                Not yet exercised by an investigation; it supports the concepts linked here.
+              </p>
             ) : (
-              <ul className="space-y-5">
+              <ul className="space-y-4">
                 {[...byInvestigation].map(([id, entry]) => (
                   <li key={id}>
-                    <Link href={`/investigations/${id}`} className="text-sm font-medium hover:text-accent">{entry.title}</Link>
-                    <ul className="mt-1.5 space-y-1">
+                    <Link href={`/investigations/${id}`} className="text-[0.875rem] font-medium hover:text-accent">
+                      {entry.title}
+                    </Link>
+                    <ul className="mt-1.5 space-y-1 border-l border-dashed border-rule pl-3">
                       {entry.stages.map(({ stage }) => (
                         <li key={stage.id}>
-                          <Link href={`/investigations/${id}/${stage.id}`} className="text-[0.8125rem] text-ink-2 hover:text-ink leading-snug block">
-                            <span className="text-ink-3">{PHASE_LABELS[stage.phase]} · </span>
+                          <Link
+                            href={`/investigations/${id}/${stage.id}`}
+                            className="block text-[0.8125rem] leading-snug text-ink-2 hover:text-ink"
+                          >
                             {stage.title}
+                            <span className="ml-2 font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
+                              {PHASE_LABELS[stage.phase]}
+                            </span>
                           </Link>
                         </li>
                       ))}
@@ -159,22 +191,24 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
                 ))}
               </ul>
             )}
-          </section>
+          </div>
           {related.length > 0 && (
-            <section aria-labelledby="related">
-              <SectionHeading id="related">Connected concepts</SectionHeading>
+            <div>
+              <p className="eyebrow mb-3">Connected concepts</p>
               <ul className="space-y-3">
                 {related.map((c) => (
                   <li key={c.id}>
-                    <Link href={`/concepts/${c.id}`} className="text-sm font-medium hover:text-accent">{c.title}</Link>
-                    <p className="text-[0.8125rem] text-ink-2 leading-snug mt-0.5">{c.summary}</p>
+                    <Link href={`/concepts/${c.id}`} className="text-[0.875rem] font-medium hover:text-accent">
+                      {c.title}
+                    </Link>
+                    <p className="mt-0.5 text-[0.8125rem] leading-snug text-ink-2">{c.summary}</p>
                   </li>
                 ))}
               </ul>
-            </section>
+            </div>
           )}
-        </aside>
-      </div>
+        </div>
+      </Section>
     </div>
   );
 }

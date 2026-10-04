@@ -12,10 +12,16 @@ import { useDraft } from "../use-draft";
 
 type Decision = InteractionOf<"decision">;
 
-const draftSchema = z.object({ optionId: z.string().nullable(), rationale: z.string() });
+const draftSchema = z.object({
+  optionId: z.string().nullable(),
+  rationale: z.string(),
+});
 
 export function DecisionInput({ interaction, draftKey, seed, onSubmit }: InputProps<Decision, ResponseOf<"decision">>) {
-  const [draft, setDraft, discard] = useDraft(draftKey, draftSchema, () => ({ optionId: null, rationale: "" }));
+  const [draft, setDraft, discard] = useDraft(draftKey, draftSchema, () => ({
+    optionId: null,
+    rationale: "",
+  }));
   const options = shuffled(interaction.options, seed);
   const chosen = options.some((o) => o.id === draft.optionId) ? draft.optionId : null;
   const ready = chosen !== null && draft.rationale.trim().length >= MIN_RATIONALE;
@@ -27,17 +33,18 @@ export function DecisionInput({ interaction, draftKey, seed, onSubmit }: InputPr
         e.preventDefault();
         if (!ready || chosen === null) return;
         discard();
-        onSubmit({ kind: "decision", optionId: chosen, rationale: draft.rationale.trim() });
+        onSubmit({
+          kind: "decision",
+          optionId: chosen,
+          rationale: draft.rationale.trim(),
+        });
       }}
     >
       <fieldset>
-        <legend className="font-medium text-[1.0625rem] leading-snug mb-3">{interaction.prompt}</legend>
+        <legend className="font-display text-[1.125rem] leading-snug mb-4">{interaction.prompt}</legend>
         <div className="space-y-2">
           {options.map((option, i) => (
-            <label
-              key={option.id}
-              className="flex gap-3 rounded-md border border-rule bg-raised/60 p-3.5 cursor-pointer transition-colors hover:border-rule-strong has-[:checked]:border-ink has-[:checked]:bg-raised has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent"
-            >
+            <label key={option.id} className="choice">
               <input
                 type="radio"
                 name={`${draftKey}-option`}
@@ -48,13 +55,19 @@ export function DecisionInput({ interaction, draftKey, seed, onSubmit }: InputPr
               />
               <span
                 aria-hidden="true"
-                className="mt-0.5 grid size-5 shrink-0 place-items-center rounded border border-rule-strong font-mono text-[0.6875rem] text-ink-3 peer-checked:border-ink peer-checked:bg-ink peer-checked:text-paper"
+                className="grid size-6 shrink-0 place-items-center rounded-md bg-raised font-mono text-[0.6875rem] text-ink-3 shadow-[var(--shadow-btn)] peer-checked:bg-accent-solid peer-checked:text-black peer-checked:shadow-none"
               >
                 {LETTERS[i]}
               </span>
-              <span className="min-w-0">
-                <span className="block leading-snug"><InlineText text={option.label} /></span>
-                {option.detail && <span className="mt-1 block text-sm text-ink-2"><InlineText text={option.detail} /></span>}
+              <span className="min-w-0 pt-0.5">
+                <span className="block text-[0.875rem] font-medium leading-snug">
+                  <InlineText text={option.label} />
+                </span>
+                {option.detail && (
+                  <span className="mt-1 block text-[0.8125rem] text-ink-2">
+                    <InlineText text={option.detail} />
+                  </span>
+                )}
               </span>
             </label>
           ))}
@@ -90,36 +103,38 @@ export function DecisionFeedback({
   const options = shuffled(interaction.options, seed);
   return (
     <div>
-      <p className="font-medium text-[1.0625rem] leading-snug mb-3">{interaction.prompt}</p>
+      <p className="font-display text-[1.125rem] leading-snug mb-4">{interaction.prompt}</p>
       <ol className="space-y-2">
         {options.map((option, i) => {
           const mine = option.id === response.optionId;
           return (
             <li
               key={option.id}
-              className={`rounded-md border p-3.5 ${mine ? "border-ink bg-raised" : "border-rule"}`}
+              className={`rounded-xl p-4 ${mine ? "bg-accent-soft shadow-[0_0_0_1.5px_var(--accent-solid)]" : "panel"}`}
             >
               <div className="flex gap-3">
                 <span
                   aria-hidden="true"
-                  className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded border font-mono text-[0.6875rem] ${
-                    mine ? "border-ink bg-ink text-paper" : "border-rule-strong text-ink-3"
+                  className={`grid size-6 shrink-0 place-items-center rounded-md font-mono text-[0.6875rem] ${
+                    mine ? "bg-accent-solid text-black" : "bg-raised text-ink-3 shadow-[var(--shadow-btn)]"
                   }`}
                 >
                   {LETTERS[i]}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="leading-snug"><InlineText text={option.label} /></span>
+                    <span className="font-medium leading-snug">
+                      <InlineText text={option.label} />
+                    </span>
                     <AssessmentBadge assessment={option.assessment} />
-                    {mine && <span className="eyebrow text-ink">Your choice</span>}
+                    {mine && <span className="chip-flat text-accent">Your choice</span>}
                   </div>
                   {mine ? (
                     <div className="mt-2.5">{slots.optionFeedback[option.id]}</div>
                   ) : (
                     <details className="mt-1.5 group">
-                      <summary className="cursor-pointer text-sm text-ink-3 hover:text-ink list-none [&::-webkit-details-marker]:hidden">
-                        <span className="group-open:hidden">Why this is {option.assessment} →</span>
+                      <summary className="cursor-pointer text-sm font-medium text-ink-3 hover:text-ink list-none [&::-webkit-details-marker]:hidden">
+                        <span className="group-open:hidden">Why this is {option.assessment}</span>
                         <span className="hidden group-open:inline">Hide</span>
                       </summary>
                       <div className="mt-2">{slots.optionFeedback[option.id]}</div>

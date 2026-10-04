@@ -12,7 +12,10 @@ import { useDraft } from "../use-draft";
 type Claims = InteractionOf<"claims">;
 
 const draftSchema = z.record(z.string(), z.enum(CLAIM_VERDICTS));
-const VERDICT_OPTIONS = CLAIM_VERDICTS.map((v) => ({ value: v, label: VERDICT_LABEL[v] }));
+const VERDICT_OPTIONS = CLAIM_VERDICTS.map((v) => ({
+  value: v,
+  label: VERDICT_LABEL[v],
+}));
 
 export function ClaimsInput({ interaction, draftKey, onSubmit }: InputProps<Claims, ResponseOf<"claims">>) {
   const [verdicts, setVerdicts, discard] = useDraft<Record<string, ClaimVerdict>>(draftKey, draftSchema, () => ({}));
@@ -34,16 +37,16 @@ export function ClaimsInput({ interaction, draftKey, onSubmit }: InputProps<Clai
         onSubmit({ kind: "claims", verdicts: picked });
       }}
     >
-      <p className="font-medium text-[1.0625rem] leading-snug">{interaction.prompt}</p>
-      <p className="text-sm text-ink-2 -mt-3">
+      <p className="font-display text-[1.125rem] leading-snug">{interaction.prompt}</p>
+      <p className="text-sm text-ink-2 -mt-2">
         <strong className="font-medium text-ink">Depends</strong> means the statement is true under some conditions in
         the scenario and false under others. Use it when you can name the condition.
       </p>
-      <ol className="divide-y divide-rule border-y border-rule">
+      <ol className="panel divide-y divide-dashed divide-rule">
         {interaction.claims.map((claim, i) => (
-          <li key={claim.id} className="py-4 flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-6">
-            <p className="flex-1 leading-relaxed">
-              <span className="font-mono text-xs text-ink-3 mr-2">{String(i + 1).padStart(2, "0")}</span>
+          <li key={claim.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-6">
+            <p className="flex-1 text-[0.875rem] leading-relaxed">
+              <span className="mr-2.5 font-mono text-[0.625rem] tabular-nums text-ink-3">{String(i + 1).padStart(2, "0")}</span>
               <InlineText text={claim.statement} />
             </p>
             <Segmented
@@ -78,20 +81,22 @@ export function ClaimsFeedback({
   const shown = interaction.claims.filter((c) => response.verdicts[c.id] !== undefined);
   return (
     <div>
-      <p className="font-medium text-[1.0625rem] leading-snug mb-3">{interaction.prompt}</p>
-      <ol className="divide-y divide-rule border-y border-rule">
+      <p className="font-display text-[1.125rem] leading-snug mb-4">{interaction.prompt}</p>
+      <ol className="panel divide-y divide-dashed divide-rule">
         {shown.map((claim, i) => {
           const mine = response.verdicts[claim.id];
           const right = mine === claim.verdict;
           return (
-            <li key={claim.id} className="py-4">
-              <p className="leading-relaxed">
-                <span className="font-mono text-xs text-ink-3 mr-2">{String(i + 1).padStart(2, "0")}</span>
+            <li key={claim.id} className="px-4 py-4">
+              <p className="text-[0.875rem] font-medium leading-relaxed">
+                <span className="mr-2.5 font-mono text-[0.625rem] tabular-nums text-ink-3">{String(i + 1).padStart(2, "0")}</span>
                 <InlineText text={claim.statement} />
               </p>
-              <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                <span className={right ? "text-signal-strong" : "text-signal-gap"}>
-                  {right ? "✓" : "✗"} You said <strong className="font-medium">{mine ? VERDICT_LABEL[mine] : "nothing"}</strong>
+              <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem]">
+                <span className={`inline-flex items-center gap-2 ${right ? "text-signal-strong" : "text-signal-gap"}`}>
+                  <span className={`led ${right ? "led-strong" : "led-gap"} size-1.5`} aria-hidden="true" />
+                  {right ? "Right." : "Not quite."} You said{" "}
+                  <strong className="font-medium">{mine ? VERDICT_LABEL[mine] : "nothing"}</strong>
                 </span>
                 {!right && (
                   <span className="text-ink-2">

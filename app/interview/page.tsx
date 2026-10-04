@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { InterviewSetup } from "@/components/interview/interview-setup";
+import { PageHeader } from "@/components/page-header";
 import { listExercises } from "@/lib/content/exercises";
 import type { InterviewCandidate } from "@/lib/domain/interview";
 
@@ -20,15 +21,12 @@ export default function InterviewPage() {
     minutes: e.minutes,
   }));
   return (
-    <div className="mx-auto max-w-6xl px-5 sm:px-8 pt-10 lg:pt-14">
-      <header className="max-w-2xl mb-12">
-        <h1 className="font-serif text-4xl leading-tight tracking-tight">Interview</h1>
-        <p className="mt-4 text-lg leading-relaxed text-ink-2">
-          A timed session assembled from what you have been studying: explain a mechanism, make a design call, reason
-          through a failure, and defend a system, ideally one you built. No interviewer persona and no score, just the
-          questions and an honest debrief.
-        </p>
-      </header>
+    <div>
+      <PageHeader title="Interview">
+        A timed session assembled from what you have been studying: explain a mechanism, make a design call, reason
+        through a failure, and defend a system, ideally one you built. No interviewer persona and no score, just the
+        questions and an honest debrief.
+      </PageHeader>
       <InterviewSetup candidates={candidates} />
     </div>
   );

@@ -26,7 +26,7 @@ export function WrittenField({
   const short = length < min;
   return (
     <div>
-      <label htmlFor={id} className="block font-medium mb-2">
+      <label htmlFor={id} className="block text-[0.875rem] font-medium leading-snug mb-2">
         {label}
       </label>
       <textarea
@@ -39,7 +39,7 @@ export function WrittenField({
         aria-describedby={`${id}-hint`}
         className={`field resize-y ${mono ? "field-mono" : "leading-relaxed"}`}
       />
-      <p id={`${id}-hint`} className="mt-1.5 text-xs text-ink-3">
+      <p id={`${id}-hint`} className="mt-2 text-xs text-ink-3">
         {short ? `Write at least ${min} characters (${length} so far). ` : ""}
         {hint ?? "Your own words. You will compare them against the reference afterwards."}
       </p>
@@ -49,7 +49,7 @@ export function WrittenField({
 
 export function SubmitRow({ ready, label, reason }: { ready: boolean; label: string; reason?: string }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 pt-1">
+    <div className="flex flex-wrap items-center gap-4 pt-2">
       <button type="submit" className="btn btn-primary" disabled={!ready}>
         {label}
       </button>

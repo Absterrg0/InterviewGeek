@@ -10,40 +10,36 @@ export const SIGNAL_LABEL: Record<Signal, string> = {
   gap: "Gap",
 };
 
-const SIGNAL_CLASS: Record<Signal, string> = {
-  strong: "text-signal-strong bg-signal-strong-soft",
-  partial: "text-signal-partial bg-signal-partial-soft",
-  gap: "text-signal-gap bg-signal-gap-soft",
-};
-
 export const SIGNAL_FILL: Record<Signal, string> = {
   strong: "bg-mark-strong",
   partial: "bg-mark-partial",
   gap: "bg-mark-gap",
 };
-const SIGNAL_DOT = SIGNAL_FILL;
 
+export const SIGNAL_LED: Record<Signal, string> = {
+  strong: "led led-strong",
+  partial: "led led-partial",
+  gap: "led led-gap",
+};
+
+const SIGNAL_TEXT: Record<Signal, string> = {
+  strong: "text-signal-strong",
+  partial: "text-signal-partial",
+  gap: "text-signal-gap",
+};
+
+/** A tag with a coloured dot: the signal is carried by the word, the dot repeats it. */
 export function SignalBadge({ signal, children }: { signal: Signal; children?: ReactNode }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs font-medium ${SIGNAL_CLASS[signal]}`}
-    >
-      <span className={`size-1.5 rounded-full ${SIGNAL_DOT[signal]}`} aria-hidden="true" />
+    <span className={`chip-flat ${SIGNAL_TEXT[signal]}`}>
+      <span className={`${SIGNAL_LED[signal]} size-1.5`} aria-hidden="true" />
       {children ?? SIGNAL_LABEL[signal]}
     </span>
   );
 }
 
 export function SignalDot({ signal, label }: { signal: Signal | null; label: string }) {
-  return (
-    <span
-      className={`inline-block size-2 rounded-full shrink-0 ${
-        signal ? SIGNAL_DOT[signal] : "border border-rule-strong bg-transparent"
-      }`}
-      role="img"
-      aria-label={label}
-    />
-  );
+  return <span className={signal ? SIGNAL_LED[signal] : "led led-off"} role="img" aria-label={label} />;
 }
 
 export const BASIS_LABEL: Record<Basis, string> = {
@@ -67,13 +63,21 @@ export const STANDING_SIGNAL: Record<Standing, Signal | null> = {
 };
 
 const ASSESSMENT: Record<Assessment, { label: string; signal: Signal; description: string }> = {
-  sound: { label: "Sound", signal: "strong", description: "Preferable under the stated constraints." },
+  sound: {
+    label: "Sound",
+    signal: "strong",
+    description: "Preferable under the stated constraints.",
+  },
   defensible: {
     label: "Defensible",
     signal: "partial",
     description: "Workable, and the better call under different constraints.",
   },
-  flawed: { label: "Flawed", signal: "gap", description: "Violates a stated requirement or a correctness property." },
+  flawed: {
+    label: "Flawed",
+    signal: "gap",
+    description: "Violates a stated requirement or a correctness property.",
+  },
 };
 
 export function AssessmentBadge({ assessment }: { assessment: Assessment }) {
@@ -95,11 +99,7 @@ export function DimensionTags({ dimensions }: { dimensions: readonly Dimension[]
   return (
     <ul className="flex flex-wrap gap-1.5" aria-label="Dimensions exercised">
       {dimensions.map((d) => (
-        <li
-          key={d}
-          title={DIMENSION_LABELS[d].description}
-          className="rounded border border-rule px-1.5 py-0.5 font-mono text-[0.6875rem] uppercase tracking-wider text-ink-2"
-        >
+        <li key={d} title={DIMENSION_LABELS[d].description} className="chip-flat">
           {DIMENSION_LABELS[d].label}
         </li>
       ))}
@@ -127,15 +127,15 @@ export function Segmented<T extends string>({
 }) {
   return (
     <fieldset disabled={disabled} className="min-w-0">
-      <legend className={hideLegend ? "sr-only" : "text-sm text-ink-2 mb-1.5"}>{legend}</legend>
-      <div className="inline-flex rounded-md border border-rule-strong bg-raised p-0.5">
+      <legend className={hideLegend ? "sr-only" : "eyebrow mb-2"}>{legend}</legend>
+      <div className="inline-flex gap-0.5 rounded-[10px] bg-sunken p-[3px] shadow-[inset_0_0_0_1px_var(--rule-soft)]">
         {options.map((option) => {
           const checked = value === option.value;
           return (
             <label
               key={option.value}
-              className={`relative cursor-pointer rounded px-2.5 py-1 text-[0.8125rem] transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent ${
-                checked ? "bg-ink text-paper" : "text-ink-2 hover:text-ink"
+              className={`relative cursor-pointer rounded-[7px] px-2.5 py-1 text-[0.75rem] font-medium transition-[box-shadow,color,background-color] has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent-solid ${
+                checked ? "bg-raised text-ink shadow-[var(--shadow-btn)]" : "text-ink-3 hover:text-ink"
               }`}
             >
               <input
@@ -157,7 +157,7 @@ export function Segmented<T extends string>({
 
 export function SectionHeading({ children, id }: { children: ReactNode; id?: string }) {
   return (
-    <h2 id={id} className="eyebrow mb-3 scroll-mt-20">
+    <h2 id={id} className="font-display text-[1.0625rem] leading-tight mb-3 scroll-mt-14">
       {children}
     </h2>
   );
@@ -174,7 +174,7 @@ export function SignalMeter({ counts, label }: { counts: Record<Signal, number>;
   return (
     <div className="flex items-center gap-3 min-w-0">
       <div
-        className="flex h-2 flex-1 min-w-16 gap-[2px] overflow-hidden rounded-full bg-sunken"
+        className="flex h-1.5 flex-1 min-w-16 gap-[2px] overflow-hidden rounded-full bg-sunken"
         role="img"
         aria-label={`${label}: ${counts.strong} strong, ${counts.partial} partial, ${counts.gap} gap`}
       >
@@ -190,8 +190,18 @@ export function SignalMeter({ counts, label }: { counts: Record<Signal, number>;
             ) : null,
           )}
       </div>
-      <span className="shrink-0 text-xs text-ink-2 tabular-nums">
-        {total === 0 ? "no evidence" : `${counts.strong} · ${counts.partial} · ${counts.gap}`}
+      <span
+        className="shrink-0 inline-flex items-center gap-2 font-mono text-[0.6875rem] text-ink-2 tabular-nums"
+        aria-hidden="true"
+      >
+        {total === 0
+          ? "no evidence"
+          : order.map((s) => (
+              <span key={s} className="inline-flex items-center gap-1">
+                <span className={`${SIGNAL_LED[s]} size-1`} />
+                {counts[s]}
+              </span>
+            ))}
       </span>
     </div>
   );

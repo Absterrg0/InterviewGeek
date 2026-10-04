@@ -20,11 +20,20 @@ export function buildSlots(interaction: Interaction): InteractionSlots {
         ),
       };
     case "ordering":
-      return { ...EMPTY_SLOTS, explanation: <Prose text={interaction.explanation} className="prose-sm" /> };
+      return {
+        ...EMPTY_SLOTS,
+        explanation: <Prose text={interaction.explanation} className="prose-sm" />,
+      };
     case "open":
-      return { ...EMPTY_SLOTS, reference: <Prose text={interaction.reference} /> };
+      return {
+        ...EMPTY_SLOTS,
+        reference: <Prose text={interaction.reference} />,
+      };
     case "implementation":
-      return { ...EMPTY_SLOTS, reference: <Prose text={interaction.reference.notes} className="prose-sm" /> };
+      return {
+        ...EMPTY_SLOTS,
+        reference: <Prose text={interaction.reference.notes} className="prose-sm" />,
+      };
     case "diagnosis":
       return EMPTY_SLOTS;
   }
@@ -37,22 +46,24 @@ export function Reveal({ reveal }: { reveal: Stage["reveal"] }): ReactNode {
       <Prose text={reveal.reasoning} />
       {reveal.tradeoffs && reveal.tradeoffs.length > 0 && (
         <div>
-          <h3 className="eyebrow mb-2">Tradeoffs</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-[520px]">
+          <h3 className="eyebrow mb-3">Tradeoffs</h3>
+          <div className="panel overflow-x-auto px-5 py-1">
+            <table className="data-table min-w-[520px]">
               <thead>
-                <tr className="text-left text-ink-3">
-                  <th scope="col" className="font-normal py-2 pr-4 border-b border-rule w-[34%]">Choice</th>
-                  <th scope="col" className="font-normal py-2 pr-4 border-b border-rule">Gains</th>
-                  <th scope="col" className="font-normal py-2 border-b border-rule">Costs</th>
+                <tr>
+                  <th scope="col" className="w-[34%]">
+                    Choice
+                  </th>
+                  <th scope="col">Gains</th>
+                  <th scope="col">Costs</th>
                 </tr>
               </thead>
               <tbody>
                 {reveal.tradeoffs.map((t) => (
-                  <tr key={t.choice} className="align-top">
-                    <th scope="row" className="text-left font-medium py-2.5 pr-4 border-b border-rule">{t.choice}</th>
-                    <td className="py-2.5 pr-4 border-b border-rule text-ink-2">{t.gains}</td>
-                    <td className="py-2.5 border-b border-rule text-ink-2">{t.costs}</td>
+                  <tr key={t.choice}>
+                    <th scope="row">{t.choice}</th>
+                    <td>{t.gains}</td>
+                    <td>{t.costs}</td>
                   </tr>
                 ))}
               </tbody>
@@ -61,9 +72,12 @@ export function Reveal({ reveal }: { reveal: Stage["reveal"] }): ReactNode {
         </div>
       )}
       {reveal.otherwise && (
-        <div className="border-l-2 border-accent pl-4">
-          <h3 className="eyebrow mb-1">Where another engineer could land differently</h3>
-          <p className="text-[0.9375rem] leading-relaxed text-ink-2">{reveal.otherwise}</p>
+        <div className="tint flex gap-3 p-4">
+          <span className="led led-accent mt-1.5" aria-hidden="true" />
+          <div>
+            <h3 className="text-[0.875rem] font-medium mb-1">Where another engineer could land differently</h3>
+            <p className="text-[0.8125rem] leading-relaxed text-ink-2">{reveal.otherwise}</p>
+          </div>
         </div>
       )}
     </div>

@@ -4,7 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Segmented } from "@/components/ui";
-import { composeInterview, DURATIONS, type Duration, type Focus, type InterviewCandidate } from "@/lib/domain/interview";
+import {
+  composeInterview,
+  DURATIONS,
+  type Duration,
+  type Focus,
+  type InterviewCandidate,
+} from "@/lib/domain/interview";
 import type { InterviewSession } from "@/lib/domain/learner";
 import { projectQuestions } from "@/lib/domain/project-questions";
 import { latestEvidence } from "@/lib/domain/understanding";
@@ -12,9 +18,21 @@ import { sessionUrl } from "@/lib/interview-url";
 import { deleteInterview, startInterview, useLearnerState } from "@/lib/store/learner-store";
 
 const FOCUS: { value: Focus; label: string; description: string }[] = [
-  { value: "balanced", label: "Balanced", description: "Recall, decisions, tradeoffs, failure and a defense, as a typical loop would." },
-  { value: "failure", label: "Failure-heavy", description: "More time on what breaks: crashes, duplicates, timeouts, partial failure." },
-  { value: "weakest", label: "My weak spots", description: "Weighted towards exercises and concepts where your evidence is weakest." },
+  {
+    value: "balanced",
+    label: "Balanced",
+    description: "Recall, decisions, tradeoffs, failure and a defense, as a typical loop would.",
+  },
+  {
+    value: "failure",
+    label: "Failure-heavy",
+    description: "More time on what breaks: crashes, duplicates, timeouts, partial failure.",
+  },
+  {
+    value: "weakest",
+    label: "My weak spots",
+    description: "Weighted towards exercises and concepts where your evidence is weakest.",
+  },
 ];
 
 export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[] }) {
@@ -24,7 +42,7 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
   const [focus, setFocus] = useState<Focus>("balanced");
   const [projectChoice, setProjectChoice] = useState<string | null>(null);
 
-  if (!state) return <div className="h-72 rounded-md bg-sunken" aria-busy="true" />;
+  if (!state) return <div className="h-72 well" aria-busy="true" />;
 
   const latest = latestEvidence(state.attempts);
   const projectId = projectChoice ?? state.projects[0]?.id ?? "";
@@ -35,7 +53,11 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
     const projectCandidates: InterviewCandidate[] = project
       ? projectQuestions(project).map((q) => ({
           key: `project:${project.id}/${q.id}`,
-          ref: { kind: "project-question", projectId: project.id, questionId: q.id },
+          ref: {
+            kind: "project-question",
+            projectId: project.id,
+            questionId: q.id,
+          },
           interactionKind: "open",
           phase: null,
           eventKind: null,
@@ -56,7 +78,11 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
       startedAt: new Date().toISOString(),
       durationMinutes: duration,
       focus,
-      items: items.map((i) => ({ exercise: i.ref, section: i.section, attemptId: null })),
+      items: items.map((i) => ({
+        exercise: i.ref,
+        section: i.section,
+        attemptId: null,
+      })),
       finishedAt: null,
     };
     startInterview(session);
@@ -64,39 +90,46 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
   };
 
   return (
-    <div className="grid gap-14 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <section aria-labelledby="setup" className="space-y-8 max-w-2xl">
-        <h2 id="setup" className="sr-only">Set up a session</h2>
+    <>
+      <section aria-labelledby="setup" className="section space-y-7">
+        <div className="flex items-baseline gap-2.5">
+          <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">01</span>
+          <h2 id="setup" className="font-display text-[1.0625rem] leading-tight">
+            Set up a session
+          </h2>
+        </div>
         <Segmented
           name="duration"
           legend="Length"
-          options={DURATIONS.map((d) => ({ value: String(d), label: `${d} min` }))}
+          options={DURATIONS.map((d) => ({
+            value: String(d),
+            label: `${d} min`,
+          }))}
           value={String(duration)}
           onChange={(v) => setDuration(Number(v) as Duration)}
         />
         <fieldset>
-          <legend className="text-sm text-ink-2 mb-2">Focus</legend>
-          <div className="space-y-2">
+          <legend className="eyebrow mb-2">Focus</legend>
+          <div className="grid gap-2 md:grid-cols-3">
             {FOCUS.map((f) => {
               const disabled = f.value === "weakest" && latest.size === 0;
               return (
-                <label
-                  key={f.value}
-                  className={`flex gap-3 rounded-md border p-3.5 transition-colors has-[:checked]:border-ink has-[:checked]:bg-raised has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent ${
-                    disabled ? "opacity-50 cursor-not-allowed border-rule" : "cursor-pointer border-rule hover:border-rule-strong"
-                  }`}
-                >
+                <label key={f.value} className={`choice flex-col ${disabled ? "opacity-50 cursor-not-allowed!" : ""}`}>
                   <input
                     type="radio"
                     name="focus"
-                    className="mt-1 accent-[var(--ink)]"
+                    className="sr-only peer"
                     checked={focus === f.value}
                     disabled={disabled}
                     onChange={() => setFocus(f.value)}
                   />
+                  <span
+                    className="led led-off peer-checked:bg-accent-solid peer-checked:shadow-none"
+                    aria-hidden="true"
+                  />
                   <span>
-                    <span className="block font-medium text-[0.9375rem]">{f.label}</span>
-                    <span className="block text-sm text-ink-2">
+                    <span className="block text-[0.875rem] font-medium">{f.label}</span>
+                    <span className="mt-0.5 block text-[0.8125rem] leading-relaxed text-ink-2">
                       {disabled ? "Available once you have some evidence to target." : f.description}
                     </span>
                   </span>
@@ -106,11 +139,14 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
           </div>
         </fieldset>
         <div>
-          <p className="text-sm text-ink-2 mb-2">Project to defend</p>
+          <p className="eyebrow mb-2">Project to defend</p>
           {state.projects.length === 0 ? (
-            <p className="text-sm text-ink-3">
+            <p className="text-[0.8125rem] text-ink-2">
               Without a project, the last question defends a curated design instead.{" "}
-              <Link href="/projects" className="link">Describe one of yours</Link> to be asked about it.
+              <Link href="/projects" className="link">
+                Describe one of yours
+              </Link>{" "}
+              to be asked about it.
             </p>
           ) : (
             <select
@@ -128,39 +164,53 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
             </select>
           )}
         </div>
-        <div className="space-y-3">
+        <div className="space-y-3 border-t border-dashed border-rule pt-6">
           <button type="button" className="btn btn-primary" onClick={start}>
             Start a {duration}-minute session
           </button>
-          <p className="text-xs text-ink-3 leading-relaxed">
-            You answer every question first. Feedback, references and self-assessment wait for the debrief, as in a
-            real interview. The clock is a guide, not a penalty.
+          <p className="max-w-xl text-[0.8125rem] leading-relaxed text-ink-3">
+            You answer every question first. Feedback, references and self-assessment wait for the debrief, as in a real
+            interview. The clock is a guide, not a penalty.
           </p>
         </div>
       </section>
 
-      <section aria-labelledby="history">
-        <h2 id="history" className="eyebrow mb-3">Past sessions</h2>
+      <section aria-labelledby="history" className="section space-y-4">
+        <div className="flex items-baseline gap-2.5">
+          <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">02</span>
+          <h2 id="history" className="font-display text-[1.0625rem] leading-tight">
+            Past sessions
+          </h2>
+        </div>
         {sessions.length === 0 ? (
-          <p className="text-sm text-ink-3">None yet.</p>
+          <p className="text-[0.8125rem] text-ink-3">None yet. Your sessions and their debriefs will be listed here.</p>
         ) : (
-          <ul className="border-t border-rule">
+          <ul className="panel divide-y divide-dashed divide-rule">
             {sessions.map((s) => {
               const answered = s.items.filter((i) => i.attemptId).length;
-              const date = new Date(s.startedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+              const date = new Date(s.startedAt).toLocaleDateString(undefined, {
+                day: "numeric",
+                month: "short",
+              });
               return (
-                <li key={s.id} className="border-b border-rule flex items-center justify-between gap-3 py-3">
-                  <Link href={sessionUrl(s)} className="group min-w-0">
-                    <span className="block text-sm group-hover:text-accent">
-                      {date} · {s.durationMinutes} min · {FOCUS.find((f) => f.value === s.focus)?.label}
-                    </span>
-                    <span className="block text-xs text-ink-3">
-                      {answered} of {s.items.length} answered · {s.finishedAt ? "debrief" : "in progress"}
+                <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <Link href={sessionUrl(s)} className="group flex min-w-0 gap-3">
+                    <span
+                      className={`led ${s.finishedAt ? "led-strong" : "led-partial"} mt-1.5 size-1.5`}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-[0.8125rem] font-medium group-hover:text-accent">
+                        {date}, {s.durationMinutes} min, {FOCUS.find((f) => f.value === s.focus)?.label.toLowerCase()}
+                      </span>
+                      <span className="block text-xs text-ink-3">
+                        {answered} of {s.items.length} answered, {s.finishedAt ? "debriefed" : "in progress"}
+                      </span>
                     </span>
                   </Link>
                   <button
                     type="button"
-                    className="text-xs text-ink-3 hover:text-signal-gap"
+                    className="text-xs font-medium text-ink-3 hover:text-signal-gap"
                     onClick={() => deleteInterview(s.id)}
                     aria-label={`Delete session from ${date}`}
                   >
@@ -172,6 +222,6 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
           </ul>
         )}
       </section>
-    </div>
+    </>
   );
 }

@@ -11,7 +11,13 @@ export type StageLink = { id: string; title: string; phase: Phase };
 
 function statuses(attempts: readonly Attempt[] | undefined, investigationId: string, stages: readonly StageLink[]) {
   return stages.map((s) =>
-    attempts ? exerciseStatus(attempts, { kind: "stage", investigationId, stageId: s.id }) : null,
+    attempts
+      ? exerciseStatus(attempts, {
+          kind: "stage",
+          investigationId,
+          stageId: s.id,
+        })
+      : null,
   );
 }
 
@@ -23,25 +29,22 @@ function statusLabel(status: ExerciseStatus | null): string {
 
 function StatusMark({ status }: { status: ExerciseStatus | null }) {
   if (status === "awaiting-assessment") {
-    return <span className="inline-block size-2 rounded-full shrink-0 bg-ink-3" role="img" aria-label={statusLabel(status)} />;
+    return <span className="led led-idle" role="img" aria-label={statusLabel(status)} />;
   }
-  return (
-    <SignalDot
-      signal={status === null || status === "unattempted" ? null : status}
-      label={statusLabel(status)}
-    />
-  );
+  return <SignalDot signal={status === null || status === "unattempted" ? null : status} label={statusLabel(status)} />;
 }
 
-/** The stage list beside a stage: where you are, and what you have answered. */
+/** The stage list: where you are, and what you have answered. `dense` drops the phase headings. */
 export function StageOutline({
   investigationId,
   stages,
   currentId,
+  dense = false,
 }: {
   investigationId: string;
   stages: StageLink[];
   currentId?: string;
+  dense?: boolean;
 }) {
   const state = useLearnerState();
   const marks = statuses(state?.attempts, investigationId, stages);
@@ -49,18 +52,20 @@ export function StageOutline({
     <ol className="space-y-px">
       {stages.map((stage, i) => {
         const current = stage.id === currentId;
-        const showPhase = i === 0 || stages[i - 1]?.phase !== stage.phase;
+        const showPhase = !dense && (i === 0 || stages[i - 1]?.phase !== stage.phase);
         return (
           <li key={stage.id}>
-            {showPhase && <p className="eyebrow pt-3 pb-1 first:pt-0">{PHASE_LABELS[stage.phase]}</p>}
+            {showPhase && <p className={`eyebrow px-2 pb-1.5 ${i === 0 ? "" : "pt-3"}`}>{PHASE_LABELS[stage.phase]}</p>}
             <Link
               href={`/investigations/${investigationId}/${stage.id}`}
               aria-current={current ? "step" : undefined}
-              className={`flex items-baseline gap-2.5 rounded px-2 py-1.5 -mx-2 text-[0.8125rem] leading-snug transition-colors ${
-                current ? "bg-sunken text-ink" : "text-ink-2 hover:text-ink"
+              className={`flex items-baseline gap-2.5 rounded-lg px-2 py-1.5 text-[0.8125rem] leading-snug transition-colors ${
+                current ? "plate rounded-lg text-ink" : "text-ink-2 hover:text-ink hover:bg-hover"
               }`}
             >
-              <span className="font-mono text-[0.6875rem] text-ink-3 w-4 shrink-0">{String(i + 1).padStart(2, "0")}</span>
+              <span className="w-4 shrink-0 font-mono text-[0.625rem] tabular-nums text-ink-3">
+                {String(i + 1).padStart(2, "0")}
+              </span>
               <span className="flex-1">{stage.title}</span>
               <span className="self-center">
                 <StatusMark status={marks[i] ?? null} />
@@ -98,40 +103,35 @@ export function ContinueLink({ investigationId, stages }: { investigationId: str
   const next = stages[nextIndex] as StageLink;
   return (
     <Link href={`/investigations/${investigationId}/${next.id}`} className="btn btn-primary">
-      {started ? `Continue: ${String(nextIndex + 1).padStart(2, "0")} ${next.title}` : "Start the investigation"}
+      {started ? `Continue at stage ${nextIndex + 1}: ${next.title}` : "Start the investigation"}
     </Link>
   );
 }
 
-/** Compact "7 of 14 answered" for lists. */
+const SEGMENT: Record<ExerciseStatus, string> = {
+  strong: "bg-mark-strong",
+  partial: "bg-mark-partial",
+  gap: "bg-mark-gap",
+  "awaiting-assessment": "bg-ink-3",
+  unattempted: "bg-rule",
+};
+
+/** One tick per stage, coloured by your latest answer, with "7 of 14 answered". */
 export function InvestigationProgress({ investigationId, stages }: { investigationId: string; stages: StageLink[] }) {
   const state = useLearnerState();
-  if (!state) return <span className="invisible">—</span>;
-  const marks = statuses(state.attempts, investigationId, stages);
-  const answered = marks.filter((m) => m !== "unattempted").length;
-  if (answered === 0) return <span className="text-ink-3">Not started</span>;
+  const marks = statuses(state?.attempts, investigationId, stages);
+  const answered = marks.filter((m) => m !== null && m !== "unattempted").length;
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="flex gap-0.5" aria-hidden="true">
+    <span className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+      <span className="inline-flex gap-[2px]" aria-hidden="true">
         {marks.map((m, i) => (
-          <span
-            key={i}
-            className={`h-2.5 w-1.5 rounded-[1px] ${
-              m === "strong"
-                ? "bg-mark-strong"
-                : m === "partial"
-                  ? "bg-mark-partial"
-                  : m === "gap"
-                    ? "bg-mark-gap"
-                    : m === "awaiting-assessment"
-                      ? "bg-ink-3"
-                      : "bg-rule-strong"
-            }`}
-          />
+          <span key={i} className={`h-3 w-[3px] rounded-full ${SEGMENT[m ?? "unattempted"]}`} />
         ))}
       </span>
-      <span className="text-ink-2">
-        {answered} of {stages.length} answered
+      <span
+        className={`font-mono text-[0.6875rem] tabular-nums ${state ? "" : "invisible"} ${answered === 0 ? "text-ink-3" : "text-ink-2"}`}
+      >
+        {answered === 0 ? `${stages.length} stages, not started` : `${answered} of ${stages.length} answered`}
       </span>
     </span>
   );

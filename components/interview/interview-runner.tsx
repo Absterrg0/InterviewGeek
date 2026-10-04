@@ -41,9 +41,12 @@ function resolveItem(
     source: project.name,
     href: `/projects/${project.id}#${question.id}`,
     spec: { ref, interaction: question.interaction, tags: question.tags },
-    slots: { ...EMPTY_SLOTS, reference: <ProseView text={question.interaction.reference} resolve={resolve} /> },
+    slots: {
+      ...EMPTY_SLOTS,
+      reference: <ProseView text={question.interaction.reference} resolve={resolve} />,
+    },
     context: (
-      <p className="text-[0.9375rem] leading-relaxed text-ink-2">
+      <p className="text-[0.875rem] leading-relaxed text-ink-2">
         About your project, <strong className="font-medium text-ink">{project.name}</strong>. Answer about the system as
         it is.
       </p>
@@ -76,24 +79,32 @@ export function InterviewRunner({
   concepts: Record<string, { title: string; summary: string }>;
 }) {
   const state = useLearnerState();
-  if (!state) return <div className="h-96 rounded-md bg-sunken" aria-busy="true" />;
+  if (!state) return <div className="section"><div className="h-96 well" aria-busy="true" /></div>;
   const session = state.interviews.find((s) => s.id === sessionId);
   if (!session) {
     return (
-      <div className="max-w-xl space-y-4">
-        <h1 className="font-serif text-3xl tracking-tight">Session not found</h1>
-        <p className="text-ink-2">This session is not stored in this browser. It may have been deleted, or started elsewhere.</p>
-        <Link href="/interview" className="btn btn-secondary">Start a new session</Link>
+      <div className="section max-w-xl space-y-4">
+        <h1 className="font-display text-[1.875rem] leading-tight">Session not found</h1>
+        <p className="text-ink-2">
+          This session is not stored in this browser. It may have been deleted, or started elsewhere.
+        </p>
+        <Link href="/interview" className="btn btn-secondary">
+          Start a new session
+        </Link>
       </div>
     );
   }
   const byKey = new Map(curated.map((c) => [c.key, c]));
-  const missing = session.items.some((i) => i.exercise.kind !== "project-question" && !byKey.has(exerciseKey(i.exercise)));
+  const missing = session.items.some(
+    (i) => i.exercise.kind !== "project-question" && !byKey.has(exerciseKey(i.exercise)),
+  );
   if (missing) {
     return (
-      <div className="max-w-xl space-y-4">
+      <div className="section max-w-xl space-y-4">
         <p className="text-ink-2">This link does not include the session&apos;s questions.</p>
-        <Link href={sessionUrl(session)} className="btn btn-primary">Open the session</Link>
+        <Link href={sessionUrl(session)} className="btn btn-primary">
+          Open the session
+        </Link>
       </div>
     );
   }
@@ -120,9 +131,12 @@ function Live({ session, items }: { session: InterviewSession; items: (Resolved 
 
   return (
     <div>
-      <div className="sticky top-14 z-20 -mx-5 sm:-mx-8 mb-8 border-b border-rule bg-paper/95 px-5 sm:px-8 py-3 backdrop-blur">
+      <div className="sticky top-12 z-20 border-b border-dashed border-rule bg-paper px-5 py-2.5 sm:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <ol className="flex gap-1.5" aria-label="Questions">
+          <ol
+            className="flex flex-wrap gap-0.5 rounded-[10px] bg-sunken p-[3px] shadow-[inset_0_0_0_1px_var(--rule-soft)]"
+            aria-label="Questions"
+          >
             {session.items.map((it, i) => (
               <li key={i}>
                 <button
@@ -130,40 +144,50 @@ function Live({ session, items }: { session: InterviewSession; items: (Resolved 
                   onClick={() => setIndex(i)}
                   aria-current={i === index ? "step" : undefined}
                   aria-label={`Question ${i + 1}${it.attemptId ? ", answered" : ""}`}
-                  className={`grid size-7 place-items-center rounded font-mono text-xs border transition-colors ${
+                  className={`relative grid size-7 place-items-center rounded-[7px] font-mono text-[0.6875rem] tabular-nums transition-colors ${
                     i === index
-                      ? "border-ink bg-ink text-paper"
+                      ? "bg-raised text-ink shadow-[var(--shadow-btn)]"
                       : it.attemptId
-                        ? "border-rule-strong bg-sunken text-ink"
-                        : "border-rule text-ink-3 hover:text-ink"
+                        ? "text-ink"
+                        : "text-ink-3 hover:text-ink"
                   }`}
                 >
                   {i + 1}
+                  {it.attemptId && (
+                    <span className="led led-strong absolute right-0.5 top-0.5 size-1" aria-hidden="true" />
+                  )}
                 </button>
               </li>
             ))}
           </ol>
-          <p className="font-mono text-sm tabular-nums" aria-label="Elapsed time">
+          <p
+            className="chip-flat h-7 gap-2 px-2.5 font-mono text-[0.8125rem] tabular-nums"
+            aria-label="Elapsed time"
+          >
+            <span className={`led ${elapsed > budget ? "led-partial" : "led-strong"} size-1.5`} aria-hidden="true" />
             <span className="text-ink">{clock(elapsed)}</span>
-            <span className="text-ink-3"> / {clock(budget)}</span>
-            {elapsed > budget && <span className="ml-2 text-ink-2">over time</span>}
+            <span className="text-ink-3">/ {clock(budget)}</span>
+            {elapsed > budget && <span className="font-sans text-xs font-medium text-signal-partial">over time</span>}
           </p>
         </div>
       </div>
 
       {item && (
-        <article key={index} className="max-w-[46rem]">
-          <p className="eyebrow">
-            Question {index + 1} of {session.items.length} · {item.section}
-          </p>
+        <article key={index} className="section">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="chip">
+              Question {index + 1} of {session.items.length}
+            </span>
+            <span className="chip">{item.section}</span>
+          </div>
           {resolved ? (
             <>
-              <h1 className="mt-3 font-serif text-3xl leading-tight tracking-tight">
+              <h1 className="mt-4 font-display text-[1.75rem] leading-[1.1] text-balance sm:text-[2rem]">
                 <InlineText text={resolved.title} />
               </h1>
-              <p className="mt-1 text-sm text-ink-3">{resolved.source}</p>
-              <div className="mt-6 space-y-6">{resolved.context}</div>
-              <div className="mt-8 border-t border-rule pt-8">
+              <p className="mt-2 text-[0.8125rem] text-ink-3">{resolved.source}</p>
+              <div className="mt-6 max-w-[66ch] space-y-5">{resolved.context}</div>
+              <div className="mt-8 border-t border-dashed border-rule pt-8">
                 <ExerciseWorkspace
                   spec={resolved.spec}
                   slots={resolved.slots}
@@ -178,14 +202,21 @@ function Live({ session, items }: { session: InterviewSession; items: (Resolved 
               </div>
             </>
           ) : (
-            <p className="mt-4 text-ink-2">This question is no longer available (its project or content changed). Skip it.</p>
+            <p className="mt-4 text-ink-2">
+              This question is no longer available (its project or content changed). Skip it.
+            </p>
           )}
         </article>
       )}
 
-      <div className="mt-12 max-w-[46rem] flex flex-wrap items-center justify-between gap-3 border-t border-rule pt-6">
-        <button type="button" className="btn btn-ghost -ml-3" disabled={index === 0} onClick={() => setIndex(index - 1)}>
-          ← Previous
+      <div className="section flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          className="btn btn-ghost -ml-3"
+          disabled={index === 0}
+          onClick={() => setIndex(index - 1)}
+        >
+          Previous question
         </button>
         <div className="flex flex-wrap items-center gap-3">
           {!last && (
@@ -195,7 +226,7 @@ function Live({ session, items }: { session: InterviewSession; items: (Resolved 
           )}
           {confirmFinish ? (
             <span className="inline-flex flex-wrap items-center gap-2">
-              <span className="text-sm text-ink-2">
+              <span className="text-[0.8125rem] text-ink-2">
                 {session.items.length - answered} unanswered. Finish anyway?
               </span>
               <button type="button" className="btn btn-primary" onClick={() => finishInterview(session.id)}>
@@ -228,35 +259,43 @@ function Debrief({ session, items }: { session: InterviewSession; items: (Resolv
   const awaiting = session.items.filter((i) => i.attemptId && attempts.get(i.attemptId)?.evidence === null).length;
 
   return (
-    <div className="max-w-[46rem]">
-      <header>
-        <p className="eyebrow">Interview debrief</p>
-        <h1 className="mt-3 font-serif text-4xl leading-tight tracking-tight">How it went</h1>
-        <p className="mt-4 text-lg leading-relaxed text-ink-2">
-          You answered {answered} of {session.items.length} in {clock(took)} of a {session.durationMinutes}-minute budget.{" "}
+    <div>
+      <header className="section rise">
+        <span className="chip">Interview debrief</span>
+        <h1 className="mt-4 font-display text-[1.875rem] leading-[1.1] sm:text-[2.25rem]">How it went</h1>
+        <p className="mt-3 max-w-[62ch] text-[0.9375rem] leading-relaxed text-ink-2">
+          You answered {answered} of {session.items.length} in {clock(took)} of a {session.durationMinutes}-minute
+          budget.{" "}
           {awaiting > 0
             ? `${awaiting} written answer${awaiting === 1 ? "" : "s"} still need${awaiting === 1 ? "s" : ""} your assessment below.`
             : "Everything answered has been assessed."}
         </p>
       </header>
 
-      <ol className="mt-8 border-y border-rule divide-y divide-rule">
+      <div className="section">
+      <ol className="panel divide-y divide-dashed divide-rule px-4">
         {session.items.map((item, i) => {
           const attempt = item.attemptId ? attempts.get(item.attemptId) : undefined;
           return (
-            <li key={i} className="flex items-center justify-between gap-4 py-3 text-sm">
+            <li key={i} className="flex items-center justify-between gap-4 py-3 text-[0.8125rem]">
               <a href={`#item-${i}`} className="min-w-0 hover:text-accent">
-                <span className="font-mono text-xs text-ink-3 mr-2">{String(i + 1).padStart(2, "0")}</span>
-                {item.section}
-                {items[i] && <span className="text-ink-3">: <InlineText text={items[i].title} /></span>}
+                <span className="mr-2.5 font-mono text-[0.625rem] tabular-nums text-ink-3">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="font-medium">{item.section}</span>
+                {items[i] && (
+                  <span className="text-ink-3">
+                    : <InlineText text={items[i].title} />
+                  </span>
+                )}
               </a>
               <span className="shrink-0">
                 {!attempt ? (
-                  <span className="text-xs text-ink-3">Skipped</span>
+                  <span className="chip-flat">Skipped</span>
                 ) : attempt.evidence ? (
                   <SignalBadge signal={attempt.evidence.signal} />
                 ) : (
-                  <span className="text-xs text-ink-2">Needs assessment</span>
+                  <span className="chip-flat">Needs assessment</span>
                 )}
               </span>
             </li>
@@ -264,18 +303,24 @@ function Debrief({ session, items }: { session: InterviewSession; items: (Resolv
         })}
       </ol>
 
-      <div className="mt-16 space-y-20">
+      </div>
+      <div>
         {session.items.map((item, i) => {
           const resolved = items[i];
           return (
-            <section key={i} id={`item-${i}`} aria-labelledby={`item-${i}-title`} className="scroll-mt-20">
+            <section
+              key={i}
+              id={`item-${i}`}
+              aria-labelledby={`item-${i}-title`}
+              className="section scroll-mt-14"
+            >
               <p className="eyebrow">
-                {String(i + 1).padStart(2, "0")} · {item.section}
+                Question {i + 1}: {item.section}
               </p>
-              <h2 id={`item-${i}-title`} className="mt-2 font-serif text-2xl leading-snug tracking-tight">
+              <h2 id={`item-${i}-title`} className="mt-2 font-display text-[1.125rem] leading-snug">
                 {resolved ? <InlineText text={resolved.title} /> : "Unavailable question"}
               </h2>
-              {resolved && <p className="mt-1 text-sm text-ink-3">{resolved.source}</p>}
+              {resolved && <p className="mt-1 text-[0.8125rem] text-ink-3">{resolved.source}</p>}
               <div className="mt-6">
                 {!resolved ? null : item.attemptId ? (
                   <ExerciseWorkspace
@@ -283,10 +328,14 @@ function Debrief({ session, items }: { session: InterviewSession; items: (Resolv
                     slots={resolved.slots}
                     reveal={resolved.reveal}
                     context="interview"
-                    pinned={{ attemptId: item.attemptId, draftKey: `interview:${session.id}:${i}`, onRecorded: () => {} }}
+                    pinned={{
+                      attemptId: item.attemptId,
+                      draftKey: `interview:${session.id}:${i}`,
+                      onRecorded: () => {},
+                    }}
                   />
                 ) : (
-                  <p className="text-[0.9375rem] text-ink-2">
+                  <p className="text-[0.875rem] text-ink-2">
                     Skipped.{" "}
                     <Link href={resolved.href} className="link">
                       Work through it properly
@@ -300,9 +349,13 @@ function Debrief({ session, items }: { session: InterviewSession; items: (Resolv
         })}
       </div>
 
-      <div className="mt-20 border-t border-rule pt-6 flex flex-wrap gap-3">
-        <Link href="/interview" className="btn btn-primary">Start another session</Link>
-        <Link href="/understanding" className="btn btn-secondary">See your understanding</Link>
+      <div className="section flex flex-wrap gap-2">
+        <Link href="/interview" className="btn btn-primary">
+          Start another session
+        </Link>
+        <Link href="/understanding" className="btn btn-secondary">
+          See your understanding
+        </Link>
       </div>
     </div>
   );

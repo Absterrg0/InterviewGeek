@@ -87,9 +87,9 @@ export function OpenFeedback({
 }) {
   return (
     <div>
-      <p className="font-medium text-[1.0625rem] leading-snug mb-4">{interaction.prompt}</p>
-      <h3 className="eyebrow mb-2">What a strong answer covers</h3>
-      <div className="border-l-2 border-rule-strong pl-4">{slots.reference}</div>
+      <p className="font-display text-[1.125rem] leading-snug mb-5">{interaction.prompt}</p>
+      <h3 className="eyebrow mb-3">What a strong answer covers</h3>
+      <div className="panel px-5 py-4">{slots.reference}</div>
     </div>
   );
 }
@@ -103,10 +103,10 @@ export function ImplementationFeedback({
 }) {
   return (
     <div className="space-y-4">
-      <p className="font-medium text-[1.0625rem] leading-snug">{interaction.prompt}</p>
+      <p className="font-display text-[1.125rem] leading-snug">{interaction.prompt}</p>
       <div>
-        <h3 className="eyebrow mb-2">One reference implementation</h3>
-        <pre className="rounded-md border border-rule bg-sunken px-4 py-3 overflow-x-auto font-mono text-[0.8125rem] leading-relaxed">
+        <h3 className="eyebrow mb-3">One reference implementation</h3>
+        <pre className="rounded-xl bg-well px-5 py-4 shadow-[inset_0_0_0_1px_var(--rule)] overflow-x-auto font-mono text-[0.8125rem] leading-relaxed">
           <code>{interaction.reference.code}</code>
         </pre>
       </div>

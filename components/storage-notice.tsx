@@ -28,20 +28,22 @@ export function StorageNotice() {
   }
   if (messages.length === 0) return null;
   return (
-    <div role="status" className="border-b border-rule bg-signal-partial-soft">
-      {messages.map((m) => (
-        <div
-          key={m.key}
-          className="mx-auto max-w-6xl px-5 sm:px-8 py-2.5 text-sm text-ink flex items-start justify-between gap-4"
-        >
-          <p>{m.text}</p>
-          {m.dismiss && (
-            <button type="button" className="text-ink-2 hover:text-ink underline shrink-0" onClick={m.dismiss}>
-              Dismiss
-            </button>
-          )}
-        </div>
-      ))}
+    <div role="status" className="border-b border-dashed border-rule px-5 py-3 sm:px-10">
+      <div className="rounded-xl bg-signal-partial-soft">
+        {messages.map((m) => (
+          <div key={m.key} className="flex items-start justify-between gap-4 px-4 py-2.5 text-[0.8125rem] text-ink">
+            <p className="flex gap-3">
+              <span className="led led-partial mt-1.5 size-1.5" aria-hidden="true" />
+              {m.text}
+            </p>
+            {m.dismiss && (
+              <button type="button" className="btn btn-secondary min-h-0 shrink-0 px-2.5 py-1 text-[0.75rem]" onClick={m.dismiss}>
+                Dismiss
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

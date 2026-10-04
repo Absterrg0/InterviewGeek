@@ -32,7 +32,7 @@ export function ProjectList() {
   const [name, setName] = useState("");
   const [summary, setSummary] = useState("");
 
-  if (!state) return <div className="h-48 rounded-md bg-sunken" aria-busy="true" />;
+  if (!state) return <div className="section"><div className="h-48 well" aria-busy="true" /></div>;
 
   const taken = state.projects.map((p) => p.id);
   const latest = latestEvidence(state.attempts);
@@ -44,15 +44,20 @@ export function ProjectList() {
   };
 
   return (
-    <div className="grid gap-14 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <section aria-labelledby="your-projects" className="min-w-0">
-        <h2 id="your-projects" className="eyebrow mb-3">Your projects</h2>
+    <>
+      <section aria-labelledby="your-projects" className="section min-w-0">
+        <div className="mb-5 flex items-baseline gap-2.5">
+          <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">01</span>
+          <h2 id="your-projects" className="font-display text-[1.0625rem] leading-tight">
+            Your projects
+          </h2>
+        </div>
         {state.projects.length === 0 ? (
-          <div className="rounded-md border border-dashed border-rule-strong px-5 py-8 text-[0.9375rem] leading-relaxed text-ink-2">
+          <div className="tint px-5 py-6 text-[0.875rem] leading-relaxed text-ink">
             <p>
-              No projects yet. Describe one you have built: its components, how requests and messages flow between
-              them, and what must always be true. You will get questions about <em>your</em> system, the kind an
-              interviewer asks when they say &ldquo;tell me about something you built&rdquo;.
+              No projects yet. Describe one you have built: its components, how requests and messages flow between them,
+              and what must always be true. You will get questions about <em>your</em> system, the kind an interviewer
+              asks when they say &ldquo;tell me about something you built&rdquo;.
             </p>
             {!hasExample && (
               <button
@@ -65,27 +70,42 @@ export function ProjectList() {
             )}
           </div>
         ) : (
-          <ul className="border-t border-rule">
+          <ul className="space-y-2">
             {state.projects.map((p) => {
               const questions = projectQuestions(p);
               const counts = { strong: 0, partial: 0, gap: 0 };
               for (const q of questions) {
-                const e = latest.get(exerciseKey({ kind: "project-question", projectId: p.id, questionId: q.id }));
+                const e = latest.get(
+                  exerciseKey({
+                    kind: "project-question",
+                    projectId: p.id,
+                    questionId: q.id,
+                  }),
+                );
                 if (e) counts[e.evidence.signal]++;
               }
               const answered = counts.strong + counts.partial + counts.gap;
               return (
-                <li key={p.id} className="border-b border-rule">
-                  <Link href={`/projects/${p.id}`} className="group grid gap-x-8 gap-y-2 py-5 sm:grid-cols-[minmax(0,1fr)_14rem]">
+                <li key={p.id}>
+                  <Link
+                    href={`/projects/${p.id}`}
+                    className="tile group grid gap-x-8 gap-y-3 p-4 sm:grid-cols-[minmax(0,1fr)_14rem]"
+                  >
                     <span className="min-w-0">
-                      <span className="block font-medium group-hover:text-accent">{p.name}</span>
-                      {p.summary && <span className="mt-1 block text-sm text-ink-2 line-clamp-2">{p.summary}</span>}
-                      <span className="mt-1.5 block text-xs text-ink-3">
-                        {p.components.length} components · {p.flows.length} flows · {p.invariants.length} invariants
+                      <span className="block font-display text-[1rem] leading-tight group-hover:text-accent">
+                        {p.name}
+                      </span>
+                      {p.summary && (
+                        <span className="mt-1 block text-[0.8125rem] text-ink-2 line-clamp-2">{p.summary}</span>
+                      )}
+                      <span className="mt-3 flex flex-wrap gap-1.5">
+                        <span className="chip-flat">{p.components.length} components</span>
+                        <span className="chip-flat">{p.flows.length} flows</span>
+                        <span className="chip-flat">{p.invariants.length} invariants</span>
                       </span>
                     </span>
-                    <span className="text-sm sm:pt-0.5 space-y-1.5">
-                      <span className="block text-ink-2">
+                    <span className="space-y-2 text-[0.8125rem] sm:pt-1">
+                      <span className="block font-mono text-[0.6875rem] text-ink-2">
                         {answered} of {questions.length} questions answered
                       </span>
                       {answered > 0 && <SignalMeter counts={counts} label={`${p.name} answers`} />}
@@ -99,7 +119,7 @@ export function ProjectList() {
         {state.projects.length > 0 && !hasExample && (
           <button
             type="button"
-            className="btn btn-ghost mt-4 -ml-3"
+            className="btn btn-ghost mt-5 -ml-3"
             onClick={() => create(exampleProject(uniqueSlug("subscription-saas", taken), new Date().toISOString()))}
           >
             Add the example project
@@ -107,17 +127,24 @@ export function ProjectList() {
         )}
       </section>
 
-      <section aria-labelledby="new-project">
-        <h2 id="new-project" className="eyebrow mb-3">Describe a project</h2>
+      <section aria-labelledby="new-project" className="section">
+        <div className="mb-5 flex items-baseline gap-2.5">
+          <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">02</span>
+          <h2 id="new-project" className="font-display text-[1.0625rem] leading-tight">
+            Describe a project
+          </h2>
+        </div>
         <form
-          className="space-y-4 rounded-md border border-rule bg-raised p-5"
+          className="panel max-w-xl space-y-4 p-5"
           onSubmit={(e) => {
             e.preventDefault();
             if (name.trim()) create(newProject(name, summary, taken));
           }}
         >
           <div>
-            <label htmlFor="project-name" className="block text-sm font-medium mb-1.5">Name</label>
+            <label htmlFor="project-name" className="eyebrow mb-2 block">
+              Name
+            </label>
             <input
               id="project-name"
               className="field"
@@ -129,7 +156,9 @@ export function ProjectList() {
             />
           </div>
           <div>
-            <label htmlFor="project-summary" className="block text-sm font-medium mb-1.5">What does it do?</label>
+            <label htmlFor="project-summary" className="eyebrow mb-2 block">
+              What does it do?
+            </label>
             <textarea
               id="project-summary"
               className="field resize-y"
@@ -140,15 +169,15 @@ export function ProjectList() {
               placeholder="One or two sentences about what it does and who uses it."
             />
           </div>
-          <button type="submit" className="btn btn-primary w-full" disabled={!name.trim()}>
+          <button type="submit" className="btn btn-primary" disabled={!name.trim()}>
             Create and describe its architecture
           </button>
         </form>
-        <p className="mt-4 text-xs leading-relaxed text-ink-3">
+        <p className="mt-3 max-w-xl text-[0.75rem] leading-relaxed text-ink-3">
           Today you describe the model by hand. Connecting a repository to build it from code is planned; it will fill
           the same model, so your answers will carry over.
         </p>
       </section>
-    </div>
+    </>
   );
 }

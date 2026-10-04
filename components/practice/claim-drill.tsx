@@ -12,7 +12,10 @@ export type DrillConcept = { id: string; title: string; claims: Claim[] };
 type DrillClaim = { conceptId: string; conceptTitle: string; claim: Claim };
 
 const SET_SIZE = 8;
-const OPTIONS = CLAIM_VERDICTS.map((v) => ({ value: v, label: VERDICT_LABEL[v] }));
+const OPTIONS = CLAIM_VERDICTS.map((v) => ({
+  value: v,
+  label: VERDICT_LABEL[v],
+}));
 
 /**
  * Rapid verdicts on statements drawn from every concept, many of them the
@@ -32,7 +35,11 @@ export function ClaimDrill({
   const [checked, setChecked] = useState(false);
 
   const all: DrillClaim[] = concepts.flatMap((c) =>
-    c.claims.map((claim) => ({ conceptId: c.id, conceptTitle: c.title, claim })),
+    c.claims.map((claim) => ({
+      conceptId: c.id,
+      conceptTitle: c.title,
+      claim,
+    })),
   );
   const set = shuffled(all, `drill-${round}`).slice(0, SET_SIZE);
   const keyOf = (d: DrillClaim) => `${d.conceptId}/${d.claim.id}`;
@@ -51,8 +58,16 @@ export function ClaimDrill({
       }
       submitAttempt({
         exercise: { kind: "concept-claims", conceptId: concept.id },
-        interaction: { kind: "claims", prompt: "Decide whether each statement holds.", claims: concept.claims },
-        tags: { dimensions: ["explain"], conceptIds: [concept.id], competencyIds: [] },
+        interaction: {
+          kind: "claims",
+          prompt: "Decide whether each statement holds.",
+          claims: concept.claims,
+        },
+        tags: {
+          dimensions: ["explain"],
+          conceptIds: [concept.id],
+          competencyIds: [],
+        },
         response: { kind: "claims", verdicts: picked },
         context: "practice",
       });
@@ -68,20 +83,23 @@ export function ClaimDrill({
 
   return (
     <div>
-      <ol className="divide-y divide-rule border-y border-rule">
+      <ol className="panel divide-y divide-dashed divide-rule">
         {set.map((d, i) => {
           const key = keyOf(d);
           const mine = verdicts[key];
           const right = mine === d.claim.verdict;
           return (
-            <li key={key} className="py-4">
-              <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-6">
+            <li key={key} className="px-4 py-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
                 <div className="flex-1 min-w-0">
-                  <p className="leading-relaxed">
-                    <span className="font-mono text-xs text-ink-3 mr-2">{String(i + 1).padStart(2, "0")}</span>
+                  <p className="text-[0.875rem] leading-relaxed">
+                    <span className="mr-2.5 font-mono text-[0.625rem] tabular-nums text-ink-3">{String(i + 1).padStart(2, "0")}</span>
                     <InlineText text={d.claim.statement} />
                   </p>
-                  <Link href={`/concepts/${d.conceptId}`} className="mt-1 inline-block text-xs text-ink-3 hover:text-ink">
+                  <Link
+                    href={`/concepts/${d.conceptId}`}
+                    className="mt-0.5 ml-7 inline-block text-[0.75rem] text-ink-3 hover:text-accent"
+                  >
                     {d.conceptTitle}
                   </Link>
                 </div>
@@ -96,9 +114,12 @@ export function ClaimDrill({
                 />
               </div>
               {checked && (
-                <div className="mt-3 border-l-2 pl-4 border-rule-strong">
-                  <p className={`text-sm ${right ? "text-signal-strong" : "text-signal-gap"}`}>
-                    {right ? "✓ Right:" : "✗ Not quite:"} it {VERDICT_LABEL[d.claim.verdict].toLowerCase()}.
+                <div className="mt-3 ml-7 rounded-lg bg-well px-3.5 py-3 shadow-[inset_0_0_0_1px_var(--rule-soft)]">
+                  <p
+                    className={`inline-flex items-center gap-2 text-[0.8125rem] font-medium ${right ? "text-signal-strong" : "text-signal-gap"}`}
+                  >
+                    <span className={`led ${right ? "led-strong" : "led-gap"} size-1.5`} aria-hidden="true" />
+                    {right ? "Right:" : "Not quite:"} it {VERDICT_LABEL[d.claim.verdict].toLowerCase()}.
                   </p>
                   <div className="mt-1 text-ink-2">{explanations[key]}</div>
                 </div>
@@ -119,7 +140,12 @@ export function ClaimDrill({
           </>
         ) : (
           <>
-            <button type="button" className="btn btn-primary" disabled={answered < set.length || !state} onClick={check}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={answered < set.length || !state}
+              onClick={check}
+            >
               Check verdicts
             </button>
             <p className="text-sm text-ink-3">

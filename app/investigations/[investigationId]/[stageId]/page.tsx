@@ -20,7 +20,9 @@ export function generateStaticParams() {
 
 export const dynamicParams = false;
 
-export async function generateMetadata(props: PageProps<"/investigations/[investigationId]/[stageId]">): Promise<Metadata> {
+export async function generateMetadata(
+  props: PageProps<"/investigations/[investigationId]/[stageId]">,
+): Promise<Metadata> {
   const { investigationId, stageId } = await props.params;
   const found = getStage(investigationId, stageId);
   if (!found) return {};
@@ -33,7 +35,11 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
   if (!found) notFound();
   const { investigation, stage, index } = found;
 
-  const stages: StageLink[] = investigation.stages.map((s) => ({ id: s.id, title: s.title, phase: s.phase }));
+  const stages: StageLink[] = investigation.stages.map((s) => ({
+    id: s.id,
+    title: s.title,
+    phase: s.phase,
+  }));
   const previous = investigation.stages[index - 1];
   const next = investigation.stages[index + 1];
   const before = visibleAfter(investigation, index);
@@ -46,10 +52,9 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
     const c = getConcept(id);
     return c ? [c] : [];
   });
-  const number = String(index + 1).padStart(2, "0");
 
   const reveal = (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <Reveal reveal={stage.reveal} />
       {(added.components.length > 0 || added.flows.length > 0) && (
         <div>
@@ -68,12 +73,12 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
       {concepts.length > 0 && (
         <div>
           <h3 className="eyebrow mb-3">Mechanisms in this stage</h3>
-          <ul className="divide-y divide-rule border-y border-rule">
+          <ul className="grid gap-2 sm:grid-cols-2">
             {concepts.map((c) => (
               <li key={c.id}>
-                <Link href={`/concepts/${c.id}`} className="group flex flex-col sm:flex-row sm:gap-6 py-3">
-                  <span className="font-medium sm:w-48 shrink-0 group-hover:text-accent">{c.title}</span>
-                  <span className="text-sm text-ink-2 leading-relaxed">{c.summary}</span>
+                <Link href={`/concepts/${c.id}`} className="tile group block h-full px-4 py-3">
+                  <span className="block text-[0.875rem] font-medium group-hover:text-accent">{c.title}</span>
+                  <span className="mt-0.5 block text-[0.8125rem] leading-relaxed text-ink-2">{c.summary}</span>
                 </Link>
               </li>
             ))}
@@ -84,104 +89,96 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-5 sm:px-8 pt-8 lg:pt-12 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-14">
-      <aside className="hidden lg:block" aria-label="Stages">
-        <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto pb-8 pr-2">
-          <Link href={`/investigations/${investigation.id}`} className="block font-serif font-semibold leading-snug hover:text-accent">
-            {investigation.title}
-          </Link>
-          <div className="mt-5">
-            <StageOutline investigationId={investigation.id} stages={stages} currentId={stage.id} />
-          </div>
-          <Link href={`/investigations/${investigation.id}/review`} className="mt-5 block text-[0.8125rem] text-ink-2 hover:text-ink">
-            The design, defended →
-          </Link>
-        </div>
-      </aside>
-
-      <article className="min-w-0 max-w-[46rem]">
-        <nav aria-label="Breadcrumb" className="lg:hidden mb-4 text-sm text-ink-2">
-          <Link href={`/investigations/${investigation.id}`} className="hover:text-ink">
-            ← {investigation.title}
-          </Link>
-        </nav>
-        <details className="lg:hidden mb-6 rounded-md border border-rule">
-          <summary className="cursor-pointer select-none px-4 py-2.5 text-sm text-ink-2">All stages</summary>
-          <div className="border-t border-rule px-4 py-3">
-            <StageOutline investigationId={investigation.id} stages={stages} currentId={stage.id} />
+    <article>
+      <header className="section rise">
+        <details className="well-sm mb-6 lg:hidden">
+          <summary className="cursor-pointer select-none px-4 py-2.5 text-[0.8125rem] font-medium text-ink-2">
+            All stages of {investigation.title}
+          </summary>
+          <div className="px-2 pb-3">
+            <StageOutline investigationId={investigation.id} stages={stages} currentId={stage.id} dense />
           </div>
         </details>
-        <header className="space-y-4">
-          <p className="eyebrow">
-            Stage {number} of {String(investigation.stages.length).padStart(2, "0")} · {PHASE_LABELS[stage.phase]}
-          </p>
-          <h1 className="font-serif text-3xl sm:text-[2.25rem] leading-tight tracking-tight text-balance">{stage.title}</h1>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="chip">
+            Stage {index + 1} of {investigation.stages.length}
+          </span>
+          <span className="chip">{PHASE_LABELS[stage.phase]}</span>
+        </div>
+        <h1 className="mt-4 font-display text-[1.875rem] leading-[1.1] text-balance sm:text-[2.25rem]">{stage.title}</h1>
+        <div className="mt-4">
           <DimensionTags dimensions={stage.dimensions} />
-        </header>
+        </div>
+      </header>
 
-        <div className="mt-8 space-y-6">
-          {stage.event && <EventBanner event={stage.event} />}
+      <section aria-label="The situation" className="section space-y-5">
+        {stage.event && <EventBanner event={stage.event} />}
+        <div className="max-w-[66ch]">
           <Prose text={stage.context} />
-          {before.components.size > 0 && (
-            <details className="group rounded-md border border-rule">
-              <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden px-4 py-2.5 flex items-center justify-between text-sm">
-                <span>
-                  <span className="text-ink">System so far</span>
-                  <span className="text-ink-3"> · {before.components.size} components</span>
-                </span>
-                <span className="text-ink-3 group-open:rotate-180 transition-transform" aria-hidden="true">⌄</span>
-              </summary>
-              <div className="border-t border-rule px-4 py-4">
-                <SystemMap
-                  label={`${investigation.title}: system before stage ${index + 1}`}
-                  components={investigation.system.components}
-                  flows={investigation.system.flows}
-                  visibleComponents={[...before.components]}
-                  visibleFlows={[...before.flows]}
-                />
-              </div>
-            </details>
+        </div>
+        {before.components.size > 0 && (
+          <details className="group">
+            <summary className="flex w-fit cursor-pointer select-none list-none items-center gap-2 rounded-lg py-1 text-[0.8125rem] text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" className="transition-transform group-open:rotate-90">
+                <path d="M3.5 2l3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              <span className="font-medium">System so far</span>
+              <span className="font-mono text-[0.625rem] text-ink-3">{before.components.size} components</span>
+            </summary>
+            <div className="mt-3">
+              <SystemMap
+                label={`${investigation.title}: system before stage ${index + 1}`}
+                components={investigation.system.components}
+                flows={investigation.system.flows}
+                visibleComponents={[...before.components]}
+                visibleFlows={[...before.flows]}
+              />
+            </div>
+          </details>
+        )}
+      </section>
+
+      <section aria-label="Your answer" className="section">
+        <ExerciseWorkspace
+          key={stage.id}
+          spec={{
+            ref: { kind: "stage", investigationId: investigation.id, stageId: stage.id },
+            interaction: stage.interaction,
+            tags: { dimensions: stage.dimensions, conceptIds: stage.conceptIds, competencyIds: stage.competencyIds },
+          }}
+          slots={buildSlots(stage.interaction)}
+          reveal={reveal}
+          context="investigation"
+        />
+      </section>
+
+      <nav aria-label="Stage navigation" className="section grid grid-cols-2 gap-3">
+        <div>
+          {previous && (
+            <Link href={`/investigations/${investigation.id}/${previous.id}`} className="tile group block h-full px-4 py-3">
+              <span className="eyebrow">Previous</span>
+              <span className="mt-1 block text-[0.8125rem] font-medium text-ink-2 group-hover:text-ink">
+                {previous.title}
+              </span>
+            </Link>
           )}
         </div>
-
-        <div className="mt-10 border-t border-rule pt-8">
-          <ExerciseWorkspace
-            key={stage.id}
-            spec={{
-              ref: { kind: "stage", investigationId: investigation.id, stageId: stage.id },
-              interaction: stage.interaction,
-              tags: { dimensions: stage.dimensions, conceptIds: stage.conceptIds, competencyIds: stage.competencyIds },
-            }}
-            slots={buildSlots(stage.interaction)}
-            reveal={reveal}
-            context="investigation"
-          />
+        <div className="text-right">
+          {next ? (
+            <Link href={`/investigations/${investigation.id}/${next.id}`} className="tile group block h-full px-4 py-3">
+              <span className="eyebrow">Next</span>
+              <span className="mt-1 block text-[0.8125rem] font-medium text-ink-2 group-hover:text-ink">{next.title}</span>
+            </Link>
+          ) : (
+            <Link href={`/investigations/${investigation.id}/review`} className="tile group block h-full px-4 py-3">
+              <span className="eyebrow">Finish</span>
+              <span className="mt-1 block text-[0.8125rem] font-medium text-ink-2 group-hover:text-ink">
+                The design, defended
+              </span>
+            </Link>
+          )}
         </div>
-
-        <nav aria-label="Stage navigation" className="mt-14 grid grid-cols-2 gap-4 border-t border-rule pt-6">
-          <div>
-            {previous && (
-              <Link href={`/investigations/${investigation.id}/${previous.id}`} className="group block">
-                <span className="eyebrow">← Previous</span>
-                <span className="mt-1 block text-sm text-ink-2 group-hover:text-ink">{previous.title}</span>
-              </Link>
-            )}
-          </div>
-          <div className="text-right">
-            {next ? (
-              <Link href={`/investigations/${investigation.id}/${next.id}`} className="group block">
-                <span className="eyebrow">Next →</span>
-                <span className="mt-1 block text-sm text-ink-2 group-hover:text-ink">{next.title}</span>
-              </Link>
-            ) : (
-              <Link href={`/investigations/${investigation.id}/review`} className="group block">
-                <span className="eyebrow">Finish →</span>
-                <span className="mt-1 block text-sm text-ink-2 group-hover:text-ink">The design, defended</span>
-              </Link>
-            )}
-          </div>
-        </nav>
-      </article>
-    </div>
+      </nav>
+    </article>
   );
 }

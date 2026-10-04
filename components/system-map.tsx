@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ArchitectureFlow, ComponentKind, FlowKind, PlacedComponent } from "@/lib/domain/content";
 
 const CELL_W = 186;
@@ -76,7 +76,9 @@ type Geometry = {
 function separateBadges(geometry: Geometry[]): Geometry[] {
   const placed: Point[] = [];
   return geometry.map((g) => {
-    const spot = [0.5, 0.36, 0.64, 0.26, 0.74].map(g.at).find((p) => placed.every((q) => Math.hypot(p.x - q.x, p.y - q.y) > 20)) ?? g.mid;
+    const spot =
+      [0.5, 0.36, 0.64, 0.26, 0.74].map(g.at).find((p) => placed.every((q) => Math.hypot(p.x - q.x, p.y - q.y) > 20)) ??
+      g.mid;
     placed.push(spot);
     return { ...g, mid: spot };
   });
@@ -135,8 +137,14 @@ function flowGeometry(
 
     if (!blocked(ca, cb, obstacles)) {
       const t = exitDistance(d);
-      const from = { x: ca.x + d.x * t + perp.x * offset, y: ca.y + d.y * t + perp.y * offset };
-      const to = { x: cb.x - d.x * t + perp.x * offset - unit.x * 3, y: cb.y - d.y * t + perp.y * offset - unit.y * 3 };
+      const from = {
+        x: ca.x + d.x * t + perp.x * offset,
+        y: ca.y + d.y * t + perp.y * offset,
+      };
+      const to = {
+        x: cb.x - d.x * t + perp.x * offset - unit.x * 3,
+        y: cb.y - d.y * t + perp.y * offset - unit.y * 3,
+      };
       return [
         {
           flow,
@@ -144,7 +152,10 @@ function flowGeometry(
           mid: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
           number: i + 1,
           extent: { min: Math.min(from.y, to.y), max: Math.max(from.y, to.y) },
-          at: (t: number) => ({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }),
+          at: (t: number) => ({
+            x: from.x + (to.x - from.x) * t,
+            y: from.y + (to.y - from.y) * t,
+          }),
         },
       ];
     }
@@ -152,12 +163,18 @@ function flowGeometry(
     // Bend around whatever sits in the way, on whichever side is clear.
     const mid = { x: (ca.x + cb.x) / 2, y: (ca.y + cb.y) / 2 };
     const bends = [0.55, -0.55, 0.9, -0.9].map((k) => k * CELL_H + offset);
-    const bend = bends.find((b) => !curveBlocked(ca, { x: mid.x + perp.x * b, y: mid.y + perp.y * b }, cb, obstacles)) ?? bends[0] ?? 0;
+    const bend =
+      bends.find((b) => !curveBlocked(ca, { x: mid.x + perp.x * b, y: mid.y + perp.y * b }, cb, obstacles)) ??
+      bends[0] ??
+      0;
     const c = { x: mid.x + perp.x * bend, y: mid.y + perp.y * bend };
     const out = { x: c.x - ca.x, y: c.y - ca.y };
     const back = { x: c.x - cb.x, y: c.y - cb.y };
     const backLength = Math.hypot(back.x, back.y) || 1;
-    const from = { x: ca.x + out.x * exitDistance(out), y: ca.y + out.y * exitDistance(out) };
+    const from = {
+      x: ca.x + out.x * exitDistance(out),
+      y: ca.y + out.y * exitDistance(out),
+    };
     const to = {
       x: cb.x + back.x * exitDistance(back) + (back.x / backLength) * 3,
       y: cb.y + back.y * exitDistance(back) + (back.y / backLength) * 3,
@@ -166,10 +183,16 @@ function flowGeometry(
       {
         flow,
         path: `M ${from.x} ${from.y} Q ${c.x} ${c.y} ${to.x} ${to.y}`,
-        mid: { x: (from.x + 2 * c.x + to.x) / 4, y: (from.y + 2 * c.y + to.y) / 4 },
+        mid: {
+          x: (from.x + 2 * c.x + to.x) / 4,
+          y: (from.y + 2 * c.y + to.y) / 4,
+        },
         number: i + 1,
         // A quadratic curve stays inside the triangle of its control points.
-        extent: { min: Math.min(from.y, c.y, to.y), max: Math.max(from.y, c.y, to.y) },
+        extent: {
+          min: Math.min(from.y, c.y, to.y),
+          max: Math.max(from.y, c.y, to.y),
+        },
         at: (t: number) => ({
           x: (1 - t) ** 2 * from.x + 2 * (1 - t) * t * c.x + t ** 2 * to.x,
           y: (1 - t) ** 2 * from.y + 2 * (1 - t) * t * c.y + t ** 2 * to.y,
@@ -179,8 +202,8 @@ function flowGeometry(
   });
 }
 
-function ComponentShape({ kind, highlighted }: { kind: ComponentKind; highlighted: boolean }) {
-  const stroke = highlighted ? "var(--accent)" : "var(--rule-strong)";
+function ComponentShape({ kind, highlighted, failed }: { kind: ComponentKind; highlighted: boolean; failed: boolean }) {
+  const stroke = failed ? "var(--mark-gap)" : highlighted ? "var(--accent)" : "var(--rule-strong)";
   const x = -BOX_W / 2;
   const y = -BOX_H / 2;
   const common = {
@@ -188,9 +211,9 @@ function ComponentShape({ kind, highlighted }: { kind: ComponentKind; highlighte
     y,
     width: BOX_W,
     height: BOX_H,
-    fill: highlighted ? "var(--accent-soft)" : "var(--raised)",
+    fill: failed ? "var(--signal-gap-soft)" : highlighted ? "var(--accent-soft)" : "var(--raised)",
     stroke,
-    strokeWidth: highlighted ? 1.6 : 1.2,
+    strokeWidth: highlighted || failed ? 1.4 : 0.9,
   };
   switch (kind) {
     case "database":
@@ -198,26 +221,34 @@ function ComponentShape({ kind, highlighted }: { kind: ComponentKind; highlighte
     case "cache":
       return (
         <>
-          <rect {...common} rx={5} />
-          <line x1={x} x2={x + BOX_W} y1={y + 6} y2={y + 6} stroke={stroke} strokeWidth={1} />
+          <rect {...common} rx={8} />
+          <line x1={x} x2={x + BOX_W} y1={y + 9} y2={y + 9} stroke={stroke} strokeWidth={0.8} />
         </>
       );
     case "queue":
     case "stream":
       return (
         <>
-          <rect {...common} rx={5} />
+          <rect {...common} rx={8} />
           {[10, 16, 22].map((dx) => (
-            <line key={dx} x1={x + BOX_W - dx} x2={x + BOX_W - dx} y1={y + 8} y2={y + 18} stroke={stroke} strokeWidth={1} />
+            <line
+              key={dx}
+              x1={x + BOX_W - dx}
+              x2={x + BOX_W - dx}
+              y1={y + 8}
+              y2={y + 18}
+              stroke={stroke}
+              strokeWidth={1}
+            />
           ))}
         </>
       );
     case "external":
-      return <rect {...common} rx={5} strokeDasharray="4 3" />;
+      return <rect {...common} rx={8} strokeDasharray="4 3" />;
     case "client":
-      return <rect {...common} rx={12} />;
+      return <rect {...common} rx={16} />;
     default:
-      return <rect {...common} rx={5} />;
+      return <rect {...common} rx={8} />;
   }
 }
 
@@ -230,6 +261,10 @@ export type SystemMapProps = {
   /** Ids to emphasise, e.g. what the current stage just added. */
   highlightComponents?: string[];
   highlightFlows?: string[];
+  /** Ids drawn as down: a failure the reader is about to reason through. */
+  failedComponents?: string[];
+  /** Map only, without the flow key and legend. */
+  compact?: boolean;
   label: string;
 };
 
@@ -240,20 +275,28 @@ export function SystemMap({
   visibleFlows,
   highlightComponents = [],
   highlightFlows = [],
+  failedComponents = [],
+  compact = false,
   label,
 }: SystemMapProps) {
   const [selected, setSelected] = useState<string | null>(null);
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const ids = {
+    arrow: `arrow-${uid}`,
+    arrowAccent: `arrow-accent-${uid}`,
+    raise: `raise-${uid}`,
+  };
 
-  const shownComponents = visibleComponents
-    ? components.filter((c) => visibleComponents.includes(c.id))
-    : components;
+  const shownComponents = visibleComponents ? components.filter((c) => visibleComponents.includes(c.id)) : components;
   const shownFlows = (visibleFlows ? flows.filter((f) => visibleFlows.includes(f.id)) : flows).filter(
     (f) => shownComponents.some((c) => c.id === f.from) && shownComponents.some((c) => c.id === f.to),
   );
 
   // Bounds come from every component, so the map does not jump as parts appear.
-  const cols = components.map((c) => c.position.col);
-  const rows = components.map((c) => c.position.row);
+  // A compact map shows one moment, so it is cropped to what is on it.
+  const framed = compact && shownComponents.length > 0 ? shownComponents : components;
+  const cols = framed.map((c) => c.position.col);
+  const rows = framed.map((c) => c.position.row);
   const origin = { col: Math.min(...cols), row: Math.min(...rows) };
   const width = (Math.max(...cols) - origin.col + 1) * CELL_W + PAD * 2;
   const height = (Math.max(...rows) - origin.row + 1) * CELL_H + PAD * 2;
@@ -266,6 +309,7 @@ export function SystemMap({
   );
   const highlightC = new Set(highlightComponents);
   const highlightF = new Set(highlightFlows);
+  const failedC = new Set(failedComponents);
   const usedKinds = [...new Set(shownFlows.map((f) => f.kind))];
   const nameOf = (id: string) => byId.get(id)?.label ?? id;
   // Curves that bend around obstacles may leave the grid; grow the canvas to fit them.
@@ -274,7 +318,7 @@ export function SystemMap({
 
   return (
     <figure>
-      <div className="overflow-x-auto -mx-1 px-1">
+      <div className="screen overflow-x-auto p-3 sm:p-5">
         <svg
           viewBox={`0 ${top} ${width} ${bottom - top}`}
           className="w-full min-w-[540px] h-auto select-none"
@@ -282,12 +326,34 @@ export function SystemMap({
           aria-label={label}
         >
           <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <marker
+              id={ids.arrow}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="9"
+              markerHeight="9"
+              markerUnits="userSpaceOnUse"
+              orient="auto-start-reverse"
+            >
               <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--ink-3)" />
             </marker>
-            <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <marker
+              id={ids.arrowAccent}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="9"
+              markerHeight="9"
+              markerUnits="userSpaceOnUse"
+              orient="auto-start-reverse"
+            >
               <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--accent)" />
             </marker>
+            {/* Components sit just above the canvas, like cards on the page. */}
+            <filter id={ids.raise} x="-20%" y="-30%" width="140%" height="170%">
+              <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#000" floodOpacity="0.07" />
+            </filter>
           </defs>
           {geometry.map(({ flow, path }) => {
             const style = FLOW_STYLE[flow.kind];
@@ -302,7 +368,7 @@ export function SystemMap({
                 strokeOpacity={dimmed ? 0.25 : flow.kind === "data" && !active ? 0.55 : 1}
                 strokeWidth={style.width}
                 strokeDasharray={style.dash}
-                markerEnd={active ? "url(#arrow-accent)" : "url(#arrow)"}
+                markerEnd={active ? `url(#${ids.arrowAccent})` : `url(#${ids.arrow})`}
               />
             );
           })}
@@ -311,11 +377,16 @@ export function SystemMap({
             const dimmed = selected !== null && !selectedFlowIds.has(flow.id);
             return (
               <g key={flow.id} transform={`translate(${mid.x} ${mid.y})`} opacity={dimmed ? 0.3 : 1}>
-                <circle r={8.5} fill="var(--paper)" stroke={active ? "var(--accent)" : "var(--rule-strong)"} />
+                <circle
+                  r={8.5}
+                  fill={active ? "var(--accent-soft)" : "var(--raised)"}
+                  stroke={active ? "var(--accent)" : "var(--rule-strong)"}
+                  strokeWidth={0.8}
+                />
                 <text
                   textAnchor="middle"
                   dominantBaseline="central"
-                  fontSize={9.5}
+                  fontSize={8.5}
                   fontFamily="var(--font-mono)"
                   fill={active ? "var(--accent)" : "var(--ink-2)"}
                 >
@@ -327,10 +398,12 @@ export function SystemMap({
           {shownComponents.map((c) => {
             const p = center(c, origin);
             const isSelected = selected === c.id;
+            const failed = failedC.has(c.id);
             const highlighted = isSelected || (!selected && highlightC.has(c.id));
-            const dimmed = selected !== null && !isSelected && !shownFlows.some(
-              (f) => selectedFlowIds.has(f.id) && (f.from === c.id || f.to === c.id),
-            );
+            const dimmed =
+              selected !== null &&
+              !isSelected &&
+              !shownFlows.some((f) => selectedFlowIds.has(f.id) && (f.from === c.id || f.to === c.id));
             const lines = splitLabel(c.label);
             return (
               <g
@@ -339,7 +412,7 @@ export function SystemMap({
                 role="button"
                 tabIndex={0}
                 aria-pressed={isSelected}
-                aria-label={`${c.label}, ${KIND_LABEL[c.kind]}`}
+                aria-label={`${c.label}, ${KIND_LABEL[c.kind]}${failed ? ", down" : ""}`}
                 className="cursor-pointer outline-none focus-visible:[&>rect]:stroke-[var(--accent)]"
                 opacity={dimmed ? 0.4 : 1}
                 onClick={() => setSelected(isSelected ? null : c.id)}
@@ -350,24 +423,29 @@ export function SystemMap({
                   }
                 }}
               >
-                <ComponentShape kind={c.kind} highlighted={highlighted} />
+                <g filter={`url(#${ids.raise})`}>
+                  <ComponentShape kind={c.kind} highlighted={highlighted} failed={failed} />
+                </g>
+                {failed && (
+                  <circle cx={BOX_W / 2 - 10} cy={-BOX_H / 2 + 10} r={3.5} fill="var(--mark-gap)" className="led-pulse" />
+                )}
                 <text
-                  y={lines.length === 1 ? -6 : -12}
+                  y={lines.length === 1 ? -7 : -14}
                   textAnchor="middle"
-                  fontSize={8.5}
-                  letterSpacing={0.6}
+                  fontSize={compact ? 9 : 8}
                   fontFamily="var(--font-mono)"
-                  fill="var(--ink-3)"
+                  letterSpacing={0.5}
+                  fill={failed ? "var(--signal-gap)" : "var(--ink-3)"}
                 >
-                  {KIND_LABEL[c.kind].toUpperCase()}
+                  {(failed ? `${KIND_LABEL[c.kind]} · down` : KIND_LABEL[c.kind]).toUpperCase()}
                 </text>
                 {lines.map((line, i) => (
                   <text
                     key={i}
-                    y={(lines.length === 1 ? 10 : 4) + i * 14}
+                    y={(lines.length === 1 ? 10 : 4) + i * (compact ? 15 : 14)}
                     textAnchor="middle"
-                    fontSize={12.5}
-                    fontWeight={600}
+                    fontSize={compact ? 14 : 12.5}
+                    fontWeight={500}
                     fill="var(--ink)"
                   >
                     {line}
@@ -378,12 +456,16 @@ export function SystemMap({
           })}
         </svg>
       </div>
-      <figcaption className="mt-3 space-y-3">
+      <figcaption className={compact && !selectedComponent ? "sr-only" : "mt-3 space-y-3"}>
         {selectedComponent ? (
-          <div className="rounded-md border border-rule bg-raised p-3.5 text-sm">
+          <div className="panel p-4 text-[0.8125rem]">
             <div className="flex items-baseline justify-between gap-3">
               <p className="font-medium">{selectedComponent.label}</p>
-              <button type="button" className="text-ink-3 hover:text-ink text-xs" onClick={() => setSelected(null)}>
+              <button
+                type="button"
+                className="text-ink-3 hover:text-ink text-xs font-medium"
+                onClick={() => setSelected(null)}
+              >
                 Clear
               </button>
             </div>
@@ -395,16 +477,18 @@ export function SystemMap({
               </p>
             )}
           </div>
-        ) : (
-          <p className="text-xs text-ink-3">Select a component to see what it is responsible for and which state it owns.</p>
+        ) : compact ? null : (
+          <p className="text-xs text-ink-3">
+            Select a component to see what it is responsible for and which state it owns.
+          </p>
         )}
-        {geometry.length > 0 && (
+        {!compact && geometry.length > 0 && (
           <ol className="grid gap-x-6 gap-y-1 sm:grid-cols-2 text-[0.8125rem]">
             {geometry.map(({ flow, number }) => {
               const dimmed = selected !== null && !selectedFlowIds.has(flow.id);
               return (
                 <li key={flow.id} className={`flex gap-2 ${dimmed ? "opacity-40" : ""}`}>
-                  <span className="font-mono text-ink-3 w-4 text-right shrink-0">{number}</span>
+                  <span className="w-4 shrink-0 text-right font-mono text-[0.6875rem] tabular-nums text-ink-3">{number}</span>
                   <span className="text-ink-2">
                     <span className="text-ink">
                       {nameOf(flow.from)} → {nameOf(flow.to)}
@@ -416,7 +500,7 @@ export function SystemMap({
             })}
           </ol>
         )}
-        {usedKinds.length > 1 && (
+        {!compact && usedKinds.length > 1 && (
           <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-3" aria-label="Line styles">
             {usedKinds.map((kind) => (
               <li key={kind} className="flex items-center gap-2">

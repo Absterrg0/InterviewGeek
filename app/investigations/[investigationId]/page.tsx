@@ -3,9 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContinueLink, StageOutline, type StageLink } from "@/components/investigation/progress";
 import { Prose } from "@/components/prose";
-import { SectionHeading } from "@/components/ui";
+import { DIFFICULTY } from "@/components/investigation/investigation-tile";
+import { SystemThumb } from "@/components/system-thumb";
+import { PageHeader, Section } from "@/components/page-header";
 import { getConcept, getInvestigation, listInvestigations } from "@/lib/content";
 import { DIMENSION_LABELS, DIMENSIONS } from "@/lib/domain/content";
+import { visibleAfter } from "@/lib/domain/visibility";
 
 export function generateStaticParams() {
   return listInvestigations().map((inv) => ({ investigationId: inv.id }));
@@ -19,7 +22,18 @@ export async function generateMetadata(props: PageProps<"/investigations/[invest
   return inv ? { title: inv.title, description: inv.premise } : {};
 }
 
-const DIFFICULTY = { foundational: "Foundational", intermediate: "Intermediate", advanced: "Advanced" } as const;
+function Bulleted({ items, muted = false }: { items: readonly string[]; muted?: boolean }) {
+  return (
+    <ul className={`space-y-2 text-[0.875rem] leading-relaxed ${muted ? "text-ink-2" : ""}`}>
+      {items.map((r) => (
+        <li key={r} className="flex gap-2.5">
+          <span className="mt-[0.6rem] h-px w-2 shrink-0 bg-ink-3" aria-hidden="true" />
+          <span>{r}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default async function InvestigationPage(props: PageProps<"/investigations/[investigationId]">) {
   const { investigationId } = await props.params;
@@ -38,157 +52,156 @@ export default async function InvestigationPage(props: PageProps<"/investigation
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-5 sm:px-8 pt-10 lg:pt-14">
-      <nav aria-label="Breadcrumb" className="mb-6 text-sm text-ink-2">
-        <Link href="/investigations" className="hover:text-ink">
-          Investigations
-        </Link>
-      </nav>
+    <div>
+      <PageHeader
+        title={inv.title}
+        meta={
+          <>
+            <span className="chip">{DIFFICULTY[inv.difficulty]}</span>
+            <span className="chip">About {inv.estimatedMinutes} min</span>
+            <span className="chip">{inv.stages.length} stages</span>
+          </>
+        }
+        actions={
+          <>
+            <ContinueLink investigationId={inv.id} stages={stages} />
+            <Link href={`/investigations/${inv.id}/review`} className="btn btn-ghost">
+              Skip to the finished design
+            </Link>
+          </>
+        }
+        aside={
+          <figure className="w-full md:w-64">
+            <div className="screen flex items-center justify-center px-6 py-6">
+              <SystemThumb components={inv.system.components} flows={inv.system.flows} given={visibleAfter(inv, 0).components} />
+            </div>
+            <figcaption className="mt-2 text-[0.6875rem] leading-relaxed text-ink-3">
+              The finished design. Solid parts are given; outlined parts are yours to work out.
+            </figcaption>
+          </figure>
+        }
+      >
+        {inv.premise}
+      </PageHeader>
 
-      <header className="max-w-3xl">
-        <p className="eyebrow">
-          Investigation · {DIFFICULTY[inv.difficulty]} · about {inv.estimatedMinutes} min · {inv.stages.length} stages
-        </p>
-        <h1 className="mt-3 font-serif text-4xl sm:text-5xl leading-[1.08] tracking-tight text-balance">{inv.title}</h1>
-        <p className="mt-5 text-lg leading-relaxed text-ink-2 text-pretty">{inv.premise}</p>
-        <div className="mt-7 flex flex-wrap items-center gap-3">
-          <ContinueLink investigationId={inv.id} stages={stages} />
-          <Link href={`/investigations/${inv.id}/review`} className="btn btn-ghost">
-            Skip to the finished design
-          </Link>
+      <Section id="scenario" n={1} title="Scenario">
+        <div className="max-w-[66ch]">
+          <Prose text={inv.scenario} />
         </div>
-      </header>
+      </Section>
 
-      <div className="mt-14 grid gap-14 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="min-w-0 space-y-12 max-w-[46rem]">
-          <section aria-labelledby="scenario">
-            <SectionHeading id="scenario">Scenario</SectionHeading>
-            <Prose text={inv.scenario} />
-          </section>
-
-          <section aria-labelledby="requirements" className="grid gap-10 sm:grid-cols-2">
-            <div>
-              <SectionHeading id="requirements">Must do</SectionHeading>
-              <ul className="space-y-2.5 text-[0.9375rem] leading-relaxed">
-                {inv.requirements.functional.map((r) => (
-                  <li key={r} className="pl-4 relative before:absolute before:left-0 before:top-[0.7em] before:h-px before:w-2 before:bg-ink-3">
-                    {r}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h2 className="eyebrow mb-3">Must guarantee</h2>
-              <ul className="space-y-2.5 text-[0.9375rem] leading-relaxed">
-                {inv.requirements.nonFunctional.map((r) => (
-                  <li key={r} className="pl-4 relative before:absolute before:left-0 before:top-[0.7em] before:h-px before:w-2 before:bg-ink-3">
-                    {r}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <section aria-labelledby="constraints" className="grid gap-10 sm:grid-cols-2">
-            <div>
-              <SectionHeading id="constraints">Constraints</SectionHeading>
-              <ul className="space-y-2.5 text-[0.9375rem] leading-relaxed text-ink-2">
-                {inv.constraints.map((c) => (
-                  <li key={c} className="pl-4 relative before:absolute before:left-0 before:top-[0.7em] before:h-px before:w-2 before:bg-ink-3">
-                    {c}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h2 className="eyebrow mb-3">Assumptions</h2>
-              <ul className="space-y-2.5 text-[0.9375rem] leading-relaxed text-ink-2">
-                {inv.assumptions.map((a) => (
-                  <li key={a} className="pl-4 relative before:absolute before:left-0 before:top-[0.7em] before:h-px before:w-2 before:bg-ink-3">
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <section aria-labelledby="objectives">
-            <SectionHeading id="objectives">You will be able to</SectionHeading>
-            <ol className="space-y-2.5 text-[0.9375rem] leading-relaxed">
-              {inv.objectives.map((o, i) => (
-                <li key={o} className="flex gap-3">
-                  <span className="font-mono text-xs text-ink-3 pt-1">{String(i + 1).padStart(2, "0")}</span>
-                  <span>{o}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section aria-labelledby="evidence">
-            <SectionHeading id="evidence">What your answers will show</SectionHeading>
-            <p className="text-[0.9375rem] leading-relaxed text-ink-2 mb-4">
-              Each stage records evidence against these competencies, so you can see where your understanding of this
-              system is solid and where it is not.
-            </p>
-            <dl className="divide-y divide-rule border-y border-rule">
-              {inv.competencies.map((c) => (
-                <div key={c.id} className="py-3 sm:flex sm:gap-6">
-                  <dt className="font-medium sm:w-56 shrink-0">{c.label}</dt>
-                  <dd className="text-sm text-ink-2 leading-relaxed">{c.description}</dd>
-                </div>
-              ))}
-            </dl>
-            <p className="mt-4 text-sm text-ink-3">
-              Dimensions exercised: {exercised.map((d) => DIMENSION_LABELS[d].label).join(", ")}.
-            </p>
-          </section>
-
-          <section aria-labelledby="variants">
-            <SectionHeading id="variants">Interview questions this prepares you for</SectionHeading>
-            <ul className="space-y-2 text-[0.9375rem] leading-relaxed">
-              {inv.interviewVariants.map((v) => (
-                <li key={v} className="font-serif text-[1.0625rem] text-ink-2">“{v}”</li>
-              ))}
-            </ul>
-          </section>
+      <Section id="requirements" n={2} title="Requirements" description="What it must do, and what it must guarantee.">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="panel p-5">
+            <p className="eyebrow mb-3">Must do</p>
+            <Bulleted items={inv.requirements.functional} />
+          </div>
+          <div className="panel p-5">
+            <p className="eyebrow mb-3">Must guarantee</p>
+            <Bulleted items={inv.requirements.nonFunctional} />
+          </div>
         </div>
+      </Section>
 
-        <aside className="space-y-10 lg:border-l lg:border-rule lg:pl-8">
-          <section aria-labelledby="stages">
-            <SectionHeading id="stages">Stages</SectionHeading>
-            <StageOutline investigationId={inv.id} stages={stages} />
-          </section>
-          {prerequisites.length > 0 && (
-            <section aria-labelledby="prereq">
-              <SectionHeading id="prereq">Helpful to know first</SectionHeading>
-              <ul className="space-y-2.5">
-                {prerequisites.map((c) => (
-                  <li key={c.id}>
-                    <Link href={`/concepts/${c.id}`} className="text-sm font-medium hover:text-accent">
-                      {c.title}
-                    </Link>
-                    <p className="text-[0.8125rem] text-ink-2 leading-snug mt-0.5">{c.summary}</p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {related.length > 0 && (
-            <section aria-labelledby="related">
-              <SectionHeading id="related">Related systems</SectionHeading>
-              <ul className="space-y-2">
-                {related.map((r) => (
-                  <li key={r.id}>
-                    <Link href={`/investigations/${r.id}`} className="text-sm font-medium hover:text-accent">
-                      {r.title}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </aside>
-      </div>
+      <Section id="constraints" n={3} title="Constraints and assumptions">
+        <div className="grid gap-8 sm:grid-cols-2">
+          <div>
+            <p className="eyebrow mb-3">Constraints</p>
+            <Bulleted items={inv.constraints} muted />
+          </div>
+          <div>
+            <p className="eyebrow mb-3">Assumptions</p>
+            <Bulleted items={inv.assumptions} muted />
+          </div>
+        </div>
+      </Section>
+
+      <Section id="stages" n={4} title="Stages" description={`${inv.stages.length} stages, grouped by what you do in them.`}>
+        <div className="max-w-xl">
+          <StageOutline investigationId={inv.id} stages={stages} />
+        </div>
+      </Section>
+
+      <Section id="objectives" n={5} title="You will be able to">
+        <ul className="space-y-px">
+          {inv.objectives.map((o) => (
+            <li key={o} className="flex items-baseline gap-2.5 py-1 text-[0.875rem]">
+              <span className="led led-accent size-1.5 translate-y-[-1px]" aria-hidden="true" />
+              <span>{o}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      <Section
+        id="evidence"
+        n={6}
+        title="What your answers will show"
+        description="Each stage records evidence against these competencies."
+      >
+        <dl className="panel divide-y divide-dashed divide-rule px-5">
+          {inv.competencies.map((c) => (
+            <div key={c.id} className="py-3 sm:flex sm:gap-6">
+              <dt className="shrink-0 text-[0.875rem] font-medium sm:w-56">{c.label}</dt>
+              <dd className="mt-1 text-[0.8125rem] leading-relaxed text-ink-2 sm:mt-0">{c.description}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-4 flex flex-wrap items-center gap-1.5">
+          <span className="eyebrow mr-1.5">Dimensions</span>
+          {exercised.map((d) => (
+            <span key={d} className="chip-flat" title={DIMENSION_LABELS[d].description}>
+              {DIMENSION_LABELS[d].label}
+            </span>
+          ))}
+        </div>
+      </Section>
+
+      <Section id="variants" n={7} title="Interview questions this prepares you for">
+        <ul className="space-y-2">
+          {inv.interviewVariants.map((v) => (
+            <li key={v} className="well-sm px-4 py-3 text-[0.875rem] text-ink-2">
+              “{v}”
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      {(prerequisites.length > 0 || related.length > 0) && (
+        <Section id="before" n={8} title="Around this investigation">
+          <div className="grid gap-8 sm:grid-cols-2">
+            {prerequisites.length > 0 && (
+              <div>
+                <p className="eyebrow mb-3">Helpful to know first</p>
+                <ul className="space-y-3">
+                  {prerequisites.map((c) => (
+                    <li key={c.id}>
+                      <Link href={`/concepts/${c.id}`} className="text-[0.875rem] font-medium hover:text-accent">
+                        {c.title}
+                      </Link>
+                      <p className="mt-0.5 text-[0.8125rem] leading-snug text-ink-2">{c.summary}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {related.length > 0 && (
+              <div>
+                <p className="eyebrow mb-3">Related systems</p>
+                <ul className="space-y-2">
+                  {related.map((r) => (
+                    <li key={r.id}>
+                      <Link href={`/investigations/${r.id}`} className="text-[0.875rem] font-medium hover:text-accent">
+                        {r.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
     </div>
   );
 }

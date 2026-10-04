@@ -9,14 +9,14 @@ export function ConceptStanding({ conceptId, showEmpty = false }: { conceptId: s
   const state = useLearnerState();
   if (!state) return null;
   const summary = byConcept(latestEvidence(state.attempts)).get(conceptId);
-  if (!summary) return showEmpty ? <span className="text-xs text-ink-3">No evidence yet</span> : null;
+  if (!summary) return showEmpty ? <span className="chip-flat">No evidence yet</span> : null;
   const signal = STANDING_SIGNAL[summary.standing];
   if (!signal) return null;
   return (
     <span title={`${summary.counts.strong} strong, ${summary.counts.partial} partial, ${summary.counts.gap} gap`}>
       <SignalBadge signal={signal}>
         {STANDING_LABEL[summary.standing]}
-        {summary.thin ? " · thin" : ""}
+        {summary.thin ? " (thin)" : ""}
       </SignalBadge>
     </span>
   );

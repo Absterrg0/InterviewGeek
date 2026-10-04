@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CompetencyBreakdown } from "@/components/investigation/competencies";
 import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
-import { SectionHeading } from "@/components/ui";
+import { PageHeader, Section } from "@/components/page-header";
 import { getInvestigation, listInvestigations } from "@/lib/content";
 
 export function generateStaticParams() {
@@ -13,7 +13,9 @@ export function generateStaticParams() {
 
 export const dynamicParams = false;
 
-export async function generateMetadata(props: PageProps<"/investigations/[investigationId]/review">): Promise<Metadata> {
+export async function generateMetadata(
+  props: PageProps<"/investigations/[investigationId]/review">,
+): Promise<Metadata> {
   const { investigationId } = await props.params;
   const inv = getInvestigation(investigationId);
   return inv ? { title: `The design, defended · ${inv.title}` } : {};
@@ -28,134 +30,143 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
   const lastStage = inv.stages[inv.stages.length - 1];
 
   return (
-    <div className="mx-auto max-w-6xl px-5 sm:px-8 pt-10 lg:pt-14">
-      <nav aria-label="Breadcrumb" className="mb-6 text-sm text-ink-2 flex gap-2">
-        <Link href="/investigations" className="hover:text-ink">Investigations</Link>
-        <span aria-hidden="true">/</span>
-        <Link href={`/investigations/${inv.id}`} className="hover:text-ink">{inv.title}</Link>
-      </nav>
-      <header className="max-w-3xl">
-        <p className="eyebrow">The design, defended</p>
-        <h1 className="mt-3 font-serif text-4xl sm:text-[2.75rem] leading-[1.1] tracking-tight text-balance">{inv.title}</h1>
-        <p className="mt-5 text-lg leading-relaxed text-ink-2 text-pretty">
-          Not one correct diagram, but one defensible design under these constraints: why it works, what it assumes,
-          what it costs, and where it stops working.
-        </p>
-      </header>
+    <div>
+      <PageHeader
+        title={inv.title}
+        meta={
+          <span className="chip">
+            <span className="led led-strong size-1.5" aria-hidden="true" />
+            The design, defended
+          </span>
+        }
+      >
+        Not one correct diagram, but one defensible design under these constraints: why it works, what it assumes, what
+        it costs, and where it stops working.
+      </PageHeader>
 
-      <section aria-label="Final architecture" className="mt-12">
+      <section aria-label="Final architecture" className="section">
         <SystemMap label={`${inv.title}: final architecture`} components={system.components} flows={system.flows} />
       </section>
 
-      <div className="mt-16 max-w-[46rem] space-y-14">
-        <section aria-labelledby="why">
-          <SectionHeading id="why">Why it works</SectionHeading>
+      <Section id="why" n={1} title="Why it works">
+        <div className="max-w-[66ch]">
           <Prose text={synthesis.whyItWorks} />
-        </section>
+        </div>
+      </Section>
 
-        <section aria-labelledby="invariants">
-          <SectionHeading id="invariants">Invariants, and where they are enforced</SectionHeading>
-          <ul className="space-y-6">
-            {system.invariants.map((inv2) => (
-              <li key={inv2.id} className="border-l-2 border-ink pl-4">
-                <p className="font-medium leading-snug">{inv2.statement}</p>
-                <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-ink-2">{inv2.mechanism}</p>
-                <p className="mt-1.5 text-xs text-ink-3">
-                  Enforced by {inv2.enforcedBy.map((id) => componentName.get(id) ?? id).join(", ")}
+      <Section id="invariants" n={2} title="Invariants, and where they are enforced">
+        <ul className="panel divide-y divide-dashed divide-rule">
+          {system.invariants.map((inv2) => (
+            <li key={inv2.id} className="flex gap-3 px-4 py-4">
+              <span className="led led-strong mt-1.5" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="text-[0.875rem] font-medium leading-snug">{inv2.statement}</p>
+                <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink-2">{inv2.mechanism}</p>
+                <p className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  <span className="eyebrow mr-1">Enforced by</span>
+                  {inv2.enforcedBy.map((id) => (
+                    <span key={id} className="chip-flat">
+                      {componentName.get(id) ?? id}
+                    </span>
+                  ))}
                 </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section aria-labelledby="relies">
-          <SectionHeading id="relies">What it relies on</SectionHeading>
-          <ul className="space-y-2.5 text-[0.9375rem] leading-relaxed">
-            {synthesis.reliesOn.map((r) => (
-              <li key={r} className="pl-4 relative before:absolute before:left-0 before:top-[0.7em] before:h-px before:w-2 before:bg-ink-3">{r}</li>
-            ))}
-          </ul>
-        </section>
-
-        <section aria-labelledby="tradeoffs">
-          <SectionHeading id="tradeoffs">Tradeoffs it makes</SectionHeading>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-[560px]">
-              <thead>
-                <tr className="text-left text-ink-3">
-                  <th scope="col" className="font-normal py-2 pr-4 border-b border-rule w-[30%]">Choice</th>
-                  <th scope="col" className="font-normal py-2 pr-4 border-b border-rule">Gains</th>
-                  <th scope="col" className="font-normal py-2 border-b border-rule">Costs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {synthesis.tradeoffs.map((t) => (
-                  <tr key={t.choice} className="align-top">
-                    <th scope="row" className="text-left font-medium py-3 pr-4 border-b border-rule">{t.choice}</th>
-                    <td className="py-3 pr-4 border-b border-rule text-ink-2">{t.gains}</td>
-                    <td className="py-3 border-b border-rule text-ink-2">{t.costs}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section aria-labelledby="alternatives">
-          <SectionHeading id="alternatives">Reasonable alternatives</SectionHeading>
-          <dl className="space-y-5">
-            {synthesis.alternatives.map((a) => (
-              <div key={a.design}>
-                <dt className="font-medium">{a.design}</dt>
-                <dd className="mt-1 text-[0.9375rem] leading-relaxed text-ink-2">
-                  <span className="text-ink-3">Prefer when: </span>
-                  {a.preferWhen}
-                </dd>
               </div>
-            ))}
-          </dl>
-        </section>
+            </li>
+          ))}
+        </ul>
+      </Section>
 
-        <section aria-labelledby="breaks">
-          <SectionHeading id="breaks">Where it stops working</SectionHeading>
-          <ul className="space-y-2.5 text-[0.9375rem] leading-relaxed">
-            {synthesis.breaksWhen.map((b) => (
-              <li key={b} className="pl-4 relative before:absolute before:left-0 before:top-[0.7em] before:h-px before:w-2 before:bg-signal-gap">{b}</li>
-            ))}
-          </ul>
-        </section>
+      <Section id="relies" n={3} title="What it relies on">
+        <ul className="space-y-2 text-[0.875rem] leading-relaxed">
+          {synthesis.reliesOn.map((r) => (
+            <li key={r} className="flex gap-2.5">
+              <span className="mt-[0.6rem] h-px w-2 shrink-0 bg-ink-3" aria-hidden="true" />
+              <span>{r}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
 
-        <section aria-labelledby="evidence">
-          <SectionHeading id="evidence">Your evidence in this investigation</SectionHeading>
-          <CompetencyBreakdown
-            investigationId={inv.id}
-            competencies={inv.competencies}
-            stageCount={inv.stages.length}
-            firstStageId={inv.stages[0]?.id ?? ""}
-          />
-        </section>
+      <Section id="tradeoffs" n={4} title="Tradeoffs it makes">
+        <div className="panel overflow-x-auto px-5 py-1">
+          <table className="data-table min-w-[560px]">
+            <thead>
+              <tr>
+                <th scope="col" className="w-[30%]">
+                  Choice
+                </th>
+                <th scope="col">Gains</th>
+                <th scope="col">Costs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {synthesis.tradeoffs.map((t) => (
+                <tr key={t.choice}>
+                  <th scope="row">{t.choice}</th>
+                  <td>{t.gains}</td>
+                  <td>{t.costs}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
 
-        <section aria-labelledby="variants">
-          <SectionHeading id="variants">Now try it as an interview question</SectionHeading>
-          <ul className="space-y-2">
-            {inv.interviewVariants.map((v) => (
-              <li key={v} className="font-serif text-[1.0625rem] text-ink-2">“{v}”</li>
-            ))}
-          </ul>
-          <p className="mt-5 text-sm text-ink-2">
-            The <Link href="/interview" className="link">interview mode</Link> mixes stages from this and other
-            investigations with concept recall and questions about your own projects.
-          </p>
-        </section>
+      <Section id="alternatives" n={5} title="Reasonable alternatives">
+        <dl className="grid gap-2 sm:grid-cols-2">
+          {synthesis.alternatives.map((a) => (
+            <div key={a.design} className="panel p-4">
+              <dt className="text-[0.875rem] font-medium">{a.design}</dt>
+              <dd className="mt-1 text-[0.8125rem] leading-relaxed text-ink-2">
+                <span className="text-ink-3">Prefer when: </span>
+                {a.preferWhen}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </Section>
 
+      <Section id="breaks" n={6} title="Where it stops working">
+        <ul className="space-y-2 text-[0.875rem] leading-relaxed">
+          {synthesis.breaksWhen.map((b) => (
+            <li key={b} className="flex gap-2.5">
+              <span className="led led-gap mt-[0.45rem] size-1.5" aria-hidden="true" />
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      <Section id="evidence" n={7} title="Your evidence in this investigation">
+        <CompetencyBreakdown
+          investigationId={inv.id}
+          competencies={inv.competencies}
+          stageCount={inv.stages.length}
+          firstStageId={inv.stages[0]?.id ?? ""}
+        />
+      </Section>
+
+      <Section id="variants" n={8} title="Now try it as an interview question">
+        <ul className="space-y-2">
+          {inv.interviewVariants.map((v) => (
+            <li key={v} className="well-sm px-4 py-3 text-[0.875rem] text-ink-2">
+              “{v}”
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-[0.8125rem] text-ink-2">
+          The{" "}
+          <Link href="/interview" className="link">
+            interview mode
+          </Link>{" "}
+          mixes stages from this and other investigations with concept recall and questions about your own projects.
+        </p>
         {lastStage && (
-          <p className="text-sm text-ink-3">
-            <Link href={`/investigations/${inv.id}/${lastStage.id}`} className="hover:text-ink">
-              ← Back to the last stage
-            </Link>
-          </p>
+          <Link href={`/investigations/${inv.id}/${lastStage.id}`} className="btn btn-secondary mt-5">
+            Back to the last stage
+          </Link>
         )}
-      </div>
+      </Section>
     </div>
   );
 }

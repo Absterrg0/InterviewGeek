@@ -10,18 +10,30 @@ import { useDraft } from "../use-draft";
 
 type Diagnosis = InteractionOf<"diagnosis">;
 
-const draftSchema = z.object({ selected: z.array(z.number().int().nonnegative()), rationale: z.string() });
+const draftSchema = z.object({
+  selected: z.array(z.number().int().nonnegative()),
+  rationale: z.string(),
+});
 
-const ARTIFACT_NAME = { code: "Code", timeline: "Timeline", log: "Log" } as const;
+const ARTIFACT_NAME = {
+  code: "Code",
+  timeline: "Timeline",
+  log: "Log",
+} as const;
 
 export function DiagnosisInput({ interaction, draftKey, onSubmit }: InputProps<Diagnosis, ResponseOf<"diagnosis">>) {
-  const [draft, setDraft, discard] = useDraft(draftKey, draftSchema, () => ({ selected: [], rationale: "" }));
+  const [draft, setDraft, discard] = useDraft(draftKey, draftSchema, () => ({
+    selected: [],
+    rationale: "",
+  }));
   const lineCount = interaction.artifact.lines.length;
   const selected = draft.selected.filter((i) => i < lineCount);
   const ready = selected.length > 0 && draft.rationale.trim().length >= MIN_RATIONALE;
 
   const toggle = (index: number) => {
-    const next = selected.includes(index) ? selected.filter((i) => i !== index) : [...selected, index].sort((a, b) => a - b);
+    const next = selected.includes(index)
+      ? selected.filter((i) => i !== index)
+      : [...selected, index].sort((a, b) => a - b);
     setDraft({ ...draft, selected: next });
   };
 
@@ -32,12 +44,18 @@ export function DiagnosisInput({ interaction, draftKey, onSubmit }: InputProps<D
         e.preventDefault();
         if (!ready) return;
         discard();
-        onSubmit({ kind: "diagnosis", selected, rationale: draft.rationale.trim() });
+        onSubmit({
+          kind: "diagnosis",
+          selected,
+          rationale: draft.rationale.trim(),
+        });
       }}
     >
       <div>
-        <p className="font-medium text-[1.0625rem] leading-snug">{interaction.prompt}</p>
-        <p className="mt-1 text-sm text-ink-2">Select every line that points to a flaw. Select a line again to clear it.</p>
+        <p className="font-display text-[1.125rem] leading-snug">{interaction.prompt}</p>
+        <p className="mt-1.5 text-sm text-ink-2">
+          Select every line that points to a flaw. Select a line again to clear it.
+        </p>
       </div>
       <Artifact interaction={interaction}>
         {(line, index) => {
@@ -47,7 +65,7 @@ export function DiagnosisInput({ interaction, draftKey, onSubmit }: InputProps<D
               type="button"
               aria-pressed={on}
               onClick={() => toggle(index)}
-              className={`group flex w-full text-left gap-3 px-3 py-1 transition-colors ${
+              className={`group flex w-full text-left gap-3 px-4 py-1 transition-colors ${
                 on ? "bg-signal-gap-soft" : "hover:bg-raised"
               }`}
             >
@@ -72,11 +90,17 @@ export function DiagnosisInput({ interaction, draftKey, onSubmit }: InputProps<D
   );
 }
 
-export function DiagnosisFeedback({ interaction, response }: { interaction: Diagnosis; response: ResponseOf<"diagnosis"> }) {
+export function DiagnosisFeedback({
+  interaction,
+  response,
+}: {
+  interaction: Diagnosis;
+  response: ResponseOf<"diagnosis">;
+}) {
   const selected = new Set(response.selected);
   return (
     <div className="space-y-4">
-      <p className="font-medium text-[1.0625rem] leading-snug">{interaction.prompt}</p>
+      <p className="font-display text-[1.125rem] leading-snug">{interaction.prompt}</p>
       <Artifact interaction={interaction}>
         {(line, index) => {
           const mine = selected.has(index);
@@ -84,7 +108,7 @@ export function DiagnosisFeedback({ interaction, response }: { interaction: Diag
           const status = fault ? (mine ? "found" : "missed") : mine ? "not-a-fault" : null;
           return (
             <div
-              className={`px-3 py-1 ${
+              className={`px-4 py-1 ${
                 status === "found"
                   ? "bg-signal-strong-soft"
                   : status === "missed"
@@ -108,7 +132,9 @@ export function DiagnosisFeedback({ interaction, response }: { interaction: Diag
                 )}
               </div>
               {fault && (
-                <p className="font-sans text-sm leading-relaxed text-ink-2 pl-8 pt-1 pb-1.5"><InlineText text={fault} /></p>
+                <p className="font-sans text-sm leading-relaxed text-ink-2 pl-8 pt-1 pb-1.5">
+                  <InlineText text={fault} />
+                </p>
               )}
             </div>
           );
@@ -120,7 +146,7 @@ export function DiagnosisFeedback({ interaction, response }: { interaction: Diag
 
 function LineNumber({ index, marked }: { index: number; marked: boolean }) {
   return (
-    <span className={`w-5 shrink-0 text-right select-none ${marked ? "text-signal-gap font-semibold" : "text-ink-3"}`}>
+    <span className={`w-5 shrink-0 text-right select-none ${marked ? "text-signal-gap font-medium" : "text-ink-3"}`}>
       {index + 1}
     </span>
   );
@@ -135,12 +161,15 @@ function Artifact({
 }) {
   const { artifact } = interaction;
   return (
-    <figure className="rounded-md border border-rule bg-sunken overflow-hidden">
-      <figcaption className="flex items-center justify-between gap-3 border-b border-rule px-3 py-2">
-        <span className="eyebrow">{ARTIFACT_NAME[artifact.type]}{artifact.language ? ` · ${artifact.language}` : ""}</span>
+    <figure className="overflow-hidden rounded-xl bg-well shadow-[inset_0_0_0_1px_var(--rule)]">
+      <figcaption className="flex items-center justify-between gap-3 border-b border-dashed border-rule px-4 py-2">
+        <span className="inline-flex items-center gap-2 font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
+          <span className="text-ink">{ARTIFACT_NAME[artifact.type]}</span>
+          {artifact.language && <span>{artifact.language}</span>}
+        </span>
         {artifact.caption && <span className="text-xs text-ink-3 truncate">{artifact.caption}</span>}
       </figcaption>
-      <ol className="font-mono text-[0.8125rem] leading-relaxed py-1.5 overflow-x-auto">
+      <ol className="font-mono text-[0.8125rem] leading-relaxed py-2 overflow-x-auto">
         {artifact.lines.map((line, i) => (
           <li key={i}>{children(line, i)}</li>
         ))}

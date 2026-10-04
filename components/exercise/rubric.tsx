@@ -6,12 +6,25 @@ import { Segmented } from "@/components/ui";
 import type { RubricPoint } from "@/lib/domain/content";
 import { RUBRIC_MARKS, type RubricMark, type SelfAssessment } from "@/lib/domain/learner";
 
-const MARK_LABEL: Record<RubricMark, string> = { covered: "Covered", partial: "Partly", missed: "Missed" };
-const MARK_OPTIONS = RUBRIC_MARKS.map((m) => ({ value: m, label: MARK_LABEL[m] }));
+const MARK_LABEL: Record<RubricMark, string> = {
+  covered: "Covered",
+  partial: "Partly",
+  missed: "Missed",
+};
+const MARK_OPTIONS = RUBRIC_MARKS.map((m) => ({
+  value: m,
+  label: MARK_LABEL[m],
+}));
 const MARK_CLASS: Record<RubricMark, string> = {
   covered: "text-signal-strong",
   partial: "text-signal-partial",
   missed: "text-signal-gap",
+};
+
+const MARK_LED: Record<RubricMark, string> = {
+  covered: "led-strong",
+  partial: "led-partial",
+  missed: "led-gap",
 };
 
 export type Written = { label: string; text: string; mono?: boolean };
@@ -21,7 +34,7 @@ function WrittenText({ written }: { written: Written }) {
     <div>
       <h3 className="eyebrow mb-2">{written.label}</h3>
       <div
-        className={`rounded-md border border-rule bg-raised px-4 py-3 whitespace-pre-wrap break-words max-h-96 overflow-y-auto ${
+        className={`well px-5 py-4 whitespace-pre-wrap break-words max-h-96 overflow-y-auto ${
           written.mono ? "font-mono text-[0.8125rem] leading-relaxed" : "leading-relaxed"
         }`}
       >
@@ -55,17 +68,17 @@ export function RubricAssessment({
     >
       <WrittenText written={written} />
       <div>
-        <h3 className="eyebrow mb-1">Compare against the points a strong answer makes</h3>
-        <p className="text-sm text-ink-2 mb-3">
+        <h3 className="text-[0.875rem] font-medium mb-1">Compare against the points a strong answer makes</h3>
+        <p className="text-[0.8125rem] text-ink-2 mb-3">
           Mark a point covered only if your answer states it, not if it was in your head. Partly means you gestured at
           it without the mechanism.
         </p>
-        <ol className="divide-y divide-rule border-y border-rule">
+        <ol className="panel divide-y divide-dashed divide-rule">
           {rubric.map((point, i) => (
-            <li key={point.id} className="py-3.5 flex flex-col md:flex-row md:items-start gap-3 md:gap-6">
-              <p className="flex-1 leading-relaxed text-[0.9375rem]">
+            <li key={point.id} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:gap-6">
+              <p className="flex-1 text-[0.875rem] leading-relaxed">
                 <InlineText text={point.text} />
-                {point.weight === "supporting" && <span className="ml-2 eyebrow">supporting</span>}
+                {point.weight === "supporting" && <span className="ml-2 chip-flat align-middle">Supporting</span>}
               </p>
               <Segmented
                 name={`${name}-${point.id}`}
@@ -79,7 +92,7 @@ export function RubricAssessment({
           ))}
         </ol>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-4">
         <button type="submit" className="btn btn-primary" disabled={!complete}>
           Record assessment
         </button>
@@ -107,13 +120,16 @@ export function RubricResult({
       <WrittenText written={written} />
       <div>
         <h3 className="eyebrow mb-2">Your assessment</h3>
-        <ul className="divide-y divide-rule border-y border-rule">
+        <ul className="panel divide-y divide-dashed divide-rule px-4">
           {rubric.map((point) => {
             const mark = marks[point.id];
             return (
-              <li key={point.id} className="py-2.5 flex items-start gap-4 text-[0.9375rem]">
-                <span className={`w-16 shrink-0 text-sm ${mark ? MARK_CLASS[mark] : "text-ink-3"}`}>
-                  {mark ? MARK_LABEL[mark] : "—"}
+              <li key={point.id} className="py-3 flex items-start gap-4 text-[0.875rem]">
+                <span
+                  className={`w-20 shrink-0 inline-flex items-center gap-2 text-sm font-medium ${mark ? MARK_CLASS[mark] : "text-ink-3"}`}
+                >
+                  <span className={`led ${mark ? MARK_LED[mark] : "led-off"} size-1.5`} aria-hidden="true" />
+                  {mark ? MARK_LABEL[mark] : "Unmarked"}
                 </span>
                 <span className="leading-relaxed"><InlineText text={point.text} /></span>
               </li>

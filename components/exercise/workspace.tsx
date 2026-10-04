@@ -27,7 +27,11 @@ type Props = {
    * Bind the workspace to one specific attempt instead of the latest one,
    * as interview sessions do. `attemptId` is null until the item is answered.
    */
-  pinned?: { attemptId: string | null; draftKey: string; onRecorded: (attemptId: string) => void };
+  pinned?: {
+    attemptId: string | null;
+    draftKey: string;
+    onRecorded: (attemptId: string) => void;
+  };
 };
 
 export function ExerciseWorkspace({ spec, slots, reveal, context, deferFeedback = false, pinned }: Props) {
@@ -180,7 +184,9 @@ function writtenPart(response: Response): Written | null {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-4">
-      <h2 className="eyebrow border-b border-rule pb-2">{title}</h2>
+      <h2 className="eyebrow flex items-center gap-3 after:h-0 after:flex-1 after:border-t after:border-dashed after:border-rule">
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -215,8 +221,11 @@ function AttemptReview({
 
   if (stale) {
     return (
-      <div className="rounded-md border border-rule bg-raised px-4 py-3.5 space-y-3">
-        <p>This exercise has changed since you answered it on {answeredOn}, so your earlier answer can no longer be checked.</p>
+      <div className="well px-5 py-4 space-y-3">
+        <p>
+          This exercise has changed since you answered it on {answeredOn}, so your earlier answer can no longer be
+          checked.
+        </p>
         {onRetry && (
           <button type="button" className="btn btn-primary" onClick={onRetry}>
             Answer it again
@@ -228,7 +237,7 @@ function AttemptReview({
 
   return (
     <div className="space-y-10">
-      <div tabIndex={-1} className="outline-none scroll-mt-20" ref={focusRef}>
+      <div tabIndex={-1} className="outline-none scroll-mt-16" ref={focusRef}>
         <Section title={FEEDBACK_TITLE[interaction.kind]}>
           <Feedback interaction={interaction} attempt={attempt} slots={slots} seed={seed} />
         </Section>
@@ -246,7 +255,12 @@ function AttemptReview({
               written={written}
               name={`assess-${attempt.id}`}
               onSubmit={(marks) =>
-                assessAttempt({ attempt, interaction, tags: spec.tags, selfAssessment: marks })
+                assessAttempt({
+                  attempt,
+                  interaction,
+                  tags: spec.tags,
+                  selfAssessment: marks,
+                })
               }
             />
           )}
@@ -290,11 +304,14 @@ function useFocusOnMount<T extends HTMLElement>(enabled: boolean) {
 function Recorded({ focusOnMount }: { focusOnMount: boolean }) {
   const ref = useFocusOnMount<HTMLDivElement>(focusOnMount);
   return (
-    <div ref={ref} tabIndex={-1} role="status" className="rounded-md border border-rule bg-raised px-4 py-3.5 scroll-mt-20">
-      <p className="font-medium">Answer recorded.</p>
-      <p className="mt-1 text-sm text-ink-2">
-        As in a real interview, feedback waits until the end. You will review and assess every answer in the debrief.
-      </p>
+    <div ref={ref} tabIndex={-1} role="status" className="tint flex gap-3 px-4 py-3.5 scroll-mt-16">
+      <span className="led led-strong mt-1.5" aria-hidden="true" />
+      <div>
+        <p className="font-medium">Answer recorded.</p>
+        <p className="mt-1 text-sm text-ink-2">
+          As in a real interview, feedback waits until the end. You will review and assess every answer in the debrief.
+        </p>
+      </div>
     </div>
   );
 }
@@ -302,10 +319,10 @@ function Recorded({ focusOnMount }: { focusOnMount: boolean }) {
 function WorkspaceSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading your answers" className="space-y-3">
-      <div className="h-5 w-2/3 rounded bg-sunken" />
-      <div className="h-14 rounded-md bg-sunken" />
-      <div className="h-14 rounded-md bg-sunken" />
-      <div className="h-14 rounded-md bg-sunken" />
+      <div className="h-5 w-2/3 well-sm" />
+      <div className="h-16 well" />
+      <div className="h-16 well" />
+      <div className="h-16 well" />
     </div>
   );
 }

@@ -17,15 +17,17 @@ export function ContinueStrip({ investigations }: { investigations: Outline[] })
   const inv = investigations.find((i) => i.id === investigationId);
   if (!inv) return null;
   return (
-    <section aria-label="Continue" className="rounded-md border border-rule bg-raised px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div className="min-w-0">
-        <p className="eyebrow">Where you left off</p>
-        <p className="mt-1 font-medium">{inv.title}</p>
-        <div className="mt-1 text-sm">
-          <InvestigationProgress investigationId={inv.id} stages={inv.stages} />
+    <section aria-label="Continue" className="section">
+      <div className="tint flex flex-col justify-between gap-4 p-4 sm:flex-row sm:items-center sm:px-5">
+        <div className="min-w-0">
+          <p className="eyebrow">Where you left off</p>
+          <p className="mt-1 font-display text-[1rem] leading-snug">{inv.title}</p>
+          <div className="mt-2">
+            <InvestigationProgress investigationId={inv.id} stages={inv.stages} />
+          </div>
         </div>
+        <ContinueLink investigationId={inv.id} stages={inv.stages} />
       </div>
-      <ContinueLink investigationId={inv.id} stages={inv.stages} />
     </section>
   );
 }
