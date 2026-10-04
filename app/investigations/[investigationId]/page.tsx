@@ -6,8 +6,9 @@ import { Prose } from "@/components/prose";
 import { DIFFICULTY } from "@/components/investigation/investigation-tile";
 import { ShareButton } from "@/components/share";
 import { SystemThumb } from "@/components/system-thumb";
+import { SourceList } from "@/components/writeup";
 import { PageHeader, Section } from "@/components/page-header";
-import { getConcept, getInvestigation, listInvestigations } from "@/lib/content";
+import { getCompany, getConcept, getInvestigation, listInvestigations, writeupsForInvestigation } from "@/lib/content";
 import { DIMENSION_LABELS, DIMENSIONS } from "@/lib/domain/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 import { jsonLd, pageMetadata } from "@/lib/metadata";
@@ -58,6 +59,13 @@ export default async function InvestigationPage(props: PageProps<"/investigation
     const r = getInvestigation(id);
     return r ? [r] : [];
   });
+  const sources = writeupsForInvestigation(inv.id);
+  const companies = [...new Set(sources.map((w) => w.companyId))].flatMap((id) => {
+    const c = getCompany(id);
+    return c ? [c] : [];
+  });
+
+  let n = 0;
 
   return (
     <div>
@@ -76,6 +84,7 @@ export default async function InvestigationPage(props: PageProps<"/investigation
             isAccessibleForFree: true,
             inLanguage: "en",
             provider: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+            citation: sources.map((w) => ({ "@type": "CreativeWork", name: w.title, url: w.url })),
           }),
         }}
       />
@@ -115,13 +124,38 @@ export default async function InvestigationPage(props: PageProps<"/investigation
         {inv.premise}
       </PageHeader>
 
-      <Section id="scenario" n={1} title="Scenario">
+      <Section id="scenario" n={++n} title="Scenario">
         <div className="max-w-[66ch]">
           <Prose text={inv.scenario} />
         </div>
       </Section>
 
-      <Section id="requirements" n={2} title="Requirements" description="What it must do, and what it must guarantee.">
+      {sources.length > 0 && (
+        <Section
+          id="sources"
+          n={++n}
+          title="Based on"
+          description="What the engineers who built systems like this published. Read them after you have made your own decisions."
+        >
+          <div className="grid gap-8 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <SourceList writeups={sources} />
+            <div className="sm:w-48">
+              <p className="eyebrow mb-3">Companies</p>
+              <ul className="space-y-1.5">
+                {companies.map((c) => (
+                  <li key={c.id}>
+                    <Link href={`/companies/${c.id}`} className="text-[0.8125rem] font-medium hover:text-accent">
+                      How {c.name} built it
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      <Section id="requirements" n={++n} title="Requirements" description="What it must do, and what it must guarantee.">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="panel p-5">
             <p className="eyebrow mb-3">Must do</p>
@@ -134,7 +168,7 @@ export default async function InvestigationPage(props: PageProps<"/investigation
         </div>
       </Section>
 
-      <Section id="constraints" n={3} title="Constraints and assumptions">
+      <Section id="constraints" n={++n} title="Constraints and assumptions">
         <div className="grid gap-8 sm:grid-cols-2">
           <div>
             <p className="eyebrow mb-3">Constraints</p>
@@ -147,13 +181,13 @@ export default async function InvestigationPage(props: PageProps<"/investigation
         </div>
       </Section>
 
-      <Section id="stages" n={4} title="Stages" description={`${inv.stages.length} stages, grouped by what you do in them.`}>
+      <Section id="stages" n={++n} title="Stages" description={`${inv.stages.length} stages, grouped by what you do in them.`}>
         <div className="max-w-xl">
           <StageOutline investigationId={inv.id} stages={stages} />
         </div>
       </Section>
 
-      <Section id="objectives" n={5} title="You will be able to">
+      <Section id="objectives" n={++n} title="You will be able to">
         <ul className="space-y-px">
           {inv.objectives.map((o) => (
             <li key={o} className="flex items-baseline gap-2.5 py-1 text-[0.875rem]">
@@ -166,7 +200,7 @@ export default async function InvestigationPage(props: PageProps<"/investigation
 
       <Section
         id="evidence"
-        n={6}
+        n={++n}
         title="What your answers will show"
         description="Each stage records evidence against these competencies."
       >
@@ -188,7 +222,7 @@ export default async function InvestigationPage(props: PageProps<"/investigation
         </div>
       </Section>
 
-      <Section id="variants" n={7} title="Interview questions this prepares you for">
+      <Section id="variants" n={++n} title="Interview questions this prepares you for">
         <ul className="space-y-2">
           {inv.interviewVariants.map((v) => (
             <li key={v} className="well-sm px-4 py-3 text-[0.875rem] text-ink-2">
@@ -199,7 +233,7 @@ export default async function InvestigationPage(props: PageProps<"/investigation
       </Section>
 
       {(prerequisites.length > 0 || related.length > 0) && (
-        <Section id="before" n={8} title="Around this investigation">
+        <Section id="before" n={++n} title="Around this investigation">
           <div className="grid gap-8 sm:grid-cols-2">
             {prerequisites.length > 0 && (
               <div>

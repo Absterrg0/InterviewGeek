@@ -223,4 +223,215 @@ export const performanceConcepts: ConceptInput[] = [
     },
     relatedConceptIds: ["backpressure", "retries-and-backoff", "partitioning"],
   },
+  {
+    id: "fan-out",
+    title: "Fan-out on write and fan-out on read",
+    domain: "performance",
+    summary:
+      "When one write must reach many readers, do the work when it is written (precompute every reader's view) or when it is read (assemble it on demand). Most real feeds do both.",
+    problem: md`
+      A post from someone with ten million followers must appear in ten million home feeds. A feed must show posts from hundreds of accounts the reader follows. Somebody has to do the multiplication between "one author" and "many readers", and the question is **when**: once per write, or once per read.
+    `,
+    mechanism: md`
+      - **Fan-out on write (push):** when an item is written, insert a reference to it into every reader's precomputed list (a "timeline"). Reads are a single lookup of a short list, which is very fast. Writes cost O(followers), and storage holds one entry per (reader, item).
+      - **Fan-out on read (pull):** store each item once, under its author. At read time, fetch recent items from everyone the reader follows and merge them. Writes are O(1); reads cost O(following) and must merge and rank on the spot.
+
+      The deciding numbers are the **read/write ratio** and the **distribution of follower counts**. Feeds are read far more than they are written, so push usually wins, until an author has millions of followers and one post becomes millions of writes that arrive late.
+
+      The standard answer is **hybrid**: push for ordinary authors; for the few with huge audiences, skip fan-out and merge their recent items into the reader's timeline at read time. Two refinements matter in practice:
+
+      - **Don't fan out to people who aren't reading.** Precompute timelines only for recently active users; rebuild the rest on demand when they return.
+      - **Store references, not copies.** Timeline entries hold IDs; the content is fetched (and cached) separately, so edits and deletions do not need another fan-out.
+    `,
+    assumptions: [
+      "Reads of the combined view vastly outnumber writes.",
+      "A short delay between writing and appearing in every reader's view is acceptable.",
+      "Most authors have modest audiences; a few have enormous ones.",
+    ],
+    alternatives: [
+      { name: "Pure fan-out on read", when: "Writes are frequent, reads are rare, or each reader follows few sources (search is the extreme case)." },
+      { name: "Pure fan-out on write", when: "Audiences are bounded (group chats, small teams) so no single write is enormous." },
+    ],
+    failureModes: [
+      { name: "Celebrity write amplification", description: "One post becomes millions of inserts; delivery lags for minutes and queues back up behind it." },
+      { name: "Wasted work on inactive readers", description: "Most precomputed entries are never read." },
+      { name: "Deletes that don't propagate", description: "Copies of content (not references) fanned out to timelines keep showing deleted posts." },
+    ],
+    implementations: [
+      { name: "Redis lists per user", note: "Capped lists of item IDs, the classic home-timeline store." },
+      { name: "Wide-column stores", note: "One partition per reader, clustered by time." },
+      { name: "Merge at read time", note: "Fetch high-audience authors' recent items and merge by score or time." },
+    ],
+    claims: [
+      {
+        id: "push-always",
+        statement: "Fan-out on write is always better for feeds because reads dominate.",
+        verdict: "fails",
+        explanation: "For authors with millions of followers, one write becomes millions of inserts that land late and crowd out everyone else's delivery. Real systems switch those authors to read-time merging.",
+      },
+      {
+        id: "references",
+        statement: "Storing post IDs rather than post content in timelines makes deletions and edits cheaper.",
+        verdict: "holds",
+        explanation: "The content lives in one place; deleting it there removes it from every timeline at hydration time, without a second fan-out.",
+      },
+      {
+        id: "inactive",
+        statement: "Skipping fan-out for inactive users means they see an empty feed when they return.",
+        verdict: "fails",
+        explanation: "Their timeline is rebuilt from the people they follow (fan-out on read) when they come back. They pay one slower load; nobody pays for timelines that are never read.",
+      },
+    ],
+    explain: {
+      prompt: "Explain the trade-off between fan-out on write and fan-out on read, and how a feed with celebrity accounts should combine them.",
+      rubric: [
+        { id: "costs", text: "Push makes writes O(followers) and reads cheap; pull makes writes cheap and reads O(following)." },
+        { id: "ratio", text: "The read/write ratio and the follower distribution decide which is cheaper." },
+        { id: "hybrid", text: "Hybrid: push for most authors, merge high-audience authors at read time." },
+        { id: "refinements", text: "Mentions skipping inactive readers or storing references rather than copies.", weight: "supporting" },
+      ],
+    },
+    relatedConceptIds: ["caching", "partitioning", "asynchronous-processing", "publish-subscribe"],
+  },
+  {
+    id: "request-coalescing",
+    title: "Request coalescing",
+    domain: "performance",
+    summary:
+      "When many callers ask for the same thing at the same moment, do the expensive work once and give every caller the result. The fix for thundering herds and hot keys.",
+    problem: md`
+      Popular data is requested in bursts: a message in a huge channel, a cache entry that just expired, a profile shared on the front page. If each request independently goes to the database, a thousand concurrent readers become a thousand identical queries, and the database falls over computing the same answer a thousand times.
+    `,
+    mechanism: md`
+      Keep a table of **in-flight requests** keyed by what is being fetched. The first caller for a key starts the fetch and registers it; later callers for the same key **wait on the same result** instead of starting their own. When the fetch completes, every waiter gets the answer and the entry is removed.
+
+      This only works if requests for the same key meet in the same place, so coalescing is usually paired with **routing by key**: a consistent hash sends every request for a channel or key to the same instance, where coalescing can see them all.
+
+      At the cache layer the same idea appears as a **lease** or **lock on miss**: the cache grants one caller the right to refill a missing key and tells the others to wait briefly and retry. They then find the value already filled.
+
+      Related tools solve neighbouring problems: **stale-while-revalidate** serves the old value while one caller refreshes it, and **jittered TTLs** stop many keys from expiring at once.
+    `,
+    assumptions: [
+      "Concurrent callers can accept the same result (the query is not per-caller).",
+      "Requests for the same key can be routed to the same place.",
+      "Waiting a few milliseconds for someone else's fetch is acceptable.",
+    ],
+    alternatives: [
+      { name: "Caching with a long TTL", when: "Repeated reads are spread over time rather than simultaneous." },
+      { name: "Precomputation", when: "The hot result is predictable and can be pushed before anyone asks." },
+      { name: "Rate limiting the source", when: "Protecting the source matters more than serving everyone." },
+    ],
+    failureModes: [
+      { name: "Coalescing on the wrong key", description: "Per-user results are shared between users, leaking data." },
+      { name: "A slow leader stalls everyone", description: "All waiters inherit the first fetch's latency or failure; time out the shared fetch." },
+      { name: "Scattered routing", description: "Requests for one key land on many instances, so each instance coalesces only a fraction." },
+    ],
+    implementations: [
+      { name: "singleflight (Go)", note: "A library-level in-process coalescer." },
+      { name: "Cache leases", note: "The cache grants one refill per key and asks others to retry." },
+      { name: "CDN request collapsing", note: "Edges send one origin request per object while others wait." },
+      { name: "Data services behind a hash ring", note: "All requests for a key reach one coalescing instance." },
+    ],
+    claims: [
+      {
+        id: "replaces-cache",
+        statement: "Request coalescing does the same job as a cache.",
+        verdict: "fails",
+        explanation: "Coalescing only merges requests that overlap in time; a cache serves requests spread over time. They are complementary: coalescing protects the source when the cache misses.",
+      },
+      {
+        id: "needs-routing",
+        statement: "Coalescing in a fleet of 50 instances is far less effective unless requests for a key are routed to the same instance.",
+        verdict: "holds",
+        explanation: "With random routing, each instance sees about 1/50th of a key's burst and still makes its own query. Consistent hashing by key concentrates the burst so it collapses to one query.",
+      },
+      {
+        id: "per-user",
+        statement: "Any two concurrent GET requests to the same URL can safely be coalesced.",
+        verdict: "fails",
+        explanation: "Responses that depend on who is asking (permissions, personalization) must not be shared. Coalesce on the full key that determines the response.",
+      },
+    ],
+    explain: {
+      prompt: "Explain how request coalescing protects a database from a burst of identical reads, and what it depends on.",
+      rubric: [
+        { id: "inflight", text: "Tracks in-flight fetches by key; later callers wait on the existing fetch." },
+        { id: "routing", text: "Requests for the same key must reach the same place (routing by key)." },
+        { id: "vs-cache", text: "Distinguishes it from caching: it collapses simultaneous requests, not repeated ones.", weight: "supporting" },
+      ],
+    },
+    relatedConceptIds: ["caching", "consistent-hashing", "backpressure"],
+  },
+  {
+    id: "load-shedding",
+    title: "Load shedding",
+    domain: "performance",
+    summary:
+      "Rejecting some work on purpose when a system is overloaded, so the work it does accept still finishes in time. Cheap rejections beat slow failures.",
+    problem: md`
+      An overloaded server that accepts everything does everything slowly. Requests time out after consuming CPU, retries pile on, and goodput (useful work completed in time) falls toward zero even though the server is 100% busy. Overload that is not shed becomes an outage.
+    `,
+    mechanism: md`
+      Decide **early and cheaply** which work to refuse:
+
+      - **Detect overload** from a signal that leads rather than lags: concurrency in flight, queue age, worker utilization. CPU alone is often too late.
+      - **Reject before doing expensive work**: at the edge, before parsing big bodies, before taking locks. A rejection should cost a tiny fraction of a request.
+      - **Prioritize**: classify work (critical API calls vs. analytics, interactive vs. batch) and shed the lowest priority first. Reserve capacity for the work that matters most.
+      - **Tell callers what to do**: 503 or 429 with \`Retry-After\`, so well-behaved clients back off instead of retrying immediately.
+      - **Drop work nobody is waiting for**: a queued request whose client already timed out should be discarded, not processed.
+
+      Load shedding complements rate limiting: rate limits enforce **fairness per client** under normal load; shedding protects **the system as a whole** when total demand exceeds capacity, whoever caused it.
+    `,
+    assumptions: [
+      "Work can be ranked, so some of it is safe to refuse.",
+      "Callers handle rejection by backing off rather than retrying at once.",
+      "The overload signal is measured close to where the shedding happens.",
+    ],
+    alternatives: [
+      { name: "Autoscaling", when: "Load rises slowly enough for new capacity to arrive before queues explode." },
+      { name: "Queueing", when: "The burst is short and the work can wait." },
+      { name: "Degrading responses", when: "A cheaper version of the response (cached, partial) is better than none." },
+    ],
+    failureModes: [
+      { name: "Shedding too late", description: "The signal lags, so the server is already thrashing before it starts rejecting." },
+      { name: "Expensive rejection", description: "Requests are fully parsed or authenticated before being rejected, so shedding barely saves anything." },
+      { name: "Retry storms", description: "Rejected clients retry immediately and multiply the load." },
+      { name: "Shedding the wrong work", description: "Without priorities, critical requests are dropped as readily as background work." },
+    ],
+    implementations: [
+      { name: "Concurrency limiters", note: "Cap requests in flight per endpoint or per client." },
+      { name: "Priority load shedders", note: "Reserve a share of workers for critical traffic and reject the rest first." },
+      { name: "Queue deadlines", note: "Discard queued work older than the caller's timeout." },
+    ],
+    claims: [
+      {
+        id: "accept-all",
+        statement: "Accepting every request and processing them slowly is kinder to users than rejecting some.",
+        verdict: "fails",
+        explanation: "Past saturation, accepting more work makes every request slower until most time out after consuming resources. Rejecting some quickly keeps the rest succeeding.",
+      },
+      {
+        id: "rate-limit-enough",
+        statement: "Per-client rate limits make load shedding unnecessary.",
+        verdict: "fails",
+        explanation: "Every client can be within its limit while the total still exceeds capacity, for example after an incident when everyone retries. Shedding protects aggregate capacity.",
+      },
+      {
+        id: "stale-queue",
+        statement: "Processing queued requests whose callers have already timed out wastes capacity.",
+        verdict: "holds",
+        explanation: "Nobody will read the answer. Checking a deadline before starting work turns that capacity back into useful work.",
+      },
+    ],
+    explain: {
+      prompt: "Explain why an overloaded service should reject work, and how it should decide what to reject.",
+      rubric: [
+        { id: "goodput", text: "Accepting everything past capacity collapses goodput; rejecting some keeps the rest within deadlines." },
+        { id: "cheap", text: "Rejection must happen early and cost little." },
+        { id: "priority", text: "Lower-priority work is shed first, with capacity reserved for critical work." },
+        { id: "signal", text: "Mentions a leading overload signal (concurrency, queue age) or telling callers to back off.", weight: "supporting" },
+      ],
+    },
+    relatedConceptIds: ["backpressure", "rate-limiting", "retries-and-backoff", "timeouts"],
+  },
 ];

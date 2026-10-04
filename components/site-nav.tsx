@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import {
+  CompaniesIcon,
   ConceptsIcon,
   InterviewIcon,
   InvestigationsIcon,
@@ -68,11 +69,13 @@ export function Brand({ onNavigate }: { onNavigate?: () => void }) {
 export function SiteNav({
   investigations,
   conceptCount,
+  companyCount,
   claimCount,
   onNavigate,
 }: {
   investigations: NavInvestigation[];
   conceptCount: number;
+  companyCount: number;
   claimCount: number;
   onNavigate?: () => void;
 }) {
@@ -86,6 +89,7 @@ export function SiteNav({
   const nav = [
     { href: "/investigations", label: "Investigations", icon: <InvestigationsIcon />, count: investigations.length },
     { href: "/concepts", label: "Concepts", icon: <ConceptsIcon />, count: conceptCount },
+    { href: "/companies", label: "Companies", icon: <CompaniesIcon />, count: companyCount },
     { href: "/practice", label: "Practice", icon: <PracticeIcon />, count: claimCount },
     { href: "/interview", label: "Interview", icon: <InterviewIcon />, count: state ? state.interviews.length : null },
     { href: "/projects", label: "Your projects", icon: <ProjectsIcon />, count: state ? state.projects.length : null },

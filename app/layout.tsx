@@ -5,7 +5,7 @@ import { Funnel_Display, Funnel_Sans, Geist_Mono, Geist_Pixel } from "next/font/
 import { SiteHeader, SiteSidebar } from "@/components/site-header";
 import type { NavInvestigation } from "@/components/site-nav";
 import { StorageNotice } from "@/components/storage-notice";
-import { listConcepts, listInvestigations } from "@/lib/content";
+import { listCompanies, listConcepts, listInvestigations } from "@/lib/content";
 import { jsonLd } from "@/lib/metadata";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -58,6 +58,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     stages: inv.stages.map((s) => ({ id: s.id, title: s.title, phase: s.phase })),
   }));
   const concepts = listConcepts();
+  const companies = listCompanies();
   const claimCount = concepts.reduce((n, c) => n + c.claims.length, 0);
   const titles: Record<string, string> = Object.fromEntries([
     ...investigations.flatMap((inv) => [
@@ -66,8 +67,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       ...inv.stages.map((s) => [`/investigations/${inv.id}/${s.id}`, s.title]),
     ]),
     ...concepts.map((c) => [`/concepts/${c.id}`, c.title]),
+    ...companies.map((c) => [`/companies/${c.id}`, c.name]),
   ]);
-  const nav = { investigations, conceptCount: concepts.length, claimCount };
+  const nav = { investigations, conceptCount: concepts.length, companyCount: companies.length, claimCount };
 
   return (
     <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable} ${pixel.variable}`}>

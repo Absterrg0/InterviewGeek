@@ -10,6 +10,7 @@ import { useLearnerState } from "@/lib/store/learner-store";
 type Props = {
   investigations: NavInvestigation[];
   conceptCount: number;
+  companyCount: number;
   claimCount: number;
   /** Page titles by path, for the breadcrumb trail. */
   titles: Record<string, string>;
@@ -18,6 +19,7 @@ type Props = {
 const SECTION_TITLES: Record<string, string> = {
   "/investigations": "Investigations",
   "/concepts": "Concepts",
+  "/companies": "Companies",
   "/practice": "Practice",
   "/interview": "Interview",
   "/interview/session": "Session",

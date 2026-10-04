@@ -380,4 +380,148 @@ export const storageConcepts: ConceptInput[] = [
     },
     relatedConceptIds: ["concurrency-control", "idempotency", "transactions", "reconciliation"],
   },
+  {
+    id: "online-migrations",
+    title: "Online data migrations",
+    domain: "storage",
+    summary:
+      "Moving live data to a new schema or store without downtime: write to both, backfill the past, verify, switch reads, then switch writes, with a way back at every step.",
+    problem: md`
+      Data outgrows its home: a table needs a new shape, a database needs sharding, a store needs replacing. The system cannot stop while billions of rows move, and every row keeps changing during the copy. A naive "copy, then switch" loses every write made during the copy, and a big-bang cutover has no way back if the new store is wrong.
+    `,
+    mechanism: md`
+      The safe pattern moves data in reversible steps, verifying at each one:
+
+      1. **Dual write.** Every new write goes to the old store (still the source of truth) and the new one. Writes can be mirrored in application code, through a change log (database replication, CDC, an audit log), or by tailing the binlog. A log is harder to get wrong than scattered application writes.
+      2. **Backfill.** Copy historical data into the new store. The backfill must not overwrite newer dual-written values (use versions, timestamps or "insert if absent"), and it must be throttled so it does not starve production traffic.
+      3. **Verify.** Compare the stores: sample rows, count by key range, and run **shadow (dark) reads** that query both and alert on mismatches while users still get the old answer.
+      4. **Switch reads**, gradually (by percentage or tenant), keeping dual writes so you can switch back.
+      5. **Switch writes** so the new store becomes the source of truth. Often this is a brief pause, or a log-based catch-up followed by redirecting traffic. Reverse replication keeps the old store current so rollback stays possible.
+      6. **Clean up**: stop writing the old store and delete it once nothing reads it.
+
+      The order matters: until step 5, the old store is authoritative and every step can be undone.
+    `,
+    assumptions: [
+      "Writes can be captured completely (in code or from a log).",
+      "Rows have a version or timestamp so the backfill can avoid clobbering newer data.",
+      "The data can be compared between stores cheaply enough to verify.",
+    ],
+    alternatives: [
+      { name: "Maintenance window", when: "Brief downtime is acceptable and the dataset copies within it." },
+      { name: "Expand/contract schema changes", when: "The change is to columns in one database: add the new shape, migrate code, remove the old." },
+      { name: "Leave old data in place", when: "Only new data needs the new store; old data can be read from the old one until it ages out." },
+    ],
+    failureModes: [
+      { name: "Lost writes during the copy", description: "Writes that arrive between snapshot and switch never reach the new store." },
+      { name: "Backfill clobbers newer data", description: "An old snapshot value overwrites a newer dual-written one." },
+      { name: "Partial dual writes", description: "One store's write fails and the other's succeeds, so they diverge silently." },
+      { name: "No way back", description: "Writes moved to the new store with nothing keeping the old one current." },
+    ],
+    implementations: [
+      { name: "gh-ost / pt-online-schema-change", note: "Shadow table plus change capture, then an atomic table swap (MySQL)." },
+      { name: "Postgres logical replication", note: "Stream changes to a new cluster, then fail over." },
+      { name: "Scientist-style experiments", note: "Run old and new read paths side by side and report differences." },
+    ],
+    claims: [
+      {
+        id: "copy-then-switch",
+        statement: "Copying a snapshot and then pointing the application at the new store is safe if the copy is fast.",
+        verdict: "fails",
+        explanation: "Every write between the snapshot and the switch is lost, however fast the copy. Changes must be captured continuously until cutover.",
+      },
+      {
+        id: "reads-first",
+        statement: "Switching reads before writes keeps a rollback path open.",
+        verdict: "holds",
+        explanation: "While the old store is still written as the source of truth, reads can move back instantly. Once writes move, rollback needs reverse replication.",
+      },
+      {
+        id: "backfill-order",
+        statement: "The backfill can blindly upsert every historical row into the new store.",
+        verdict: "fails",
+        explanation: "A row updated by dual writes after the snapshot was taken would be overwritten by its older snapshot value. Compare versions or insert only if absent.",
+      },
+    ],
+    explain: {
+      prompt: "Explain how to move a heavily written table to a new store without downtime or data loss.",
+      rubric: [
+        { id: "dual", text: "Capture all new writes to both stores (or via a change log) before backfilling." },
+        { id: "backfill", text: "Backfill history without overwriting newer values, throttled." },
+        { id: "verify", text: "Verify with comparisons or shadow reads before switching." },
+        { id: "reversible", text: "Switch reads, then writes, keeping a rollback path." },
+      ],
+    },
+    relatedConceptIds: ["replication", "event-log", "partitioning", "reconciliation"],
+  },
+  {
+    id: "lsm-trees",
+    title: "Log-structured storage (LSM trees)",
+    domain: "storage",
+    summary:
+      "Storage engines that turn every write into a sequential append and merge files in the background: very fast writes, at the cost of compaction, tombstones and more expensive reads.",
+    problem: md`
+      Updating data in place (as B-tree databases do) means random disk writes, and random writes are the slowest thing a disk does. Write-heavy systems like chat history, metrics and event logs want writes as cheap as an append.
+    `,
+    mechanism: md`
+      An LSM (log-structured merge) tree never updates in place:
+
+      1. A write is appended to a **commit log** (for durability) and inserted into an in-memory sorted table, the **memtable**. Nothing on disk is modified. This is why writes are fast.
+      2. When the memtable fills, it is flushed to disk as an immutable sorted file (an **SSTable**).
+      3. A read must check the memtable and then potentially **several SSTables**, newest first, merging the results. Bloom filters and partition indexes skip files that cannot contain the key, but reads are still costlier than writes.
+      4. **Compaction** runs in the background, merging SSTables, discarding overwritten values and keeping the number of files a read must touch small. It consumes disk I/O and CPU that production traffic also needs.
+      5. A delete cannot erase a value from an immutable file, so it writes a **tombstone** marker. Tombstones are kept until compaction can remove them safely (after a grace period, so replicas that missed the delete do not resurrect the value). A read across many tombstones must still scan them all.
+
+      The engine trades read work and background compaction for cheap writes. Designs on top of it should keep partitions bounded and avoid read patterns that scan many deleted rows.
+    `,
+    assumptions: [
+      "The workload is write-heavy or append-mostly.",
+      "Reads mostly fetch recent data or single partitions.",
+      "Background compaction has spare I/O to run.",
+    ],
+    alternatives: [
+      { name: "B-tree storage (Postgres, MySQL InnoDB)", when: "Reads dominate, updates are in place, and you want predictable read latency." },
+      { name: "Append-only object storage", when: "Data is written once in large batches and rarely read." },
+    ],
+    failureModes: [
+      { name: "Compaction falls behind", description: "File counts grow, reads touch more files, and latency climbs." },
+      { name: "Tombstone scans", description: "A read over a range of deleted rows scans every tombstone and can stall the node." },
+      { name: "Oversized partitions", description: "Huge partitions make compaction and repair slow and memory-hungry." },
+      { name: "Resurrected deletes", description: "Tombstones dropped before every replica saw them let deleted data come back." },
+    ],
+    implementations: [
+      { name: "RocksDB / LevelDB", note: "Embedded LSM engines inside many databases and services." },
+      { name: "Cassandra / ScyllaDB", note: "Distributed wide-column stores built on SSTables." },
+      { name: "HBase, Bigtable", note: "Wide-column stores on LSM storage." },
+    ],
+    claims: [
+      {
+        id: "reads-cheap",
+        statement: "In an LSM store, reads are cheaper than writes.",
+        verdict: "fails",
+        explanation: "Writes are an append plus a memory insert. A read may consult the memtable and several SSTables and merge results.",
+      },
+      {
+        id: "delete-frees",
+        statement: "Deleting a row in an LSM store frees its space immediately.",
+        verdict: "fails",
+        explanation: "A delete writes a tombstone. Space is reclaimed only when compaction merges the tombstone with the data it shadows, after a grace period.",
+      },
+      {
+        id: "bounded-partitions",
+        statement: "Bounding partition size (for example by bucketing by time) helps compaction and read latency.",
+        verdict: "holds",
+        explanation: "Smaller partitions compact, repair and stream faster, and a read for recent data touches a small, recent partition.",
+      },
+    ],
+    explain: {
+      prompt: "Explain why LSM trees make writes cheap and what they cost in return.",
+      rubric: [
+        { id: "append", text: "Writes append to a log and a memtable; no in-place disk updates." },
+        { id: "reads", text: "Reads may check several SSTables, so they cost more." },
+        { id: "compaction", text: "Background compaction merges files and consumes I/O." },
+        { id: "tombstones", text: "Deletes are tombstones that must be scanned until compacted.", weight: "supporting" },
+      ],
+    },
+    relatedConceptIds: ["durability", "event-log", "partitioning"],
+  },
 ];

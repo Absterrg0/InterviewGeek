@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/metadata";
 export const metadata: Metadata = pageMetadata({
   title: "System Design Interview Questions",
   description:
-    "Classic system design interview questions worked through from requirements: URL shortener, rate limiter, payments, notifications, video pipeline and a collaborative editor.",
+    "Classic system design interview questions worked through from requirements: URL shortener, news feed, chat storage, distributed cache, job queue, rate limiter, payments, notifications, sharding and more.",
   path: "/investigations",
 });
 

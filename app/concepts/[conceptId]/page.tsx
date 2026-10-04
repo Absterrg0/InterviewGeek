@@ -6,9 +6,10 @@ import { buildSlots } from "@/components/exercise/slots";
 import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { Prose } from "@/components/prose";
 import { ShareButton } from "@/components/share";
+import { SourceList } from "@/components/writeup";
 import { PageHeader, Section } from "@/components/page-header";
 import { resolveExercise } from "@/lib/content/exercises";
-import { conceptsReferencing, getConcept, listConcepts, stagesUsingConcept } from "@/lib/content";
+import { conceptsReferencing, getConcept, listConcepts, stagesUsingConcept, writeupsForConcept } from "@/lib/content";
 import { DOMAIN_LABELS, PHASE_LABELS } from "@/lib/domain/content";
 import { jsonLd, pageMetadata } from "@/lib/metadata";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
@@ -45,6 +46,7 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
   if (!concept) notFound();
 
   const uses = stagesUsingConcept(concept.id);
+  const sources = writeupsForConcept(concept.id);
   const related = [
     ...concept.relatedConceptIds,
     ...conceptsReferencing(concept.id)
@@ -158,6 +160,17 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
           ))}
         </ol>
       </Section>
+
+      {sources.length > 0 && (
+        <Section
+          id="in-production"
+          n={++n}
+          title="In production"
+          description="Engineers describing this mechanism in systems they run."
+        >
+          <SourceList writeups={sources} />
+        </Section>
+      )}
 
       {claims && (
         <Section id="check" n={++n} title="Check yourself">

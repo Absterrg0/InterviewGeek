@@ -359,6 +359,47 @@ export const concept = z.object({
 export type Concept = z.infer<typeof concept>;
 export type ConceptInput = z.input<typeof concept>;
 
+// ---------------------------------------------------------------------------
+// Sources: what real companies have published about their systems
+// ---------------------------------------------------------------------------
+
+export const company = z.object({
+  id: slug,
+  name: z.string().min(1),
+  /** One sentence: the engineering problems that shape their systems. */
+  summary: z.string().min(1).max(240),
+  /** Why their writing is worth reading, in a short paragraph. */
+  context: prose,
+  blogUrl: z.url(),
+});
+export type Company = z.infer<typeof company>;
+export type CompanyInput = z.input<typeof company>;
+
+export const WRITEUP_FORMATS = ["post", "paper", "talk", "code"] as const;
+
+/**
+ * A primary source: an engineering blog post, paper or talk by the people who
+ * built the system. Investigations and concepts cite these; company pages list them.
+ */
+export const writeup = z.object({
+  id: slug,
+  companyId: slug,
+  title: z.string().min(1),
+  url: z.url(),
+  authors: z.array(z.string().min(1)).min(1),
+  /** Year and month, e.g. "2017-01", or just the year when the month is not known. */
+  published: z.string().regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/),
+  format: z.enum(WRITEUP_FORMATS),
+  /** What they built and why, in our words. */
+  summary: prose,
+  /** Mechanisms worth taking from it, one per line. */
+  takeaways: z.array(z.string().min(1)).min(2),
+  investigationIds: z.array(slug),
+  conceptIds: z.array(slug),
+});
+export type Writeup = z.infer<typeof writeup>;
+export type WriteupInput = z.input<typeof writeup>;
+
 export const DOMAIN_LABELS: Record<ConceptDomain, string> = {
   communication: "Communication",
   storage: "Storage & state",

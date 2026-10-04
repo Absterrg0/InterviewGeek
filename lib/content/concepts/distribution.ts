@@ -365,4 +365,75 @@ export const distributionConcepts: ConceptInput[] = [
     },
     relatedConceptIds: ["persistent-connections", "delivery-guarantees", "caching"],
   },
+  {
+    id: "consistent-hashing",
+    title: "Consistent hashing",
+    domain: "distribution",
+    summary:
+      "Mapping keys to nodes so that adding or removing a node moves only a small share of keys, instead of reshuffling almost all of them.",
+    problem: md`
+      The obvious way to spread keys over N servers is \`hash(key) % N\`. It balances well, until N changes. Going from 10 to 11 cache servers changes the server for about 10 out of 11 keys, so the cache's hit rate collapses and every key is fetched from the database at once. Anything that routes by key (caches, connection servers, coalescing services, database shards) needs a mapping that survives membership changes.
+    `,
+    mechanism: md`
+      Place both nodes and keys on the same circular hash space (a "ring"). A key belongs to the **first node clockwise** from its hash. Adding a node takes over only the keys between it and its predecessor; removing one hands its keys to the next node. On average only **1/N of keys move**.
+
+      Two refinements make it practical:
+
+      - **Virtual nodes:** each physical node appears at many points on the ring (often 100 or more). This evens out the uneven arcs a few random points would produce, and when a node fails its load spreads across many survivors instead of landing on one neighbour.
+      - **Replicas:** for redundancy, a key is stored on the first R distinct nodes clockwise.
+
+      Consistent hashing decides **where** a key lives. It does nothing about **how much** load a key brings: a single hot key still lands on one node.
+
+      Alternatives with the same goal include **rendezvous (highest-random-weight) hashing**, where each key picks the node with the highest hash(key, node), and **directory-based** placement, where a lookup table maps key ranges to nodes and can be edited deliberately.
+    `,
+    assumptions: [
+      "Clients (or a router) agree on the current membership of the ring.",
+      "Keys are numerous and individually small compared with a node's capacity.",
+    ],
+    alternatives: [
+      { name: "Modulo hashing", when: "The number of nodes never changes, or reshuffling everything is cheap." },
+      { name: "Directory / range map", when: "You need to move specific ranges deliberately (e.g. to rebalance hot shards) rather than by hash." },
+      { name: "Rendezvous hashing", when: "Node counts are small and you want simple, even placement without virtual nodes." },
+    ],
+    failureModes: [
+      { name: "Hot key", description: "One key's load exceeds a node; hashing cannot split it." },
+      { name: "Disagreeing membership", description: "Clients with different views of the ring send the same key to different nodes." },
+      { name: "Too few virtual nodes", description: "Uneven arcs give some nodes several times the load of others." },
+    ],
+    implementations: [
+      { name: "Cassandra / ScyllaDB / DynamoDB", note: "Token rings with virtual nodes and replication." },
+      { name: "Client-side memcache routing", note: "Consistent hashing in the client library or a router such as mcrouter." },
+      { name: "Load balancer hash policies", note: "Route by a header or path so one key's requests reach one backend." },
+    ],
+    claims: [
+      {
+        id: "modulo-moves",
+        statement: "With hash(key) % N, adding one node to ten moves roughly 10% of keys.",
+        verdict: "fails",
+        explanation: "It moves about 10 in 11 keys (~91%), because almost every key's remainder changes. Consistent hashing moves about 1/11.",
+      },
+      {
+        id: "vnodes",
+        statement: "Virtual nodes spread a failed node's keys across many survivors instead of one neighbour.",
+        verdict: "holds",
+        explanation: "A node's many points are interleaved around the ring, so each point's keys go to a different successor.",
+      },
+      {
+        id: "hot",
+        statement: "Consistent hashing balances load even when one key is extremely popular.",
+        verdict: "fails",
+        explanation: "It balances the number of keys, not the traffic per key. A hot key needs caching, replication or splitting the work.",
+      },
+    ],
+    explain: {
+      prompt: "Explain why modulo hashing is a problem when nodes change, and how consistent hashing fixes it.",
+      rubric: [
+        { id: "modulo", text: "Changing N under modulo hashing remaps most keys, causing mass cache misses or data movement." },
+        { id: "ring", text: "On a ring, a key belongs to the next node; membership changes move about 1/N of keys." },
+        { id: "vnodes", text: "Virtual nodes even out load and spread a failed node's keys.", weight: "supporting" },
+        { id: "hot", text: "Notes it does not fix hot keys.", weight: "supporting" },
+      ],
+    },
+    relatedConceptIds: ["partitioning", "caching", "replication"],
+  },
 ];

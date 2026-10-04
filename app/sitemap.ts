@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { listConcepts, listInvestigations } from "@/lib/content";
+import { listCompanies, listConcepts, listInvestigations } from "@/lib/content";
 import { SITE_URL } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -7,6 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/",
     "/investigations",
     "/concepts",
+    "/companies",
     "/practice",
     "/interview",
     ...listInvestigations().flatMap((inv) => [
@@ -15,6 +16,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       ...inv.stages.map((s) => `/investigations/${inv.id}/${s.id}`),
     ]),
     ...listConcepts().map((c) => `/concepts/${c.id}`),
+    ...listCompanies().map((c) => `/companies/${c.id}`),
   ];
   return paths.map((path) => ({ url: `${SITE_URL}${path}` }));
 }

@@ -3,7 +3,7 @@
  * document's shape; this validates the graph between documents: every id a
  * document mentions must exist, and ids must be unique where they are keys.
  */
-import type { Concept, Investigation } from "@/lib/domain/content";
+import type { Company, Concept, Investigation, Writeup } from "@/lib/domain/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 
 const CONCEPT_REF = /\[\[([a-z0-9-]+)(?:\|[^\]]+)?\]\]/g;
@@ -131,6 +131,41 @@ export function checkContentIntegrity(
     for (const id of conceptReferences(concept)) requireConcept(`${at} prose`, id);
   }
 
+  return errors;
+}
+
+/** Sources: every writeup belongs to a company and links to things that exist. */
+export function checkSourceIntegrity(
+  companies: readonly Company[],
+  writeups: readonly Writeup[],
+  investigations: readonly Investigation[],
+  concepts: readonly Concept[],
+): string[] {
+  const errors: string[] = [];
+  const companyIds = new Set(companies.map((c) => c.id));
+  const investigationIds = new Set(investigations.map((i) => i.id));
+  const conceptIds = new Set(concepts.map((c) => c.id));
+
+  for (const id of duplicates(companies.map((c) => c.id))) errors.push(`duplicate company id "${id}"`);
+  for (const id of duplicates(writeups.map((w) => w.id))) errors.push(`duplicate writeup id "${id}"`);
+  for (const url of duplicates(writeups.map((w) => w.url))) errors.push(`two writeups share the url ${url}`);
+
+  for (const w of writeups) {
+    const at = `writeup ${w.id}`;
+    if (!companyIds.has(w.companyId)) errors.push(`${at}: unknown company "${w.companyId}"`);
+    for (const id of w.investigationIds) {
+      if (!investigationIds.has(id)) errors.push(`${at}: unknown investigation "${id}"`);
+    }
+    for (const id of w.conceptIds) {
+      if (!conceptIds.has(id)) errors.push(`${at}: unknown concept "${id}"`);
+    }
+    for (const id of conceptReferences(w)) {
+      if (!conceptIds.has(id)) errors.push(`${at} prose: unknown concept "${id}"`);
+    }
+  }
+  for (const c of companies) {
+    if (!writeups.some((w) => w.companyId === c.id)) errors.push(`company ${c.id} has no writeups`);
+  }
   return errors;
 }
 

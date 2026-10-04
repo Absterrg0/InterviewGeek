@@ -27,7 +27,7 @@ Node 20.9+ and pnpm 10. Deploys to Vercel as-is; set `SITE_URL` (or rely on `VER
 - **Server renders prose, client runs exercises.** Authored markdown is rendered on the server (`components/prose.tsx`) and passed to client components as ready-made nodes (`components/exercise/slots.tsx`), so the content library never ships in client bundles.
 
 ```
-app/                      routes (home, investigations, concepts, practice, interview, projects, understanding)
+app/                      routes (home, investigations, concepts, companies, practice, interview, projects, understanding)
 components/exercise/      the exercise engine: workspace, interactions, rubric self-assessment
 components/system-map.tsx SVG architecture maps (curated grid or auto-layout)
 lib/domain/               pure domain logic: schemas, evaluation, understanding, interviews, project questions
@@ -64,6 +64,10 @@ Investigations live in `lib/content/investigations/*.ts` and are registered in `
 - Run `pnpm test` after editing; the integrity test reports dangling references, unused competencies, reserved ids and map visibility mistakes.
 
 The standard for content: never teach terminology without mechanism, never present a design without constraints, never discuss scaling without naming the bottleneck, and never discuss reliability without failure scenarios. Claims are the tool for cargo-cult statements ("Adding Redis makes an application faster": *depends*, and the explanation says on what).
+
+### Sources and companies
+
+`lib/content/sources.ts` lists companies and their published writeups (engineering blog posts, papers, talks), each linked to the investigations and concepts it informs. Company pages, the "Based on" section of investigations and the "In production" section of concepts all read from it. Rules: link the original, credit the authors, keep summaries in our own words, and only use numbers the authors reported. The tests require every investigation to cite at least one source.
 
 ### Adding an interaction type
 

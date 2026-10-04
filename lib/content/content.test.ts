@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { checkContentIntegrity, conceptReferences } from "./integrity";
-import { getConcept, listConcepts, listInvestigations } from ".";
+import { checkContentIntegrity, checkSourceIntegrity, conceptReferences } from "./integrity";
+import { getConcept, listCompanies, listConcepts, listInvestigations, listWriteups, writeupsForInvestigation } from ".";
 import { listExercises, resolveExercise } from "./exercises";
 import { parseExerciseKey } from "@/lib/domain/learner";
 
 describe("curated content", () => {
   it("parses and has a consistent reference graph", () => {
     expect(checkContentIntegrity(listInvestigations(), listConcepts())).toEqual([]);
+  });
+
+  it("has sources that reference existing companies, investigations and concepts", () => {
+    expect(checkSourceIntegrity(listCompanies(), listWriteups(), listInvestigations(), listConcepts())).toEqual([]);
+  });
+
+  it("cites at least one published source for every investigation", () => {
+    const unsourced = listInvestigations()
+      .filter((inv) => writeupsForInvestigation(inv.id).length === 0)
+      .map((inv) => inv.id);
+    expect(unsourced).toEqual([]);
   });
 
   it("links every concept from at least one investigation or concept", () => {

@@ -39,6 +39,16 @@ export function ConceptsIcon() {
   );
 }
 
+/** A building with windows. */
+export function CompaniesIcon() {
+  return (
+    <Icon>
+      <path d="M2.75 14.25V3a1.25 1.25 0 0 1 1.25-1.25h5A1.25 1.25 0 0 1 10.25 3v11.25M10.25 6.75H12A1.25 1.25 0 0 1 13.25 8v6.25M1.5 14.25h13" />
+      <path d="M5.25 4.75h1.5M5.25 7.5h1.5M5.25 10.25h1.5" />
+    </Icon>
+  );
+}
+
 export function PracticeIcon() {
   return (
     <Icon>

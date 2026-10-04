@@ -6,7 +6,7 @@ import { InlineText } from "@/components/prose-core";
 import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
 import { VERDICT_LABEL } from "@/components/ui";
-import { getConcept, getInvestigation, listConcepts, listInvestigations } from "@/lib/content";
+import { getConcept, getInvestigation, listCompanies, listConcepts, listInvestigations, listWriteups, writeupsByCompany } from "@/lib/content";
 import { CLAIM_VERDICTS } from "@/lib/domain/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 
@@ -42,6 +42,10 @@ export default function Home() {
     stages: inv.stages.map((s) => ({ id: s.id, title: s.title, phase: s.phase })),
   }));
   const conceptCount = listConcepts().length;
+  const writeupCount = listWriteups().length;
+  const companies = listCompanies()
+    .map((c) => ({ company: c, count: writeupsByCompany(c.id).length }))
+    .sort((a, b) => b.count - a.count);
   const first = investigations[0];
   const example = getConcept("caching")?.claims.find((c) => c.id === "redis-faster");
   const scene = heroScene();
@@ -70,7 +74,7 @@ export default function Home() {
           </Link>
         </div>
         <p className="mt-4 font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
-          Free · No signup · {investigations.length} systems · {conceptCount} concepts
+          Free · No signup · {investigations.length} systems · {conceptCount} concepts · {writeupCount} engineering sources
         </p>
 
         {scene && stage && visible && (
@@ -169,10 +173,35 @@ export default function Home() {
         </ul>
       </Section>
 
+      <Section
+        id="sources"
+        n={3}
+        title="Built from what real teams published"
+        description="Each investigation follows decisions engineers wrote about: the schema, the incident, the migration, the numbers."
+      >
+        <ul className="flex flex-wrap gap-1.5">
+          {companies.map(({ company, count }) => (
+            <li key={company.id}>
+              <Link href={`/companies/${company.id}`} className="chip hover:text-accent">
+                {company.name}
+                <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">{count}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 max-w-[62ch] text-[0.8125rem] leading-relaxed text-ink-2">
+          Discord&apos;s message storage, Twitter&apos;s timelines, Facebook&apos;s memcache, Notion&apos;s sharding, Slack&apos;s job
+          queue: you make each decision first, then see what they chose, what broke, and the original write-up to read next.
+        </p>
+        <Link href="/companies" className="btn btn-secondary mt-4">
+          Browse by company
+        </Link>
+      </Section>
+
       {example && (
         <Section
           id="precision"
-          n={3}
+          n={4}
           title="Precision over slogans"
           description="Statements engineers say in design reviews, checked."
         >
@@ -207,7 +236,7 @@ export default function Home() {
         </Section>
       )}
 
-      <Section id="own" n={4} title="Then, your own system" description="The questions an interviewer asks about it.">
+      <Section id="own" n={5} title="Then, your own system" description="The questions an interviewer asks about it.">
         <p className="max-w-[30ch] font-display text-[1.375rem] leading-snug text-balance">
           “I built this project, but can I actually explain how it works?”
         </p>
