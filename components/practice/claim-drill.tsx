@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { InlineText } from "@/components/prose-core";
 import { Segmented, VERDICT_LABEL } from "@/components/ui";
-import { CLAIM_VERDICTS, type Claim, type ClaimVerdict } from "@/lib/domain/content";
+import type { Claim } from "@/lib/domain/content";
+import { CLAIM_VERDICTS, type ClaimVerdict } from "@/lib/domain/taxonomy";
 import { shuffled } from "@/lib/domain/evaluate";
 import { submitAttempt, useLearnerState } from "@/lib/store/learner-store";
 

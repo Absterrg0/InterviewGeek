@@ -12,7 +12,8 @@
   --hover: #f0f0f0;
   --ink: #0a0a0a;
   --ink-2: #5c5c5c;
-  --ink-3: #737373;
+  /* 4.5:1 or better on every light surface, including --sunken and --hover. */
+  --ink-3: #6b6b6b;
   --rule: #e5e5e5;
   --rule-soft: #f0f0f0;
   --rule-strong: #cccccc;
@@ -616,14 +617,15 @@
     color: var(--ink-2);
   }
 
-  /* One orchestrated entrance: sections rise in order on first paint. */
+  /* One orchestrated entrance: sections rise in order on first paint.
+     Transform only: fading content in from opacity 0 hides it from LCP and
+     from anyone reading before the animation ends. */
   .rise {
     animation: rise 420ms var(--ease-out) both;
     animation-delay: var(--d, 0ms);
   }
   @keyframes rise {
     from {
-      opacity: 0;
       transform: translateY(6px);
     }
   }

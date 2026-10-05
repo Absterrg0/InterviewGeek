@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { exampleProject } from "./example-project";
-import { project as projectSchema } from "./learner";
+import { LEARNER_STATE_VERSION } from "./learner";
+import { parseLearnerState } from "./learner-state";
 import { modelOf, modelProblems, removeComponent } from "./project-model";
 
 describe("project model editing", () => {
   const example = exampleProject("example", "2026-01-01T00:00:00.000Z");
 
   it("ships a valid example", () => {
-    expect(projectSchema.safeParse(example).success).toBe(true);
+    const stored = JSON.stringify({
+      version: LEARNER_STATE_VERSION,
+      learnerId: "me",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      attempts: [],
+      projects: [example],
+      interviews: [],
+    });
+    expect(parseLearnerState(stored).ok).toBe(true);
     expect(modelProblems(modelOf(example))).toEqual([]);
   });
 

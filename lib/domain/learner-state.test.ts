@@ -112,4 +112,49 @@ describe("learner state transitions", () => {
     expect(parseLearnerState("{not json").ok).toBe(false);
     expect(parseLearnerState(JSON.stringify({ ...state, version: 99 })).ok).toBe(false);
   });
+
+  it("rejects malformed attempts, evidence and projects", () => {
+    const base = saveProject(createLearnerState("me", now), project);
+    const withAttempt = addAttempt(base, attempt("a1", { kind: "concept-explain", conceptId: "c" }));
+    type Loose = {
+      attempts: { response: { kind: string } }[];
+      projects: { components: { id: string; label: string; kind: string; responsibility: string }[] }[];
+    };
+    const raw = JSON.parse(JSON.stringify(withAttempt)) as unknown as Loose;
+
+    const badResponse = structuredClone(raw);
+    badResponse.attempts[0]!.response.kind = "telepathy";
+    expect(parseLearnerState(JSON.stringify(badResponse)).ok).toBe(false);
+
+    const badEvidence = structuredClone(raw);
+    Object.assign(badEvidence.attempts[0]!, {
+      evidence: {
+        signal: "strong",
+        basis: "self-assessed",
+        parts: [{ label: "Explanation", signal: "strong", basis: "self-assessed" }],
+        dimensions: ["vibes"],
+        conceptIds: [],
+      },
+    });
+    expect(parseLearnerState(JSON.stringify(badEvidence)).ok).toBe(false);
+
+    const badProject = structuredClone(raw);
+    badProject.projects[0]!.components.push({ id: "db", label: "DB", kind: "blockchain", responsibility: "Store" });
+    expect(parseLearnerState(JSON.stringify(badProject)).ok).toBe(false);
+  });
+
+  it("fills in evidence fields added after the first states were written", () => {
+    const state = addAttempt(createLearnerState("me", now), attempt("a1", { kind: "concept-explain", conceptId: "c" }));
+    const evidence = {
+      signal: "strong",
+      basis: "self-assessed",
+      parts: [{ label: "Answer", signal: "strong", basis: "self-assessed" }],
+      dimensions: ["explain"],
+      conceptIds: ["caching"],
+    };
+    const raw = JSON.stringify({ ...state, attempts: [{ ...state.attempts[0], evidence }] });
+    const parsed = parseLearnerState(raw);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.state.attempts[0]?.evidence?.competencyIds).toEqual([]);
+  });
 });

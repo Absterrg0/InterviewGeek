@@ -11,10 +11,22 @@
  * concept references written as [[concept-id]] or [[concept-id|label]].
  */
 import { z } from "zod";
+import {
+  ASSESSMENTS,
+  CLAIM_VERDICTS,
+  COMPONENT_KINDS,
+  CONCEPT_DOMAINS,
+  DIMENSIONS,
+  FLOW_KINDS,
+  PHASES,
+  SLUG_RE,
+} from "./taxonomy";
 
-export const slug = z
-  .string()
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be a kebab-case slug");
+// The shared vocabulary is defined in `taxonomy.ts` (no zod) so client
+// components can import it without pulling these schemas into their bundle.
+export * from "./taxonomy";
+
+export const slug = z.string().regex(SLUG_RE, "must be a kebab-case slug");
 
 const prose = z.string().min(1);
 
@@ -22,28 +34,13 @@ const prose = z.string().min(1);
 // Dimensions of understanding
 // ---------------------------------------------------------------------------
 
-export const DIMENSIONS = ["trace", "explain", "defend", "change", "break", "implement"] as const;
 export const dimension = z.enum(DIMENSIONS);
-export type Dimension = z.infer<typeof dimension>;
 
 // ---------------------------------------------------------------------------
 // Architecture model (shared with user projects)
 // ---------------------------------------------------------------------------
 
-export const COMPONENT_KINDS = [
-  "client",
-  "edge",
-  "service",
-  "worker",
-  "database",
-  "queue",
-  "object-store",
-  "cache",
-  "stream",
-  "external",
-] as const;
 export const componentKind = z.enum(COMPONENT_KINDS);
-export type ComponentKind = z.infer<typeof componentKind>;
 
 /** A pointer into source code. Curated systems rarely use it; repository analysis will. */
 export const codeLocation = z.object({
@@ -64,7 +61,6 @@ export const architectureComponent = z.object({
 });
 export type ArchitectureComponent = z.infer<typeof architectureComponent>;
 
-export const FLOW_KINDS = ["request", "async", "data", "push"] as const;
 export const architectureFlow = z.object({
   id: slug,
   from: slug,
@@ -73,7 +69,6 @@ export const architectureFlow = z.object({
   kind: z.enum(FLOW_KINDS),
 });
 export type ArchitectureFlow = z.infer<typeof architectureFlow>;
-export type FlowKind = ArchitectureFlow["kind"];
 
 export const invariant = z.object({
   id: slug,
@@ -115,14 +110,7 @@ export const rubricPoint = z.object({
 });
 export type RubricPoint = z.infer<typeof rubricPoint>;
 
-export const ASSESSMENTS = ["sound", "defensible", "flawed"] as const;
-/**
- * sound: preferable under the stated constraints.
- * defensible: workable, and the right call under different constraints — the feedback says which.
- * flawed: violates a stated requirement or a correctness property.
- */
 export const assessment = z.enum(ASSESSMENTS);
-export type Assessment = z.infer<typeof assessment>;
 
 const writtenRationale = z.object({
   prompt: z.string().min(1),
@@ -146,9 +134,7 @@ export const decisionInteraction = z.object({
   rationale: writtenRationale,
 });
 
-export const CLAIM_VERDICTS = ["holds", "fails", "depends"] as const;
 export const claimVerdict = z.enum(CLAIM_VERDICTS);
-export type ClaimVerdict = z.infer<typeof claimVerdict>;
 
 export const claim = z.object({
   id: slug,
@@ -232,9 +218,7 @@ export type InteractionOf<K extends InteractionKind> = Extract<Interaction, { ki
 // Investigations
 // ---------------------------------------------------------------------------
 
-export const PHASES = ["model", "decide", "break", "change", "defend"] as const;
 export const phase = z.enum(PHASES);
-export type Phase = z.infer<typeof phase>;
 
 export const tradeoff = z.object({
   choice: z.string().min(1),
@@ -323,16 +307,7 @@ export type InvestigationInput = z.input<typeof investigation>;
 // Concepts
 // ---------------------------------------------------------------------------
 
-export const CONCEPT_DOMAINS = [
-  "communication",
-  "storage",
-  "reliability",
-  "concurrency",
-  "distribution",
-  "performance",
-] as const;
 export const conceptDomain = z.enum(CONCEPT_DOMAINS);
-export type ConceptDomain = z.infer<typeof conceptDomain>;
 
 export const concept = z.object({
   id: slug,
@@ -399,53 +374,3 @@ export const writeup = z.object({
 });
 export type Writeup = z.infer<typeof writeup>;
 export type WriteupInput = z.input<typeof writeup>;
-
-export const DOMAIN_LABELS: Record<ConceptDomain, string> = {
-  communication: "Communication",
-  storage: "Storage & state",
-  reliability: "Reliability",
-  concurrency: "Concurrency",
-  distribution: "Distribution",
-  performance: "Performance & scale",
-};
-
-export const DIMENSION_LABELS: Record<Dimension, { label: string; verb: string; description: string }> = {
-  trace: {
-    label: "Trace",
-    verb: "Trace what actually happens",
-    description: "Following a request or event across every boundary it crosses.",
-  },
-  explain: {
-    label: "Explain",
-    verb: "Explain the mechanism",
-    description: "Describing how a mechanism works, not just what it is called.",
-  },
-  defend: {
-    label: "Defend",
-    verb: "Defend a decision",
-    description: "Choosing between alternatives from the constraints, and naming the cost.",
-  },
-  change: {
-    label: "Change",
-    verb: "Adapt to new constraints",
-    description: "Finding the new bottleneck when requirements or scale shift.",
-  },
-  break: {
-    label: "Break",
-    verb: "Reason about failure",
-    description: "Predicting what happens when a component, message, or network misbehaves.",
-  },
-  implement: {
-    label: "Implement",
-    verb: "Connect it to code",
-    description: "Turning a guarantee into code that actually enforces it.",
-  },
-};
-
-export const PHASE_LABELS: Record<Phase, string> = {
-  model: "Model",
-  decide: "Decide",
-  break: "Break it",
-  change: "Change it",
-  defend: "Defend it",
-};

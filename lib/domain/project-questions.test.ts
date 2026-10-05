@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getConcept } from "@/lib/content";
 import type { Project } from "./learner";
-import { projectQuestionId } from "./learner";
+import { PROJECT_QUESTION_ID_RE } from "./learner";
 import { findProjectQuestion, projectQuestions, templateConceptIds } from "./project-questions";
 
 const project: Project = {
@@ -48,7 +48,7 @@ describe("project questions", () => {
     const ids = projectQuestions(project).map((q) => q.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) {
-      expect(projectQuestionId.safeParse(id).success, id).toBe(true);
+      expect(PROJECT_QUESTION_ID_RE.test(id), id).toBe(true);
       expect(findProjectQuestion(project, id)?.id).toBe(id);
     }
   });

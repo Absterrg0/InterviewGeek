@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import Link from "next/link";
-import { Funnel_Display, Funnel_Sans, Geist_Mono, Geist_Pixel } from "next/font/google";
+import { Funnel_Display, Funnel_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { SiteHeader, SiteSidebar } from "@/components/site-header";
 import type { NavInvestigation } from "@/components/site-nav";
 import { StorageNotice } from "@/components/storage-notice";
@@ -13,8 +14,19 @@ import "./globals.css";
 
 const sans = Funnel_Sans({ subsets: ["latin"], variable: "--font-funnel-sans", display: "swap" });
 const display = Funnel_Display({ subsets: ["latin"], variable: "--font-funnel-display", display: "swap" });
-const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
-const pixel = Geist_Pixel({ subsets: ["latin"], variable: "--font-geist-pixel", display: "swap" });
+// Labels, numerals and code: pinned to weight 400 and subset to ASCII, 5.5 kB.
+const mono = localFont({
+  src: "../assets/fonts/GeistMono-Latin.woff2",
+  variable: "--font-geist-mono",
+  display: "swap",
+  preload: false,
+});
+// The wordmark, subset to "sysgeeks" so the brand costs 1.6 kB instead of a whole family.
+const pixel = localFont({
+  src: "../assets/fonts/GeistPixel-Wordmark.woff2",
+  variable: "--font-geist-pixel",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

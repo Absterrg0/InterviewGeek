@@ -1,7 +1,6 @@
 "use client";
 
 import { InlineText } from "@/components/prose-core";
-import { z } from "zod";
 import type { InteractionOf } from "@/lib/domain/content";
 import { shuffled } from "@/lib/domain/evaluate";
 import type { ResponseOf } from "@/lib/domain/learner";
@@ -11,7 +10,10 @@ import { useDraft } from "../use-draft";
 
 type Ordering = InteractionOf<"ordering">;
 
-const draftSchema = z.array(z.string());
+function parseDraft(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.every((item) => typeof item === "string") ? raw : undefined;
+}
 
 function move<T>(items: readonly T[], from: number, to: number): T[] {
   const next = [...items];
@@ -22,7 +24,7 @@ function move<T>(items: readonly T[], from: number, to: number): T[] {
 
 export function OrderingInput({ interaction, draftKey, seed, onSubmit }: InputProps<Ordering, ResponseOf<"ordering">>) {
   const ids = interaction.items.map((i) => i.id);
-  const [stored, setOrder, discard] = useDraft(draftKey, draftSchema, () => shuffled(ids, seed));
+  const [stored, setOrder, discard] = useDraft(draftKey, parseDraft, () => shuffled(ids, seed));
   // A draft from an older version of the content is ignored rather than trusted.
   const valid = stored.length === ids.length && ids.every((id) => stored.includes(id));
   const order = valid ? stored : shuffled(ids, seed);

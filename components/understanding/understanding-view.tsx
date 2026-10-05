@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { SignalBadge, SignalMeter, SIGNAL_LED, STANDING_LABEL, STANDING_SIGNAL } from "@/components/ui";
-import { DIMENSION_LABELS, DIMENSIONS, type Competency } from "@/lib/domain/content";
+import type { Competency } from "@/lib/domain/content";
+import { DIMENSION_LABELS, DIMENSIONS } from "@/lib/domain/taxonomy";
 import { exerciseKey, type ExerciseRef } from "@/lib/domain/learner";
 import {
   awaitingAssessment,

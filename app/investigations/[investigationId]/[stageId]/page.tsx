@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { QuestionPreview } from "@/components/exercise/question-preview";
 import { buildSlots, Reveal } from "@/components/exercise/slots";
 import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { EventBanner } from "@/components/investigation/event-banner";
@@ -10,7 +9,7 @@ import { SystemMap } from "@/components/system-map";
 import { Prose } from "@/components/prose";
 import { getConcept, getStage, listInvestigations } from "@/lib/content";
 import { PHASE_LABELS } from "@/lib/domain/content";
-import { exerciseKey, type ExerciseRef } from "@/lib/domain/learner";
+import { type ExerciseRef } from "@/lib/domain/learner";
 import { visibleAfter } from "@/lib/domain/visibility";
 import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
 import { proseToPlainText } from "@/lib/prose";
@@ -172,7 +171,6 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
           }}
           slots={buildSlots(stage.interaction)}
           reveal={reveal}
-          placeholder={<QuestionPreview interaction={stage.interaction} seed={exerciseKey(ref)} />}
           context="investigation"
         />
       </section>

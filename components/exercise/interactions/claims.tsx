@@ -1,9 +1,9 @@
 "use client";
 
 import { InlineText } from "@/components/prose-core";
-import { z } from "zod";
 import { Segmented, VERDICT_LABEL } from "@/components/ui";
-import { CLAIM_VERDICTS, type ClaimVerdict, type InteractionOf } from "@/lib/domain/content";
+import type { InteractionOf } from "@/lib/domain/content";
+import { CLAIM_VERDICTS, type ClaimVerdict } from "@/lib/domain/taxonomy";
 import type { ResponseOf } from "@/lib/domain/learner";
 import { SubmitRow } from "../fields";
 import type { InputProps, InteractionSlots } from "../types";
@@ -11,14 +11,23 @@ import { useDraft } from "../use-draft";
 
 type Claims = InteractionOf<"claims">;
 
-const draftSchema = z.record(z.string(), z.enum(CLAIM_VERDICTS));
+function parseDraft(raw: unknown): Record<string, ClaimVerdict> | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const verdicts: Record<string, ClaimVerdict> = {};
+  for (const [id, verdict] of Object.entries(raw)) {
+    if (!CLAIM_VERDICTS.includes(verdict as ClaimVerdict)) return undefined;
+    verdicts[id] = verdict as ClaimVerdict;
+  }
+  return verdicts;
+}
+
 const VERDICT_OPTIONS = CLAIM_VERDICTS.map((v) => ({
   value: v,
   label: VERDICT_LABEL[v],
 }));
 
 export function ClaimsInput({ interaction, draftKey, onSubmit }: InputProps<Claims, ResponseOf<"claims">>) {
-  const [verdicts, setVerdicts, discard] = useDraft<Record<string, ClaimVerdict>>(draftKey, draftSchema, () => ({}));
+  const [verdicts, setVerdicts, discard] = useDraft<Record<string, ClaimVerdict>>(draftKey, parseDraft, () => ({}));
   const answered = interaction.claims.filter((c) => verdicts[c.id] !== undefined).length;
   const ready = answered === interaction.claims.length;
 

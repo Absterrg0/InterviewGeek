@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import type { Assessment, ClaimVerdict, Dimension } from "@/lib/domain/content";
-import { DIMENSION_LABELS } from "@/lib/domain/content";
+import { DIMENSION_LABELS, type Assessment, type ClaimVerdict, type Dimension } from "@/lib/domain/taxonomy";
 import type { Basis, Signal } from "@/lib/domain/learner";
 import type { Standing } from "@/lib/domain/understanding";
 

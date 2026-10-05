@@ -3,7 +3,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SIGNAL_LABEL } from "@/components/ui";
-import { PHASE_LABELS, type Phase } from "@/lib/domain/content";
+import type { Phase } from "@/lib/domain/content";
+import { PHASE_LABELS } from "@/lib/domain/taxonomy";
 import type { Attempt } from "@/lib/domain/learner";
 import { exerciseStatus, type ExerciseStatus } from "@/lib/domain/understanding";
 import { useLearnerState } from "@/lib/store/learner-store";
@@ -68,6 +69,7 @@ function StepRow({
     <li className="relative">
       <Link
         href={href}
+        prefetch={false}
         aria-current={current ? "step" : undefined}
         onClick={onNavigate}
         className={`flex items-baseline gap-3 rounded-md py-[5px] pr-2 pl-[7px] text-[0.8125rem] leading-snug transition-colors ${

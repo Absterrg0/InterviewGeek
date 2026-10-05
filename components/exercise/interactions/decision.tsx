@@ -1,7 +1,6 @@
 "use client";
 
 import { InlineText } from "@/components/prose-core";
-import { z } from "zod";
 import { AssessmentBadge } from "@/components/ui";
 import type { InteractionOf } from "@/lib/domain/content";
 import { shuffled } from "@/lib/domain/evaluate";
@@ -12,13 +11,18 @@ import { useDraft } from "../use-draft";
 
 type Decision = InteractionOf<"decision">;
 
-const draftSchema = z.object({
-  optionId: z.string().nullable(),
-  rationale: z.string(),
-});
+type Draft = { optionId: string | null; rationale: string };
+
+function parseDraft(raw: unknown): Draft | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { optionId, rationale } = raw as { optionId?: unknown; rationale?: unknown };
+  if (optionId !== null && typeof optionId !== "string") return undefined;
+  if (typeof rationale !== "string") return undefined;
+  return { optionId, rationale };
+}
 
 export function DecisionInput({ interaction, draftKey, seed, onSubmit }: InputProps<Decision, ResponseOf<"decision">>) {
-  const [draft, setDraft, discard] = useDraft(draftKey, draftSchema, () => ({
+  const [draft, setDraft, discard] = useDraft<Draft>(draftKey, parseDraft, () => ({
     optionId: null,
     rationale: "",
   }));

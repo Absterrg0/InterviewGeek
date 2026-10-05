@@ -1,7 +1,6 @@
 "use client";
 
 import { InlineText } from "@/components/prose-core";
-import { z } from "zod";
 import type { InteractionOf } from "@/lib/domain/content";
 import type { ResponseOf } from "@/lib/domain/learner";
 import { SubmitRow, WrittenField } from "../fields";
@@ -10,10 +9,20 @@ import { useDraft } from "../use-draft";
 
 type Diagnosis = InteractionOf<"diagnosis">;
 
-const draftSchema = z.object({
-  selected: z.array(z.number().int().nonnegative()),
-  rationale: z.string(),
-});
+type Draft = { selected: number[]; rationale: string };
+
+function parseDraft(raw: unknown): Draft | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { selected, rationale } = raw as { selected?: unknown; rationale?: unknown };
+  if (
+    !Array.isArray(selected) ||
+    !selected.every((line) => typeof line === "number" && Number.isInteger(line) && line >= 0)
+  ) {
+    return undefined;
+  }
+  if (typeof rationale !== "string") return undefined;
+  return { selected, rationale };
+}
 
 const ARTIFACT_NAME = {
   code: "Code",
@@ -22,7 +31,7 @@ const ARTIFACT_NAME = {
 } as const;
 
 export function DiagnosisInput({ interaction, draftKey, onSubmit }: InputProps<Diagnosis, ResponseOf<"diagnosis">>) {
-  const [draft, setDraft, discard] = useDraft(draftKey, draftSchema, () => ({
+  const [draft, setDraft, discard] = useDraft<Draft>(draftKey, parseDraft, () => ({
     selected: [],
     rationale: "",
   }));

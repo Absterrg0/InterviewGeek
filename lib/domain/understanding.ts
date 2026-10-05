@@ -6,7 +6,7 @@
  * Standings are deliberately coarse (weak / developing / strong) and carry a
  * "thin" flag when they rest on too little evidence to mean much.
  */
-import { DIMENSIONS, DIMENSION_LABELS, type Dimension } from "./content";
+import { DIMENSIONS, DIMENSION_LABELS, type Dimension } from "./taxonomy";
 import {
   exerciseKey,
   type Attempt,

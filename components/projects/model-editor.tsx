@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { COMPONENT_KINDS, FLOW_KINDS, type ComponentKind, type FlowKind } from "@/lib/domain/content";
+import { COMPONENT_KINDS, FLOW_KINDS, type ComponentKind, type FlowKind } from "@/lib/domain/taxonomy";
 import type { Project } from "@/lib/domain/learner";
 import { uniqueSlug } from "@/lib/domain/layout";
 import { modelOf, modelProblems, removeComponent, type ProjectModel } from "@/lib/domain/project-model";

@@ -50,6 +50,7 @@ function NavRow({
   return (
     <Link
       href={href}
+      prefetch={false}
       aria-current={active ? "page" : undefined}
       onClick={onNavigate}
       className={`flex h-8 items-center gap-2.5 rounded-md px-2 text-[0.875rem] transition-colors ${
@@ -64,7 +65,7 @@ function NavRow({
 
 export function Brand({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <Link href="/" onClick={onNavigate} className="flex w-fit items-center gap-2.5 rounded-lg">
+    <Link href="/" prefetch={false} onClick={onNavigate} className="flex w-fit items-center gap-2.5 rounded-lg">
       <PixelMark size={26} />
       <span className="font-pixel text-[1.0625rem] leading-none">
         sys<span className="text-ink-3">geeks</span>

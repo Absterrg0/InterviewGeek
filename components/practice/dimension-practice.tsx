@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { SignalBadge } from "@/components/ui";
-import { DIMENSION_LABELS, DIMENSIONS, type Dimension } from "@/lib/domain/content";
+import { DIMENSION_LABELS, DIMENSIONS, type Dimension } from "@/lib/domain/taxonomy";
 import { exerciseStatus, type ExerciseStatus } from "@/lib/domain/understanding";
 import type { ExerciseRef } from "@/lib/domain/learner";
 import { useLearnerState } from "@/lib/store/learner-store";

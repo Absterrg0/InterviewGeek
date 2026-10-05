@@ -1,23 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import type { z } from "zod";
-import { clearDraft, readDraft, writeDraft } from "@/lib/store/learner-store";
+import { useSyncExternalStore } from "react";
+import { clearDraft, draftSnapshot, subscribeDraft, writeDraft } from "@/lib/store/learner-store";
+
+const serverSnapshot = () => undefined;
 
 /**
- * Local state that survives navigation and reloads until submitted. Only
- * mount this inside client-only subtrees (after the learner store has
- * hydrated): the initializer reads browser storage.
+ * Local state that survives navigation and reloads until submitted.
+ *
+ * The draft lives in the store, not in component state: reading it is a
+ * snapshot (nothing on the server, the stored value in the browser), and
+ * writing it notifies every reader. The `parse` function decides what counts
+ * as a usable draft; anything it rejects falls back to `initial`.
  */
-export function useDraft<T>(key: string, schema: z.ZodType<T>, initial: () => T) {
-  const [value, setValue] = useState<T>(() => {
-    const stored = schema.safeParse(readDraft(key));
-    return stored.success ? stored.data : initial();
-  });
-  const update = (next: T) => {
-    setValue(next);
-    writeDraft(key, next);
-  };
-  const discard = () => clearDraft(key);
-  return [value, update, discard] as const;
+export function useDraft<T>(key: string, parse: (raw: unknown) => T | undefined, initial: () => T) {
+  const raw = useSyncExternalStore(
+    (listener) => subscribeDraft(key, listener),
+    () => draftSnapshot(key),
+    serverSnapshot,
+  );
+  const value = parse(raw) ?? initial();
+  return [value, (next: T) => writeDraft(key, next), () => clearDraft(key)] as const;
 }

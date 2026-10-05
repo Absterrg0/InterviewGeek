@@ -241,6 +241,33 @@ export function dismissRecovery() {
 
 const DRAFT_PREFIX = "interviewgeek.draft.";
 
+const draftCache = new Map<string, unknown>();
+const draftListeners = new Map<string, Set<() => void>>();
+
+/** Subscribe to one draft key; used by `useDraft` through useSyncExternalStore. */
+export function subscribeDraft(key: string, listener: () => void): () => void {
+  let listeners = draftListeners.get(key);
+  if (!listeners) {
+    listeners = new Set();
+    draftListeners.set(key, listeners);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) draftListeners.delete(key);
+  };
+}
+
+/** The cached draft for a key. Stable until that draft is written or cleared. */
+export function draftSnapshot(key: string): unknown {
+  if (!draftCache.has(key)) draftCache.set(key, readDraft(key));
+  return draftCache.get(key);
+}
+
+function emitDraft(key: string) {
+  for (const listener of draftListeners.get(key) ?? []) listener();
+}
+
 export function readDraft(key: string): unknown {
   const raw = storage()?.getItem(DRAFT_PREFIX + key);
   if (!raw) return undefined;
@@ -252,13 +279,17 @@ export function readDraft(key: string): unknown {
 }
 
 export function writeDraft(key: string, value: unknown) {
+  draftCache.set(key, value);
   try {
     storage()?.setItem(DRAFT_PREFIX + key, JSON.stringify(value));
   } catch {
     // Drafts are a convenience; losing one is not worth surfacing.
   }
+  emitDraft(key);
 }
 
 export function clearDraft(key: string) {
+  draftCache.set(key, undefined);
   storage()?.removeItem(DRAFT_PREFIX + key);
+  emitDraft(key);
 }

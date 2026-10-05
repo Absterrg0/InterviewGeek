@@ -16,6 +16,7 @@ import { projectQuestions } from "@/lib/domain/project-questions";
 import { latestEvidence } from "@/lib/domain/understanding";
 import { sessionUrl } from "@/lib/interview-url";
 import { deleteInterview, startInterview, useLearnerState } from "@/lib/store/learner-store";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const FOCUS: { value: Focus; label: string; description: string }[] = [
   {
@@ -37,17 +38,20 @@ const FOCUS: { value: Focus; label: string; description: string }[] = [
 
 export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[] }) {
   const state = useLearnerState();
+  const hydrated = useHydrated();
   const router = useRouter();
   const [duration, setDuration] = useState<Duration>(45);
   const [focus, setFocus] = useState<Focus>("balanced");
   const [projectChoice, setProjectChoice] = useState<string | null>(null);
 
-  if (!state) return <div className="h-72 well" aria-busy="true" />;
-
-  const latest = latestEvidence(state.attempts);
-  const projectId = projectChoice ?? state.projects[0]?.id ?? "";
-  const project = state.projects.find((p) => p.id === projectId);
-  const sessions = [...state.interviews].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  // The form is the same for everyone; only the few parts that read stored
+  // progress wait for hydration, so the page itself paints from the server HTML.
+  const learner = hydrated ? state : null;
+  const latest = learner ? latestEvidence(learner.attempts) : null;
+  const projects = learner?.projects ?? [];
+  const projectId = projectChoice ?? projects[0]?.id ?? "";
+  const project = projects.find((p) => p.id === projectId);
+  const sessions = learner ? [...learner.interviews].sort((a, b) => b.startedAt.localeCompare(a.startedAt)) : [];
 
   const start = () => {
     const projectCandidates: InterviewCandidate[] = project
@@ -70,7 +74,7 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
       candidates: [...candidates, ...projectCandidates],
       duration,
       focus,
-      latest,
+      latest: latest ?? new Map(),
       seed: crypto.randomUUID(),
     });
     const session: InterviewSession = {
@@ -112,7 +116,7 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
           <legend className="eyebrow mb-2">Focus</legend>
           <div className="grid gap-2 md:grid-cols-3">
             {FOCUS.map((f) => {
-              const disabled = f.value === "weakest" && latest.size === 0;
+              const disabled = f.value === "weakest" && (latest?.size ?? 0) === 0;
               return (
                 <label key={f.value} className={`choice flex-col ${disabled ? "opacity-50 cursor-not-allowed!" : ""}`}>
                   <input
@@ -140,7 +144,7 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
         </fieldset>
         <div>
           <p className="eyebrow mb-2">Project to defend</p>
-          {state.projects.length === 0 ? (
+          {projects.length === 0 ? (
             <p className="text-[0.8125rem] text-ink-2">
               Without a project, the last question defends a curated design instead.{" "}
               <Link href="/projects" className="link">
@@ -155,7 +159,7 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
               value={projectId}
               onChange={(e) => setProjectChoice(e.target.value)}
             >
-              {state.projects.map((p) => (
+              {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>

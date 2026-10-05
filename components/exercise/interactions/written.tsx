@@ -1,6 +1,5 @@
 "use client";
 
-import { z } from "zod";
 import type { InteractionOf } from "@/lib/domain/content";
 import type { ResponseOf } from "@/lib/domain/learner";
 import { SubmitRow, WrittenField } from "../fields";
@@ -10,10 +9,12 @@ import { useDraft } from "../use-draft";
 type Open = InteractionOf<"open">;
 type Implementation = InteractionOf<"implementation">;
 
-const textDraft = z.string();
+function parseText(raw: unknown): string | undefined {
+  return typeof raw === "string" ? raw : undefined;
+}
 
 export function OpenInput({ interaction, draftKey, onSubmit }: InputProps<Open, ResponseOf<"open">>) {
-  const [text, setText, discard] = useDraft(draftKey, textDraft, () => "");
+  const [text, setText, discard] = useDraft(draftKey, parseText, () => "");
   const ready = text.trim().length >= MIN_ANSWER;
   return (
     <form
@@ -44,7 +45,7 @@ export function ImplementationInput({
   draftKey,
   onSubmit,
 }: InputProps<Implementation, ResponseOf<"implementation">>) {
-  const [code, setCode, discard] = useDraft(draftKey, textDraft, () => interaction.starter);
+  const [code, setCode, discard] = useDraft(draftKey, parseText, () => interaction.starter);
   const changed = code.trim() !== interaction.starter.trim();
   const ready = changed && code.trim().length >= MIN_ANSWER;
   return (

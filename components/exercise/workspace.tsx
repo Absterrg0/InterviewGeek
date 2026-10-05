@@ -6,6 +6,7 @@ import { checkedParts, responseMatches, rubricFor } from "@/lib/domain/evaluate"
 import { exerciseKey, type Attempt, type AttemptContext, type Response } from "@/lib/domain/learner";
 import { latestAttempt } from "@/lib/domain/understanding";
 import { assessAttempt, submitAttempt, useLearnerState } from "@/lib/store/learner-store";
+import { useHydrated } from "@/lib/use-hydrated";
 import { EvidenceSummary } from "./evidence";
 import { ClaimsFeedback, ClaimsInput } from "./interactions/claims";
 import { DecisionFeedback, DecisionInput } from "./interactions/decision";
@@ -20,8 +21,6 @@ type Props = {
   slots: InteractionSlots;
   /** Server-rendered reasoning shown after answering. */
   reveal?: ReactNode;
-  /** Server-rendered stand-in for the form until browser state loads; a skeleton if absent. */
-  placeholder?: ReactNode;
   context: AttemptContext;
   /** Interview conditions: record the answer, hold feedback for the debrief. */
   deferFeedback?: boolean;
@@ -36,36 +35,32 @@ type Props = {
   };
 };
 
-export function ExerciseWorkspace({
-  spec,
-  slots,
-  reveal,
-  placeholder,
-  context,
-  deferFeedback = false,
-  pinned,
-}: Props) {
+export function ExerciseWorkspace({ spec, slots, reveal, context, deferFeedback = false, pinned }: Props) {
   const state = useLearnerState();
+  const hydrated = useHydrated();
   const [retrying, setRetrying] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
 
-  if (!state) return placeholder ?? <WorkspaceSkeleton />;
-
-  const key = exerciseKey(spec.ref);
-  const attempt = pinned
-    ? pinned.attemptId
-      ? state.attempts.find((a) => a.id === pinned.attemptId)
-      : undefined
-    : retrying
-      ? undefined
-      : latestAttempt(state.attempts, spec.ref);
+  // The answer form is what a first-time visitor sees, so it is rendered on the
+  // server. Whether an answer already exists is only knowable after hydration;
+  // returning visitors then swap to the review of their attempt.
+  const attempt =
+    hydrated && state
+      ? pinned
+        ? pinned.attemptId
+          ? state.attempts.find((a) => a.id === pinned.attemptId)
+          : undefined
+        : retrying
+          ? undefined
+          : latestAttempt(state.attempts, spec.ref)
+      : undefined;
 
   if (!attempt) {
     return (
       <AnswerForm
         interaction={spec.interaction}
-        draftKey={pinned?.draftKey ?? key}
-        seed={key}
+        draftKey={pinned?.draftKey ?? exerciseKey(spec.ref)}
+        seed={exerciseKey(spec.ref)}
         onSubmit={(response) => {
           const recorded = submitAttempt({
             exercise: spec.ref,
@@ -320,17 +315,6 @@ function Recorded({ focusOnMount }: { focusOnMount: boolean }) {
           As in a real interview, feedback waits until the end. You will review and assess every answer in the debrief.
         </p>
       </div>
-    </div>
-  );
-}
-
-function WorkspaceSkeleton() {
-  return (
-    <div aria-busy="true" aria-label="Loading your answers" className="space-y-3">
-      <div className="h-5 w-2/3 well-sm" />
-      <div className="h-16 well" />
-      <div className="h-16 well" />
-      <div className="h-16 well" />
     </div>
   );
 }
