@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/metadata";
 export const metadata: Metadata = pageMetadata({
   title: "How Real Companies Do System Design",
   description:
-    "One idea per company, from their engineers' own writing: Dub on redirects, Stripe on idempotency, Discord on chat storage, Convex on live queries, PostHog on analytics and more.",
+    "How Stripe, Discord, Figma, Uber, Slack and others solved real system design problems, in their engineers' own words, with a system to practise each on.",
   path: "/companies",
 });
 
@@ -23,7 +23,7 @@ export default function CompaniesPage() {
 
   return (
     <div>
-      <PageHeader title="Companies">
+      <PageHeader title="How real companies do system design">
         One idea per company, from what their engineers published about it. Each page explains the idea, links to the
         original writing, and has an investigation to practise it.
       </PageHeader>

@@ -100,7 +100,7 @@ export function StageOutline({
   stages: StageLink[];
   currentId?: string;
   withPhase?: boolean;
-  /** End the line with the finished design. */
+  /** End the line with the full walkthrough. */
   withReview?: boolean;
   onNavigate?: () => void;
 }) {
@@ -132,7 +132,7 @@ export function StageOutline({
           status={null}
           onNavigate={onNavigate}
         >
-          The finished design
+          The full walkthrough
         </StepRow>
       )}
     </ol>

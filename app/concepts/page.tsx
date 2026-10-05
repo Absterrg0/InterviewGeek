@@ -18,7 +18,7 @@ export default function ConceptsPage() {
   const domains = CONCEPT_DOMAINS.filter((d) => (groups.get(d) ?? []).length > 0);
   return (
     <div>
-      <PageHeader title="Concepts">
+      <PageHeader title="System design concepts">
         The mechanisms the investigations depend on. Each one starts from the problem it solves, explains how it actually
         works, and ends with how it fails, not with a product name.
       </PageHeader>

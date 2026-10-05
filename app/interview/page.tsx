@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { InterviewSetup } from "@/components/interview/interview-setup";
 import { PageHeader } from "@/components/page-header";
+import { listInvestigations } from "@/lib/content";
 import { listExercises } from "@/lib/content/exercises";
 import type { InterviewCandidate } from "@/lib/domain/interview";
 import { pageMetadata } from "@/lib/metadata";
@@ -25,7 +26,10 @@ export default function InterviewPage() {
   }));
   return (
     <div>
-      <PageHeader title="Interview">
+      <PageHeader
+        title="Mock system design interview"
+        meta={`Drawn from ${candidates.length} questions across ${listInvestigations().length} systems · free, no signup`}
+      >
         A timed session assembled from what you have been studying: explain a mechanism, make a design call, reason
         through a failure, and defend a system, ideally one you built. No interviewer persona and no score, just the
         questions and an honest debrief.

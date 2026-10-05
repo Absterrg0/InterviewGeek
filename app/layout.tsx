@@ -7,7 +7,7 @@ import { SiteHeader, SiteSidebar } from "@/components/site-header";
 import type { NavInvestigation } from "@/components/site-nav";
 import { StorageNotice } from "@/components/storage-notice";
 import { listCompanies, listConcepts, listInvestigations } from "@/lib/content";
-import { jsonLd } from "@/lib/metadata";
+import { jsonLd, TITLE_SUFFIX } from "@/lib/metadata";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: SITE_TITLE,
-    template: `%s · ${SITE_NAME}`,
+    template: `%s${TITLE_SUFFIX}`,
   },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
@@ -43,6 +43,11 @@ export const metadata: Metadata = {
     locale: "en_US",
   },
   twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  // A vercel.app host cannot be verified by DNS, so Search Console and Bing Webmaster Tools use meta tags.
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION,
+    other: process.env.BING_SITE_VERIFICATION ? { "msvalidate.01": process.env.BING_SITE_VERIFICATION } : undefined,
+  },
 };
 
 export const viewport: Viewport = {
@@ -63,7 +68,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   const titles: Record<string, string> = Object.fromEntries([
     ...investigations.flatMap((inv) => [
       [`/investigations/${inv.id}`, inv.title],
-      [`/investigations/${inv.id}/review`, "The finished design"],
+      [`/investigations/${inv.id}/review`, "The full walkthrough"],
       ...inv.stages.map((s) => [`/investigations/${inv.id}/${s.id}`, s.title]),
     ]),
     ...concepts.map((c) => [`/concepts/${c.id}`, c.title]),
@@ -100,10 +105,25 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: jsonLd({
-              "@type": "WebSite",
-              name: SITE_NAME,
-              url: SITE_URL,
-              description: SITE_DESCRIPTION,
+              "@graph": [
+                {
+                  "@type": "WebSite",
+                  "@id": `${SITE_URL}/#website`,
+                  name: SITE_NAME,
+                  url: SITE_URL,
+                  description: SITE_DESCRIPTION,
+                  inLanguage: "en",
+                  publisher: { "@id": `${SITE_URL}/#organization` },
+                },
+                {
+                  "@type": "Organization",
+                  "@id": `${SITE_URL}/#organization`,
+                  name: SITE_NAME,
+                  url: SITE_URL,
+                  logo: `${SITE_URL}/apple-icon`,
+                  sameAs: ["https://github.com/Absterrg0/InterviewGeek"],
+                },
+              ],
             }),
           }}
         />

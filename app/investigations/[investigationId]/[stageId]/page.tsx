@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { QuestionPreview } from "@/components/exercise/question-preview";
 import { buildSlots, Reveal } from "@/components/exercise/slots";
 import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { EventBanner } from "@/components/investigation/event-banner";
@@ -9,8 +10,9 @@ import { SystemMap } from "@/components/system-map";
 import { Prose } from "@/components/prose";
 import { getConcept, getStage, listInvestigations } from "@/lib/content";
 import { PHASE_LABELS } from "@/lib/domain/content";
+import { exerciseKey, type ExerciseRef } from "@/lib/domain/learner";
 import { visibleAfter } from "@/lib/domain/visibility";
-import { pageMetadata } from "@/lib/metadata";
+import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
 import { proseToPlainText } from "@/lib/prose";
 
 export function generateStaticParams() {
@@ -27,12 +29,16 @@ export async function generateMetadata(
   const { investigationId, stageId } = await props.params;
   const found = getStage(investigationId, stageId);
   if (!found) return {};
-  const { investigation, stage, index } = found;
+  const { investigation, stage } = found;
+  // Lead with the question the stage asks: it is what a searcher typed.
+  const question = proseToPlainText(stage.interaction.prompt);
   return pageMetadata({
-    title: `${stage.title} · ${investigation.searchTitle}`,
-    description: stage.event
-      ? proseToPlainText(`${stage.event.title} — ${stage.event.detail}`)
-      : `Stage ${index + 1} of ${investigation.stages.length} in "${investigation.title}": ${investigation.premise}`,
+    title: `${investigation.searchTitle}: ${stage.title}`,
+    description: clip(
+      stage.event
+        ? `${proseToPlainText(stage.event.title)}. ${question} ${proseToPlainText(stage.event.detail)}`
+        : `${question} ${proseToPlainText(stage.context)}`,
+    ),
     path: `/investigations/${investigation.id}/${stage.id}`,
   });
 }
@@ -42,6 +48,7 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
   const found = getStage(investigationId, stageId);
   if (!found) notFound();
   const { investigation, stage, index } = found;
+  const ref: ExerciseRef = { kind: "stage", investigationId: investigation.id, stageId: stage.id };
 
   const stages: StageLink[] = investigation.stages.map((s) => ({
     id: s.id,
@@ -98,6 +105,18 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
 
   return (
     <article>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd(
+            breadcrumbs([
+              { name: "System design interview questions", path: "/investigations" },
+              { name: investigation.searchTitle, path: `/investigations/${investigation.id}` },
+              { name: stage.title, path: `/investigations/${investigation.id}/${stage.id}` },
+            ]),
+          ),
+        }}
+      />
       <header className="section rise pt-6 pb-0 sm:pt-8 sm:pb-0">
         <details className="mb-6 rounded-xl bg-well lg:hidden">
           <summary className="cursor-pointer select-none px-4 py-2.5 text-[0.8125rem] font-medium text-ink-2">
@@ -108,7 +127,10 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
           </div>
         </details>
         <p className="text-[0.8125rem] text-ink-3">
-          Stage {index + 1} of {investigation.stages.length} · {PHASE_LABELS[stage.phase]}
+          <Link href={`/investigations/${investigation.id}`} className="hover:text-ink">
+            {investigation.searchTitle}
+          </Link>{" "}
+          · Stage {index + 1} of {investigation.stages.length} · {PHASE_LABELS[stage.phase]}
         </p>
         <h1 className="mt-2 font-display text-[2rem] leading-[1.1] text-balance sm:text-[2.5rem]">{stage.title}</h1>
       </header>
@@ -144,12 +166,13 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
         <ExerciseWorkspace
           key={stage.id}
           spec={{
-            ref: { kind: "stage", investigationId: investigation.id, stageId: stage.id },
+            ref,
             interaction: stage.interaction,
             tags: { dimensions: stage.dimensions, conceptIds: stage.conceptIds, competencyIds: stage.competencyIds },
           }}
           slots={buildSlots(stage.interaction)}
           reveal={reveal}
+          placeholder={<QuestionPreview interaction={stage.interaction} seed={exerciseKey(ref)} />}
           context="investigation"
         />
       </section>
@@ -168,7 +191,7 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
           className="group min-w-0 text-right text-ink-2 hover:text-ink"
         >
           <span className="block text-[0.75rem] text-ink-3">{next ? "Next" : "Finish"}</span>
-          <span className="font-medium">{next ? next.title : "The finished design"} →</span>
+          <span className="font-medium">{next ? next.title : "The full walkthrough"} →</span>
         </Link>
       </nav>
     </article>

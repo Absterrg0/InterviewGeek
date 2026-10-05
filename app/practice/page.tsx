@@ -41,7 +41,7 @@ export default function PracticePage() {
 
   return (
     <div>
-      <PageHeader title="Practice">
+      <PageHeader title="System design practice">
         Short, deliberate repetitions. Statements that sound right but are not, and the exercises that train the
         dimension you are weakest in.
       </PageHeader>

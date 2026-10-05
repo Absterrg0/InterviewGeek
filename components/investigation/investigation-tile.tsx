@@ -29,6 +29,7 @@ export function InvestigationTile({
         <SystemThumb components={inv.system.components} flows={inv.system.flows} given={given} className="max-h-24" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col px-2 pb-2 sm:pt-1">
+        <span className="mb-1 block text-[0.75rem] text-ink-3">{inv.searchTitle}</span>
         <span className="font-display text-[1.0625rem] leading-snug transition-colors group-hover:text-accent">
           {inv.title}
         </span>

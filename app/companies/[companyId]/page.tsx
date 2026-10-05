@@ -7,7 +7,7 @@ import { Prose } from "@/components/prose";
 import { ShareButton } from "@/components/share";
 import { SourceList } from "@/components/writeup";
 import { getCompany, getInvestigation, listCompanies, writeupsByCompany } from "@/lib/content";
-import { jsonLd, pageMetadata } from "@/lib/metadata";
+import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
@@ -22,7 +22,7 @@ export async function generateMetadata(props: PageProps<"/companies/[companyId]"
   if (!company) return {};
   return pageMetadata({
     title: `${company.name} System Design: ${company.topic}`,
-    description: `${company.summary} What ${company.name}'s engineers published about it, and an investigation to practise it.`,
+    description: clip(`${company.summary} What ${company.name}'s engineers published, and a system to practise it on.`),
     path: `/companies/${company.id}`,
   });
 }
@@ -45,26 +45,34 @@ export default async function CompanyPage(props: PageProps<"/companies/[companyI
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: jsonLd({
-            "@type": "CollectionPage",
-            name: `${company.name}: ${company.topic}`,
-            description: company.summary,
-            url,
-            isPartOf: { "@type": "WebSite", name: SITE_NAME, url: SITE_URL },
-            about: { "@type": "Organization", name: company.name, url: company.blogUrl },
-            mainEntity: {
-              "@type": "ItemList",
-              itemListElement: writeups.map((w, i) => ({
-                "@type": "ListItem",
-                position: i + 1,
-                item: {
-                  "@type": w.format === "paper" ? "ScholarlyArticle" : "CreativeWork",
-                  name: w.title,
-                  url: w.url,
-                  datePublished: w.published,
-                  author: w.authors.map((name) => ({ "@type": "Person", name })),
+            "@graph": [
+              breadcrumbs([
+                { name: "How companies do system design", path: "/companies" },
+                { name: company.name, path: `/companies/${company.id}` },
+              ]),
+              {
+                "@type": "CollectionPage",
+                name: `${company.name}: ${company.topic}`,
+                description: company.summary,
+                url,
+                isPartOf: { "@type": "WebSite", name: SITE_NAME, url: SITE_URL },
+                about: { "@type": "Organization", name: company.name, url: company.blogUrl },
+                mainEntity: {
+                  "@type": "ItemList",
+                  itemListElement: writeups.map((w, i) => ({
+                    "@type": "ListItem",
+                    position: i + 1,
+                    item: {
+                      "@type": w.format === "paper" ? "ScholarlyArticle" : "CreativeWork",
+                      name: w.title,
+                      url: w.url,
+                      datePublished: w.published,
+                      author: w.authors.map((name) => ({ "@type": "Person", name })),
+                    },
+                  })),
                 },
-              })),
-            },
+              },
+            ],
           }),
         }}
       />

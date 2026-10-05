@@ -8,6 +8,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Describe a system you built and answer the questions an interviewer would ask about it.",
   path: "/projects",
+  noindex: true,
 });
 
 export default function ProjectsPage() {

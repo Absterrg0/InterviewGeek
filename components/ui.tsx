@@ -95,6 +95,16 @@ export const VERDICT_LABEL: Record<ClaimVerdict, string> = {
   depends: "Depends",
 };
 
+const VERDICT_SIGNAL: Record<ClaimVerdict, Signal> = {
+  holds: "strong",
+  fails: "gap",
+  depends: "partial",
+};
+
+export function VerdictBadge({ verdict }: { verdict: ClaimVerdict }) {
+  return <SignalBadge signal={VERDICT_SIGNAL[verdict]}>{VERDICT_LABEL[verdict]}</SignalBadge>;
+}
+
 export function DimensionTags({ dimensions }: { dimensions: readonly Dimension[] }) {
   return (
     <ul className="flex flex-wrap gap-1.5" aria-label="Dimensions exercised">

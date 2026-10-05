@@ -3,12 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CompetencyBreakdown } from "@/components/investigation/competencies";
 import { ShareResult } from "@/components/investigation/share-result";
+import { StageWalkthrough } from "@/components/investigation/walkthrough";
 import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
 import { DashList, PageHeader, Section } from "@/components/page-header";
 import { getInvestigation, listInvestigations } from "@/lib/content";
-import { pageMetadata } from "@/lib/metadata";
-import { SITE_URL } from "@/lib/site";
+import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
   return listInvestigations().map((inv) => ({ investigationId: inv.id }));
@@ -23,8 +24,8 @@ export async function generateMetadata(
   const inv = getInvestigation(investigationId);
   if (!inv) return {};
   return pageMetadata({
-    title: `${inv.searchTitle}: the final design`,
-    description: `The finished architecture for "${inv.title}": why it works, what it relies on, its tradeoffs and where it stops working.`,
+    title: `${inv.searchTitle}: System Design Walkthrough`,
+    description: clip(`Full walkthrough: ${inv.premise}`),
     path: `/investigations/${inv.id}/review`,
   });
 }
@@ -40,15 +41,44 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
   const { synthesis, system } = inv;
   const componentName = new Map(system.components.map((c) => [c.id, c.label]));
   const lastStage = inv.stages[inv.stages.length - 1];
+  const firstStage = inv.stages[0];
 
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd({
+            "@graph": [
+              breadcrumbs([
+                { name: "System design interview questions", path: "/investigations" },
+                { name: inv.searchTitle, path: `/investigations/${inv.id}` },
+                { name: "Full walkthrough", path: `/investigations/${inv.id}/review` },
+              ]),
+              {
+                "@type": "LearningResource",
+                name: `${inv.searchTitle}: full system design walkthrough`,
+                description: `Every stage of "${inv.title}", decided and explained: the question, the answer, the reasoning, the tradeoffs, and the finished architecture.`,
+                url: `${SITE_URL}/investigations/${inv.id}/review`,
+                learningResourceType: "Walkthrough",
+                educationalLevel: inv.difficulty,
+                teaches: inv.competencies.map((c) => c.label),
+                isAccessibleForFree: true,
+                inLanguage: "en",
+                provider: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+              },
+            ],
+          }),
+        }}
+      />
       <PageHeader
-        title="The finished design"
+        eyebrow="The finished design, decision by decision"
+        title={`${inv.searchTitle}: the full walkthrough`}
         meta={inv.title}
       >
-        Not the one correct diagram, but a design you can defend under these constraints: why it works, what it
-        assumes, what it costs, and where it stops working.
+        Not the one correct diagram, but a design you can defend under these constraints: the finished architecture, then
+        every stage&apos;s question with the reasoning that answers it, the tradeoffs it accepts, and where another
+        engineer could land differently.
       </PageHeader>
 
       <section aria-label="Final architecture" className="section">
@@ -119,6 +149,47 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
 
       <Section id="breaks" title="Where it stops working">
         <DashList items={synthesis.breaksWhen} />
+      </Section>
+
+      <Section
+        id="walkthrough"
+        title="Every stage, decided and explained"
+        description="Spoilers, for the whole investigation: each stage's question and its answer, the reasoning behind it, and the tradeoffs it accepts. If you have not worked through the stages yet, you may want to do that first."
+        action={
+          firstStage && (
+            <Link href={`/investigations/${inv.id}/${firstStage.id}`} className="btn btn-secondary">
+              Work through the stages
+            </Link>
+          )
+        }
+      >
+        <nav aria-label="Stages in this walkthrough" className="well px-4 py-4 sm:px-5">
+          <p className="eyebrow mb-2">Jump to a stage</p>
+          <ol className="grid gap-x-8 gap-y-1.5 text-[0.875rem] sm:grid-cols-2">
+            {inv.stages.map((stage, i) => (
+              <li key={stage.id}>
+                <a href={`#stage-${stage.id}`} className="flex gap-2.5 text-ink-2 hover:text-ink">
+                  <span className="font-mono text-[0.75rem] leading-5 text-ink-3 tabular-nums">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="min-w-0">{stage.title}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+
+        <div className="mt-10 space-y-10">
+          {inv.stages.map((stage, i) => (
+            <StageWalkthrough
+              key={stage.id}
+              investigationId={inv.id}
+              stage={stage}
+              index={i}
+              total={inv.stages.length}
+            />
+          ))}
+        </div>
       </Section>
 
       <Section id="evidence" title="How you did">

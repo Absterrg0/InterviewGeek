@@ -12,6 +12,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "What your answers demonstrate, by dimension, investigation and concept.",
   path: "/understanding",
+  noindex: true,
 });
 
 export default function UnderstandingPage() {

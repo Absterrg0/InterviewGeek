@@ -20,6 +20,8 @@ type Props = {
   slots: InteractionSlots;
   /** Server-rendered reasoning shown after answering. */
   reveal?: ReactNode;
+  /** Server-rendered stand-in for the form until browser state loads; a skeleton if absent. */
+  placeholder?: ReactNode;
   context: AttemptContext;
   /** Interview conditions: record the answer, hold feedback for the debrief. */
   deferFeedback?: boolean;
@@ -34,12 +36,20 @@ type Props = {
   };
 };
 
-export function ExerciseWorkspace({ spec, slots, reveal, context, deferFeedback = false, pinned }: Props) {
+export function ExerciseWorkspace({
+  spec,
+  slots,
+  reveal,
+  placeholder,
+  context,
+  deferFeedback = false,
+  pinned,
+}: Props) {
   const state = useLearnerState();
   const [retrying, setRetrying] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
 
-  if (!state) return <WorkspaceSkeleton />;
+  if (!state) return placeholder ?? <WorkspaceSkeleton />;
 
   const key = exerciseKey(spec.ref);
   const attempt = pinned

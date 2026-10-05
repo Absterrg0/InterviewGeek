@@ -39,14 +39,18 @@ export function buildSlots(interaction: Interaction): InteractionSlots {
   }
 }
 
-/** The engineering reasoning shown once a stage has been answered. */
-export function Reveal({ reveal }: { reveal: Stage["reveal"] }): ReactNode {
+/**
+ * The engineering reasoning shown once a stage has been answered. `headingLevel`
+ * keeps the outline correct where the reveal is nested inside a larger write-up.
+ */
+export function Reveal({ reveal, headingLevel = 3 }: { reveal: Stage["reveal"]; headingLevel?: 3 | 4 }): ReactNode {
+  const Heading = `h${headingLevel}` as "h3" | "h4";
   return (
     <div className="space-y-6">
       <Prose text={reveal.reasoning} />
       {reveal.tradeoffs && reveal.tradeoffs.length > 0 && (
         <div>
-          <h3 className="eyebrow mb-3">Tradeoffs</h3>
+          <Heading className="eyebrow mb-3">Tradeoffs</Heading>
           <div className="panel overflow-x-auto px-5 py-1">
             <table className="data-table min-w-[520px]">
               <thead>
@@ -75,7 +79,7 @@ export function Reveal({ reveal }: { reveal: Stage["reveal"] }): ReactNode {
         <div className="tint flex gap-3 p-4">
           <span className="led led-accent mt-1.5" aria-hidden="true" />
           <div>
-            <h3 className="text-[0.875rem] font-medium mb-1">Where another engineer could land differently</h3>
+            <Heading className="text-[0.875rem] font-medium mb-1">Where another engineer could land differently</Heading>
             <p className="text-[0.8125rem] leading-relaxed text-ink-2">{reveal.otherwise}</p>
           </div>
         </div>

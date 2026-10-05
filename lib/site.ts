@@ -5,10 +5,10 @@ export const SITE_URL =
 
 export const SITE_NAME = "SysGeeks";
 
-export const SITE_TITLE = "SysGeeks: free system design interview practice";
+export const SITE_TITLE = "Free System Design Interview Practice · SysGeeks";
 
 export const SITE_DESCRIPTION =
-  "Free system design interview practice. Work through real systems from requirements: make the decisions, explain why, break the design and defend it. No signup.";
+  "System design interview practice on real systems: URL shortener, rate limiter, news feed, payments and more. Decide, break it, defend it. Free, no signup.";
 
 /** A display host for share cards and footers, e.g. "sysgeeks.vercel.app". */
 export const SITE_HOST = new URL(SITE_URL).host;

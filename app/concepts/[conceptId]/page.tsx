@@ -11,7 +11,7 @@ import { DashList, PageHeader, Section } from "@/components/page-header";
 import { resolveExercise } from "@/lib/content/exercises";
 import { conceptsReferencing, getConcept, listConcepts, stagesUsingConcept, writeupsForConcept } from "@/lib/content";
 import { DOMAIN_LABELS } from "@/lib/domain/content";
-import { jsonLd, pageMetadata } from "@/lib/metadata";
+import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
@@ -24,7 +24,7 @@ export async function generateMetadata(props: PageProps<"/concepts/[conceptId]">
   const { conceptId } = await props.params;
   const c = getConcept(conceptId);
   if (!c) return {};
-  return pageMetadata({ title: `${c.title} in System Design`, description: c.summary, path: `/concepts/${c.id}` });
+  return pageMetadata({ title: `${c.title} in System Design`, description: clip(c.summary), path: `/concepts/${c.id}` });
 }
 
 function Terms({ items }: { items: { title: string; body: string }[] }) {
@@ -80,11 +80,23 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: jsonLd({
-            "@type": "DefinedTerm",
-            name: concept.title,
-            description: concept.summary,
-            url: `${SITE_URL}/concepts/${concept.id}`,
-            inDefinedTermSet: { "@type": "DefinedTermSet", name: `${SITE_NAME} system design concepts`, url: `${SITE_URL}/concepts` },
+            "@graph": [
+              breadcrumbs([
+                { name: "System design concepts", path: "/concepts" },
+                { name: concept.title, path: `/concepts/${concept.id}` },
+              ]),
+              {
+                "@type": "DefinedTerm",
+                name: concept.title,
+                description: concept.summary,
+                url: `${SITE_URL}/concepts/${concept.id}`,
+                inDefinedTermSet: {
+                  "@type": "DefinedTermSet",
+                  name: `${SITE_NAME} system design concepts`,
+                  url: `${SITE_URL}/concepts`,
+                },
+              },
+            ],
           }),
         }}
       />

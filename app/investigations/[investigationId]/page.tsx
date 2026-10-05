@@ -9,7 +9,7 @@ import { SystemThumb } from "@/components/system-thumb";
 import { DashList, PageHeader, Section } from "@/components/page-header";
 import { getCompany, getConcept, getInvestigation, listInvestigations, writeupsForInvestigation } from "@/lib/content";
 import { visibleAfter } from "@/lib/domain/visibility";
-import { jsonLd, pageMetadata } from "@/lib/metadata";
+import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
@@ -24,7 +24,7 @@ export async function generateMetadata(props: PageProps<"/investigations/[invest
   if (!inv) return {};
   return pageMetadata({
     title: `${inv.searchTitle} · System Design Interview`,
-    description: inv.premise,
+    description: clip(inv.premise),
     path: `/investigations/${inv.id}`,
   });
 }
@@ -55,29 +55,38 @@ export default async function InvestigationPage(props: PageProps<"/investigation
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: jsonLd({
-            "@type": "LearningResource",
-            name: `${inv.searchTitle}: ${inv.title}`,
-            description: inv.premise,
-            url: `${SITE_URL}/investigations/${inv.id}`,
-            learningResourceType: "Interactive exercise",
-            educationalLevel: inv.difficulty,
-            timeRequired: `PT${inv.estimatedMinutes}M`,
-            teaches: inv.competencies.map((c) => c.label),
-            isAccessibleForFree: true,
-            inLanguage: "en",
-            provider: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
-            citation: sources.map((w) => ({ "@type": "CreativeWork", name: w.title, url: w.url })),
+            "@graph": [
+              breadcrumbs([
+                { name: "System design interview questions", path: "/investigations" },
+                { name: inv.searchTitle, path: `/investigations/${inv.id}` },
+              ]),
+              {
+                "@type": "LearningResource",
+                name: `${inv.searchTitle}: ${inv.title}`,
+                description: inv.premise,
+                url: `${SITE_URL}/investigations/${inv.id}`,
+                learningResourceType: "Interactive exercise",
+                educationalLevel: inv.difficulty,
+                timeRequired: `PT${inv.estimatedMinutes}M`,
+                teaches: inv.competencies.map((c) => c.label),
+                isAccessibleForFree: true,
+                inLanguage: "en",
+                provider: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
+                citation: sources.map((w) => ({ "@type": "CreativeWork", name: w.title, url: w.url })),
+              },
+            ],
           }),
         }}
       />
       <PageHeader
-        title={inv.title}
+        eyebrow={inv.title}
+        title={inv.searchTitle}
         meta={`${DIFFICULTY[inv.difficulty]} · about ${inv.estimatedMinutes} minutes · ${inv.stages.length} stages`}
         actions={
           <>
             <ContinueLink investigationId={inv.id} stages={stages} />
             <Link href={`/investigations/${inv.id}/review`} className="btn btn-ghost">
-              See the finished design
+              See the full walkthrough
             </Link>
             <ShareButton
               url={`${SITE_URL}/investigations/${inv.id}`}

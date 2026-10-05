@@ -3,12 +3,15 @@ import type { ReactNode } from "react";
 /** The opening of a page: a title, one paragraph saying what is here, and what to do next. */
 export function PageHeader({
   title,
+  eyebrow,
   children,
   meta,
   actions,
   aside,
 }: {
   title: ReactNode;
+  /** One quiet line above the title. */
+  eyebrow?: ReactNode;
   children?: ReactNode;
   /** One quiet line of facts under the paragraph, e.g. "Intermediate · 40 min". */
   meta?: ReactNode;
@@ -18,6 +21,7 @@ export function PageHeader({
   return (
     <header className="section rise grid gap-8 pt-6 sm:pt-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
       <div className="max-w-2xl">
+        {eyebrow && <p className="mb-2 text-[0.8125rem] text-ink-3">{eyebrow}</p>}
         <h1 className="font-display text-[2rem] leading-[1.1] text-balance sm:text-[2.5rem]">{title}</h1>
         {children && (
           <p className="mt-4 max-w-[60ch] text-[1rem] leading-relaxed text-ink-2 text-pretty">{children}</p>
