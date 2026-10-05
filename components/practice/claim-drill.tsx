@@ -83,7 +83,7 @@ export function ClaimDrill({
 
   return (
     <div>
-      <ol className="panel divide-y divide-dashed divide-rule">
+      <ol className="panel divide-y divide-rule-soft">
         {set.map((d, i) => {
           const key = keyOf(d);
           const mine = verdicts[key];

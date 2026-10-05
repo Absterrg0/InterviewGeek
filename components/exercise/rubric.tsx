@@ -73,7 +73,7 @@ export function RubricAssessment({
           Mark a point covered only if your answer states it, not if it was in your head. Partly means you gestured at
           it without the mechanism.
         </p>
-        <ol className="panel divide-y divide-dashed divide-rule">
+        <ol className="panel divide-y divide-rule-soft">
           {rubric.map((point, i) => (
             <li key={point.id} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:gap-6">
               <p className="flex-1 text-[0.875rem] leading-relaxed">
@@ -120,7 +120,7 @@ export function RubricResult({
       <WrittenText written={written} />
       <div>
         <h3 className="eyebrow mb-2">Your assessment</h3>
-        <ul className="panel divide-y divide-dashed divide-rule px-4">
+        <ul className="panel divide-y divide-rule-soft px-4">
           {rubric.map((point) => {
             const mark = marks[point.id];
             return (

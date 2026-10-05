@@ -164,7 +164,12 @@ export function checkSourceIntegrity(
     }
   }
   for (const c of companies) {
-    if (!writeups.some((w) => w.companyId === c.id)) errors.push(`company ${c.id} has no writeups`);
+    const own = writeups.filter((w) => w.companyId === c.id);
+    if (own.length === 0) errors.push(`company ${c.id} has no writeups`);
+    else if (!own.some((w) => w.investigationIds.length > 0)) errors.push(`company ${c.id} has nothing to practise`);
+    for (const id of conceptReferences(c)) {
+      if (!conceptIds.has(id)) errors.push(`company ${c.id} prose: unknown concept "${id}"`);
+    }
   }
   return errors;
 }

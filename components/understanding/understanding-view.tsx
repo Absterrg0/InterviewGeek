@@ -146,7 +146,7 @@ export function UnderstandingView({ investigations, concepts, curated }: Props) 
             </ul>
           )}
         </div>
-        <div className="panel grid min-w-[16rem] grid-cols-3 divide-x divide-dashed divide-rule" aria-hidden="true">
+        <div className="panel grid min-w-[16rem] grid-cols-3 divide-x divide-rule-soft" aria-hidden="true">
           {(["strong", "partial", "gap"] as const).map((s) => (
             <div key={s} className="px-4 py-3">
               <p className="flex items-center gap-1.5 font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
@@ -166,7 +166,7 @@ export function UnderstandingView({ investigations, concepts, curated }: Props) 
           </h2>
           <Legend />
         </div>
-        <div className="panel divide-y divide-dashed divide-rule px-4">
+        <div className="panel divide-y divide-rule-soft px-4">
           {DIMENSIONS.map((d) => {
             const s = dimensions[d];
             const signal = STANDING_SIGNAL[s.standing];
@@ -225,7 +225,7 @@ export function UnderstandingView({ investigations, concepts, curated }: Props) 
                       {answered} of {inv.stageCount} stages
                     </span>
                   </div>
-                  <ul className="divide-y divide-dashed divide-rule">
+                  <ul className="divide-y divide-rule-soft">
                     {inv.competencies.map((c) => {
                       const s = comps.get(c.id);
                       return (
@@ -262,7 +262,7 @@ export function UnderstandingView({ investigations, concepts, curated }: Props) 
             {conceptSummaries.map(({ id, title, s }) => (
               <li
                 key={id}
-                className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-4 border-b border-dashed border-rule py-2.5 text-[0.8125rem]"
+                className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-4 border-b border-rule-soft py-2.5 text-[0.8125rem]"
               >
                 <Link href={`/concepts/${id}`} className="font-medium hover:text-accent truncate">
                   {title}
@@ -282,7 +282,7 @@ export function UnderstandingView({ investigations, concepts, curated }: Props) 
           <p className="text-[0.8125rem] text-ink-3 mb-5">
             Answering again replaces the earlier evidence, so improvement shows up here instead of averaging away.
           </p>
-          <ul className="panel divide-y divide-dashed divide-rule">
+          <ul className="panel divide-y divide-rule-soft">
             {awaitingRefs.map((ref) => {
               const l = label(ref);
               if (!l) return null;

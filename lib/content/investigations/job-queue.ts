@@ -6,7 +6,7 @@ export const jobQueue = {
   title: "A job queue that survives its own backlog",
   searchTitle: "Design a Distributed Job Queue",
   premise:
-    "Built from Slack's account of the outage that made it rebuild its job queue, with lessons from Dropbox's task framework and Amazon's Builders' Library: make enqueues safe when workers fall behind, keep one slow job type from starving the rest, and drain a backlog without causing the next outage.",
+    "Built from Slack's account of the outage that made it rebuild its job queue: make enqueues safe when workers fall behind, keep one slow job type from starving the rest, and drain a backlog without causing the next outage.",
   difficulty: "intermediate",
   estimatedMinutes: 45,
   scenario: md`

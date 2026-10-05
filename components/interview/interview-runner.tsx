@@ -131,7 +131,7 @@ function Live({ session, items }: { session: InterviewSession; items: (Resolved 
 
   return (
     <div>
-      <div className="sticky top-12 z-20 border-b border-dashed border-rule bg-paper px-5 py-2.5 sm:px-10">
+      <div className="sticky top-12 z-20 border-b lg:top-0 border-rule-soft bg-paper px-5 py-2.5 sm:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ol
             className="flex flex-wrap gap-0.5 rounded-[10px] bg-sunken p-[3px] shadow-[inset_0_0_0_1px_var(--rule-soft)]"
@@ -187,7 +187,7 @@ function Live({ session, items }: { session: InterviewSession; items: (Resolved 
               </h1>
               <p className="mt-2 text-[0.8125rem] text-ink-3">{resolved.source}</p>
               <div className="mt-6 max-w-[66ch] space-y-5">{resolved.context}</div>
-              <div className="mt-8 border-t border-dashed border-rule pt-8">
+              <div className="mt-8 border-t border-rule-soft pt-8">
                 <ExerciseWorkspace
                   spec={resolved.spec}
                   slots={resolved.slots}
@@ -273,7 +273,7 @@ function Debrief({ session, items }: { session: InterviewSession; items: (Resolv
       </header>
 
       <div className="section">
-      <ol className="panel divide-y divide-dashed divide-rule px-4">
+      <ol className="panel divide-y divide-rule-soft px-4">
         {session.items.map((item, i) => {
           const attempt = item.attemptId ? attempts.get(item.attemptId) : undefined;
           return (

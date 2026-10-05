@@ -6,7 +6,6 @@ import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { EventBanner } from "@/components/investigation/event-banner";
 import { StageOutline, type StageLink } from "@/components/investigation/progress";
 import { SystemMap } from "@/components/system-map";
-import { DimensionTags } from "@/components/ui";
 import { Prose } from "@/components/prose";
 import { getConcept, getStage, listInvestigations } from "@/lib/content";
 import { PHASE_LABELS } from "@/lib/domain/content";
@@ -67,7 +66,7 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
       <Reveal reveal={stage.reveal} />
       {(added.components.length > 0 || added.flows.length > 0) && (
         <div>
-          <h3 className="eyebrow mb-3">The system now</h3>
+          <h3 className="mb-3 text-[0.9375rem] font-medium">The system now</h3>
           <SystemMap
             label={`${investigation.title}: system after stage ${index + 1}`}
             components={investigation.system.components}
@@ -81,7 +80,7 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
       )}
       {concepts.length > 0 && (
         <div>
-          <h3 className="eyebrow mb-3">Mechanisms in this stage</h3>
+          <h3 className="mb-3 text-[0.9375rem] font-medium">Concepts in this stage</h3>
           <ul className="grid gap-2 sm:grid-cols-2">
             {concepts.map((c) => (
               <li key={c.id}>
@@ -99,28 +98,22 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
 
   return (
     <article>
-      <header className="section rise">
-        <details className="well-sm mb-6 lg:hidden">
+      <header className="section rise pt-6 pb-0 sm:pt-8 sm:pb-0">
+        <details className="mb-6 rounded-xl bg-well lg:hidden">
           <summary className="cursor-pointer select-none px-4 py-2.5 text-[0.8125rem] font-medium text-ink-2">
-            All stages of {investigation.title}
+            All stages
           </summary>
           <div className="px-2 pb-3">
-            <StageOutline investigationId={investigation.id} stages={stages} currentId={stage.id} dense />
+            <StageOutline investigationId={investigation.id} stages={stages} currentId={stage.id} withReview />
           </div>
         </details>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="chip">
-            Stage {index + 1} of {investigation.stages.length}
-          </span>
-          <span className="chip">{PHASE_LABELS[stage.phase]}</span>
-        </div>
-        <h1 className="mt-4 font-display text-[1.875rem] leading-[1.1] text-balance sm:text-[2.25rem]">{stage.title}</h1>
-        <div className="mt-4">
-          <DimensionTags dimensions={stage.dimensions} />
-        </div>
+        <p className="text-[0.8125rem] text-ink-3">
+          Stage {index + 1} of {investigation.stages.length} · {PHASE_LABELS[stage.phase]}
+        </p>
+        <h1 className="mt-2 font-display text-[2rem] leading-[1.1] text-balance sm:text-[2.5rem]">{stage.title}</h1>
       </header>
 
-      <section aria-label="The situation" className="section space-y-5">
+      <section aria-label="The situation" className="section space-y-6">
         {stage.event && <EventBanner event={stage.event} />}
         <div className="max-w-[66ch]">
           <Prose text={stage.context} />
@@ -132,7 +125,7 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
                 <path d="M3.5 2l3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
               </svg>
               <span className="font-medium">System so far</span>
-              <span className="font-mono text-[0.625rem] text-ink-3">{before.components.size} components</span>
+              <span className="text-ink-3">· {before.components.size} parts</span>
             </summary>
             <div className="mt-3">
               <SystemMap
@@ -161,32 +154,22 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
         />
       </section>
 
-      <nav aria-label="Stage navigation" className="section grid grid-cols-2 gap-3">
-        <div>
-          {previous && (
-            <Link href={`/investigations/${investigation.id}/${previous.id}`} className="tile group block h-full px-4 py-3">
-              <span className="eyebrow">Previous</span>
-              <span className="mt-1 block text-[0.8125rem] font-medium text-ink-2 group-hover:text-ink">
-                {previous.title}
-              </span>
-            </Link>
-          )}
-        </div>
-        <div className="text-right">
-          {next ? (
-            <Link href={`/investigations/${investigation.id}/${next.id}`} className="tile group block h-full px-4 py-3">
-              <span className="eyebrow">Next</span>
-              <span className="mt-1 block text-[0.8125rem] font-medium text-ink-2 group-hover:text-ink">{next.title}</span>
-            </Link>
-          ) : (
-            <Link href={`/investigations/${investigation.id}/review`} className="tile group block h-full px-4 py-3">
-              <span className="eyebrow">Finish</span>
-              <span className="mt-1 block text-[0.8125rem] font-medium text-ink-2 group-hover:text-ink">
-                The design, defended
-              </span>
-            </Link>
-          )}
-        </div>
+      <nav aria-label="Stage navigation" className="section flex items-start justify-between gap-6 text-[0.875rem]">
+        {previous ? (
+          <Link href={`/investigations/${investigation.id}/${previous.id}`} className="group min-w-0 text-ink-2 hover:text-ink">
+            <span className="block text-[0.75rem] text-ink-3">Previous</span>
+            <span className="font-medium">← {previous.title}</span>
+          </Link>
+        ) : (
+          <span />
+        )}
+        <Link
+          href={`/investigations/${investigation.id}/${next ? next.id : "review"}`}
+          className="group min-w-0 text-right text-ink-2 hover:text-ink"
+        >
+          <span className="block text-[0.75rem] text-ink-3">{next ? "Next" : "Finish"}</span>
+          <span className="font-medium">{next ? next.title : "The finished design"} →</span>
+        </Link>
       </nav>
     </article>
   );

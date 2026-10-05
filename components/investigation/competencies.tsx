@@ -43,7 +43,7 @@ export function CompetencyBreakdown({
       <p className="text-sm text-ink-2 mb-4">
         Based on your latest answer to {assessed} of {stageCount} stages.
       </p>
-      <dl className="panel divide-y divide-dashed divide-rule px-4">
+      <dl className="panel divide-y divide-rule-soft px-4">
         {competencies.map((c) => {
           const s = summaries.get(c.id);
           const standing = s?.standing ?? "unexplored";

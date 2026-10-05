@@ -162,7 +162,7 @@ function Artifact({
   const { artifact } = interaction;
   return (
     <figure className="overflow-hidden rounded-xl bg-well shadow-[inset_0_0_0_1px_var(--rule)]">
-      <figcaption className="flex items-center justify-between gap-3 border-b border-dashed border-rule px-4 py-2">
+      <figcaption className="flex items-center justify-between gap-3 border-b border-rule-soft px-4 py-2">
         <span className="inline-flex items-center gap-2 font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
           <span className="text-ink">{ARTIFACT_NAME[artifact.type]}</span>
           {artifact.language && <span>{artifact.language}</span>}

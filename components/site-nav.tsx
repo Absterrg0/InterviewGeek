@@ -13,11 +13,22 @@ import {
   ProjectsIcon,
   UnderstandingIcon,
 } from "@/components/icons";
-import { StageOutline, type StageLink } from "@/components/investigation/progress";
-import { latestEvidence } from "@/lib/domain/understanding";
-import { useLearnerState } from "@/lib/store/learner-store";
+import { InvestigationProgress, StageOutline, type StageLink } from "@/components/investigation/progress";
 
 export type NavInvestigation = { id: string; title: string; stages: StageLink[] };
+
+const LEARN = [
+  { href: "/investigations", label: "Investigations", icon: <InvestigationsIcon /> },
+  { href: "/concepts", label: "Concepts", icon: <ConceptsIcon /> },
+  { href: "/companies", label: "Companies", icon: <CompaniesIcon /> },
+  { href: "/practice", label: "Practice", icon: <PracticeIcon /> },
+];
+
+const YOURS = [
+  { href: "/interview", label: "Mock interview", icon: <InterviewIcon /> },
+  { href: "/projects", label: "Your projects", icon: <ProjectsIcon /> },
+  { href: "/understanding", label: "Your progress", icon: <UnderstandingIcon /> },
+];
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -27,14 +38,12 @@ function NavRow({
   href,
   icon,
   label,
-  count,
   active,
   onNavigate,
 }: {
   href: string;
-  icon?: ReactNode;
+  icon: ReactNode;
   label: string;
-  count?: number | null;
   active: boolean;
   onNavigate?: () => void;
 }) {
@@ -43,13 +52,12 @@ function NavRow({
       href={href}
       aria-current={active ? "page" : undefined}
       onClick={onNavigate}
-      className={`flex h-[30px] items-center gap-2 rounded-lg px-2 text-[0.8125rem] transition-colors ${
-        active ? "plate rounded-lg font-medium text-ink" : "text-ink-2 hover:bg-hover hover:text-ink"
+      className={`flex h-8 items-center gap-2.5 rounded-md px-2 text-[0.875rem] transition-colors ${
+        active ? "bg-hover font-medium text-ink" : "text-ink-2 hover:bg-hover hover:text-ink"
       }`}
     >
-      {icon}
-      <span className="truncate">{label}</span>
-      {count != null && <span className="ml-auto font-mono text-[0.625rem] tabular-nums text-ink-3">{count}</span>}
+      <span className={active ? "text-ink" : "text-ink-3"}>{icon}</span>
+      {label}
     </Link>
   );
 }
@@ -57,7 +65,7 @@ function NavRow({
 export function Brand({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <Link href="/" onClick={onNavigate} className="flex w-fit items-center gap-2.5 rounded-lg">
-      <PixelMark size={28} />
+      <PixelMark size={26} />
       <span className="font-pixel text-[1.0625rem] leading-none">
         sys<span className="text-ink-3">geeks</span>
       </span>
@@ -65,88 +73,50 @@ export function Brand({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-/** Primary navigation, the systems to investigate, and the stages of the one you are in. */
-export function SiteNav({
-  investigations,
-  conceptCount,
-  companyCount,
-  claimCount,
-  onNavigate,
-}: {
-  investigations: NavInvestigation[];
-  conceptCount: number;
-  companyCount: number;
-  claimCount: number;
-  onNavigate?: () => void;
-}) {
+/** The main sections and, inside an investigation, its stages. */
+export function SiteNav({ investigations, onNavigate }: { investigations: NavInvestigation[]; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const state = useLearnerState();
-  const answered = state ? latestEvidence(state.attempts).size : null;
-  const stageMatch = pathname.match(/^\/investigations\/([^/]+)(?:\/([^/]+))?/);
-  const openId = stageMatch?.[1];
-  const currentStage = stageMatch?.[2];
+  const match = pathname.match(/^\/investigations\/([^/]+)(?:\/([^/]+))?/);
+  const open = match ? investigations.find((inv) => inv.id === match[1]) : undefined;
+  const stageId = match?.[2];
 
-  const nav = [
-    { href: "/investigations", label: "Investigations", icon: <InvestigationsIcon />, count: investigations.length },
-    { href: "/concepts", label: "Concepts", icon: <ConceptsIcon />, count: conceptCount },
-    { href: "/companies", label: "Companies", icon: <CompaniesIcon />, count: companyCount },
-    { href: "/practice", label: "Practice", icon: <PracticeIcon />, count: claimCount },
-    { href: "/interview", label: "Interview", icon: <InterviewIcon />, count: state ? state.interviews.length : null },
-    { href: "/projects", label: "Your projects", icon: <ProjectsIcon />, count: state ? state.projects.length : null },
-    { href: "/understanding", label: "Understanding", icon: <UnderstandingIcon />, count: answered },
-  ];
+  const row = (item: (typeof LEARN)[number]) => (
+    <li key={item.href}>
+      <NavRow {...item} active={isActive(pathname, item.href) && !open} onNavigate={onNavigate} />
+    </li>
+  );
 
   return (
-    <div className="space-y-7">
+    <div>
       <nav aria-label="Primary">
-        <p className="eyebrow mb-2 px-2">Navigation</p>
-        <ul className="space-y-px">
-          {nav.map((item) => (
-            <li key={item.href}>
-              <NavRow
-                {...item}
-                active={isActive(pathname, item.href) && !(item.href === "/investigations" && openId)}
-                onNavigate={onNavigate}
-              />
-            </li>
-          ))}
-        </ul>
+        <ul className="space-y-0.5">{LEARN.map(row)}</ul>
+        <ul className="mt-4 space-y-0.5">{YOURS.map(row)}</ul>
       </nav>
 
-      <nav aria-label="Systems">
-        <p className="eyebrow mb-2 px-2">Systems</p>
-        <ul className="space-y-px">
-          {investigations.map((inv) => {
-            const open = inv.id === openId;
-            return (
-              <li key={inv.id}>
-                <NavRow
-                  href={`/investigations/${inv.id}`}
-                  label={inv.title}
-                  count={inv.stages.length}
-                  active={open && !currentStage}
-                  onNavigate={onNavigate}
-                />
-                {open && (
-                  <div className="mb-2 ml-3 mt-1 border-l border-dashed border-rule pl-2" onClick={onNavigate}>
-                    <StageOutline investigationId={inv.id} stages={inv.stages} currentId={currentStage} dense />
-                    <Link
-                      href={`/investigations/${inv.id}/review`}
-                      aria-current={currentStage === "review" ? "page" : undefined}
-                      className={`mt-px flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[0.8125rem] ${
-                        currentStage === "review" ? "plate rounded-lg text-ink" : "text-ink-2 hover:bg-hover hover:text-ink"
-                      }`}
-                    >
-                      <span className="w-4 shrink-0" />
-                      The design, defended
-                    </Link>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      {open && (
+        <nav aria-label={open.title} className="mt-7 border-t border-rule-soft pt-6">
+          <Link
+            href={`/investigations/${open.id}`}
+            onClick={onNavigate}
+            aria-current={stageId ? undefined : "page"}
+            className="block px-2 font-display text-[0.9375rem] leading-snug text-ink hover:text-accent"
+          >
+            {open.title}
+          </Link>
+          <div className="mt-2 px-2">
+            <InvestigationProgress investigationId={open.id} stages={open.stages} />
+          </div>
+          <div className="mt-4">
+            <StageOutline
+              investigationId={open.id}
+              stages={open.stages}
+              currentId={stageId}
+              withReview
+              onNavigate={onNavigate}
+            />
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

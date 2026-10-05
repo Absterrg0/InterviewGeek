@@ -67,7 +67,9 @@ The standard for content: never teach terminology without mechanism, never prese
 
 ### Sources and companies
 
-`lib/content/sources.ts` lists companies and their published writeups (engineering blog posts, papers, talks), each linked to the investigations and concepts it informs. Company pages, the "Based on" section of investigations and the "In production" section of concepts all read from it. Rules: link the original, credit the authors, keep summaries in our own words, and only use numbers the authors reported. The tests require every investigation to cite at least one source.
+`lib/content/sources.ts` lists companies and their published writeups (engineering blog posts, papers, talks, code). One company per idea: each company is there for one problem it solved and wrote about, and is paired with exactly one investigation (the tests enforce the pairing both ways). Company pages, the "Read and practise next" links on investigations and the "Further reading" section of concepts all read from it.
+
+Rules: link the original and credit the authors. A company's `context` is our own explanation of the idea; a writeup's `note` is a sentence or two on why to read it. Neither paraphrases the post: the original is the content. Only use numbers the authors reported. Before adding prose based on a source, check it for copied wording: download the sources and look for runs of six or more words shared with our files.
 
 ### Adding an interaction type
 

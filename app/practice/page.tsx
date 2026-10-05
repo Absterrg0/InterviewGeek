@@ -48,7 +48,6 @@ export default function PracticePage() {
 
       <Section
         id="claims"
-        n={1}
         title="Claim check"
         description="Eight statements engineers say in design reviews. Does each hold, fail, or depend on something?"
       >
@@ -56,7 +55,6 @@ export default function PracticePage() {
       </Section>
       <Section
         id="dimension"
-        n={2}
         title="By dimension"
         description="Every exercise that trains one dimension, weakest evidence first."
       >

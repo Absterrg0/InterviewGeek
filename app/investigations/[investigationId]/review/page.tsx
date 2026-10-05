@@ -5,7 +5,7 @@ import { CompetencyBreakdown } from "@/components/investigation/competencies";
 import { ShareResult } from "@/components/investigation/share-result";
 import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
-import { PageHeader, Section } from "@/components/page-header";
+import { DashList, PageHeader, Section } from "@/components/page-header";
 import { getInvestigation, listInvestigations } from "@/lib/content";
 import { pageMetadata } from "@/lib/metadata";
 import { SITE_URL } from "@/lib/site";
@@ -29,6 +29,10 @@ export async function generateMetadata(
   });
 }
 
+function lowerFirst(text: string) {
+  return /^[A-Z][a-z]/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
+}
+
 export default async function ReviewPage(props: PageProps<"/investigations/[investigationId]/review">) {
   const { investigationId } = await props.params;
   const inv = getInvestigation(investigationId);
@@ -40,62 +44,44 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
   return (
     <div>
       <PageHeader
-        title={inv.title}
-        meta={
-          <span className="chip">
-            <span className="led led-strong size-1.5" aria-hidden="true" />
-            The design, defended
-          </span>
-        }
+        title="The finished design"
+        meta={inv.title}
       >
-        Not one correct diagram, but one defensible design under these constraints: why it works, what it assumes, what
-        it costs, and where it stops working.
+        Not the one correct diagram, but a design you can defend under these constraints: why it works, what it
+        assumes, what it costs, and where it stops working.
       </PageHeader>
 
       <section aria-label="Final architecture" className="section">
         <SystemMap label={`${inv.title}: final architecture`} components={system.components} flows={system.flows} />
       </section>
 
-      <Section id="why" n={1} title="Why it works">
+      <Section id="why" title="Why it works">
         <div className="max-w-[66ch]">
           <Prose text={synthesis.whyItWorks} />
         </div>
       </Section>
 
-      <Section id="invariants" n={2} title="Invariants, and where they are enforced">
-        <ul className="panel divide-y divide-dashed divide-rule">
+      <Section id="invariants" title="Invariants, and where they are enforced">
+        <ul className="max-w-[66ch] space-y-5">
           {system.invariants.map((inv2) => (
-            <li key={inv2.id} className="flex gap-3 px-4 py-4">
-              <span className="led led-strong mt-1.5" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="text-[0.875rem] font-medium leading-snug">{inv2.statement}</p>
-                <p className="mt-1 text-[0.8125rem] leading-relaxed text-ink-2">{inv2.mechanism}</p>
-                <p className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                  <span className="eyebrow mr-1">Enforced by</span>
-                  {inv2.enforcedBy.map((id) => (
-                    <span key={id} className="chip-flat">
-                      {componentName.get(id) ?? id}
-                    </span>
-                  ))}
-                </p>
-              </div>
+            <li key={inv2.id}>
+              <p className="text-[0.9375rem] font-medium leading-snug">{inv2.statement}</p>
+              <p className="mt-1 text-[0.875rem] leading-relaxed text-ink-2">
+                {inv2.mechanism}{" "}
+                <span className="text-ink-3">
+                  Enforced by {inv2.enforcedBy.map((id) => componentName.get(id) ?? id).join(", ")}.
+                </span>
+              </p>
             </li>
           ))}
         </ul>
       </Section>
 
-      <Section id="relies" n={3} title="What it relies on">
-        <ul className="space-y-2 text-[0.875rem] leading-relaxed">
-          {synthesis.reliesOn.map((r) => (
-            <li key={r} className="flex gap-2.5">
-              <span className="mt-[0.6rem] h-px w-2 shrink-0 bg-ink-3" aria-hidden="true" />
-              <span>{r}</span>
-            </li>
-          ))}
-        </ul>
+      <Section id="relies" title="What it relies on">
+        <DashList items={synthesis.reliesOn} />
       </Section>
 
-      <Section id="tradeoffs" n={4} title="Tradeoffs it makes">
+      <Section id="tradeoffs" title="Tradeoffs it makes">
         <div className="panel overflow-x-auto px-5 py-1">
           <table className="data-table min-w-[560px]">
             <thead>
@@ -120,32 +106,22 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
         </div>
       </Section>
 
-      <Section id="alternatives" n={5} title="Reasonable alternatives">
-        <dl className="grid gap-2 sm:grid-cols-2">
+      <Section id="alternatives" title="Reasonable alternatives">
+        <dl className="max-w-[66ch] space-y-4">
           {synthesis.alternatives.map((a) => (
-            <div key={a.design} className="panel p-4">
-              <dt className="text-[0.875rem] font-medium">{a.design}</dt>
-              <dd className="mt-1 text-[0.8125rem] leading-relaxed text-ink-2">
-                <span className="text-ink-3">Prefer when: </span>
-                {a.preferWhen}
-              </dd>
+            <div key={a.design}>
+              <dt className="text-[0.9375rem] font-medium">{a.design}</dt>
+              <dd className="mt-0.5 text-[0.875rem] leading-relaxed text-ink-2">Better when {lowerFirst(a.preferWhen)}</dd>
             </div>
           ))}
         </dl>
       </Section>
 
-      <Section id="breaks" n={6} title="Where it stops working">
-        <ul className="space-y-2 text-[0.875rem] leading-relaxed">
-          {synthesis.breaksWhen.map((b) => (
-            <li key={b} className="flex gap-2.5">
-              <span className="led led-gap mt-[0.45rem] size-1.5" aria-hidden="true" />
-              <span>{b}</span>
-            </li>
-          ))}
-        </ul>
+      <Section id="breaks" title="Where it stops working">
+        <DashList items={synthesis.breaksWhen} />
       </Section>
 
-      <Section id="evidence" n={7} title="Your evidence in this investigation">
+      <Section id="evidence" title="How you did">
         <CompetencyBreakdown
           investigationId={inv.id}
           competencies={inv.competencies}
@@ -160,14 +136,8 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
         />
       </Section>
 
-      <Section id="variants" n={8} title="Now try it as an interview question">
-        <ul className="space-y-2">
-          {inv.interviewVariants.map((v) => (
-            <li key={v} className="well-sm px-4 py-3 text-[0.875rem] text-ink-2">
-              “{v}”
-            </li>
-          ))}
-        </ul>
+      <Section id="variants" title="Now try it as an interview question">
+        <DashList items={inv.interviewVariants.map((v) => `“${v}”`)} muted />
         <p className="mt-4 text-[0.8125rem] text-ink-2">
           The{" "}
           <Link href="/interview" className="link">

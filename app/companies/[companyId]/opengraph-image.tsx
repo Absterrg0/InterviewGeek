@@ -6,7 +6,7 @@ export function generateStaticParams() {
 }
 
 export const dynamicParams = false;
-export const alt = "How a company built its systems, from its engineers' own writeups";
+export const alt = "One idea from a company's engineering writing, with an investigation to practise it";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 
@@ -17,8 +17,8 @@ export default async function Image({ params }: { params: Promise<{ companyId: s
   const practised = new Set(writeups.flatMap((w) => w.investigationIds)).size;
 
   return card({
-    label: "How they built it",
-    title: `${company.name} system design`,
+    label: company.name,
+    title: company.topic,
     body: company.summary,
     aside: (
       <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 32px", width: "100%" }}>

@@ -6,13 +6,13 @@ export const shardLiveDatabase = {
   title: "Sharding Postgres while it is running",
   searchTitle: "Shard a Live Database Without Downtime",
   premise:
-    "Built from how Notion and Figma sharded Postgres while millions of people were using it: choose a shard key, choose a shard count you can live with for years, move every row while writes continue, prove the copy is right, and grow again later without starting over.",
+    "Built from how Notion sharded Postgres while millions of people were using it: choose a shard key, choose a shard count you can live with for years, move every row while writes continue, prove the copy is right, and grow again later without starting over.",
   difficulty: "advanced",
   estimatedMinutes: 50,
   scenario: md`
     A collaborative workspace app stores everything (pages, blocks, comments) in one Postgres primary, already on the largest instance available. The biggest table has billions of rows. Writes keep climbing, autovacuum can no longer keep up, and the database is drifting toward **transaction ID wraparound**: the point at which Postgres stops accepting writes to protect itself.
 
-    Every block belongs to exactly one workspace, and almost every query stays inside one workspace. The infrastructure team is small, and it knows Postgres well.
+    Each block lives in a single workspace, and almost every query stays inside one workspace. The infrastructure team is small, and it knows Postgres well.
 
     Notion was in this position in 2020 and wrote up the whole migration, then wrote again in 2023 about growing from 32 to 96 database hosts. Figma described a similar journey in 2024, and Stripe and GitHub have published the patterns for moving live data safely. This investigation follows their decisions.
   `,

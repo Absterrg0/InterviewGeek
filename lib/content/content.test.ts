@@ -20,6 +20,17 @@ describe("curated content", () => {
     expect(unsourced).toEqual([]);
   });
 
+  it("pairs each company with one investigation, and each investigation with one company", () => {
+    const pairs = listCompanies().map((c) => ({
+      company: c.id,
+      investigations: [...new Set(listWriteups().filter((w) => w.companyId === c.id).flatMap((w) => w.investigationIds))],
+    }));
+    expect(pairs.filter((p) => p.investigations.length !== 1)).toEqual([]);
+    const byInvestigation = new Map<string, string[]>();
+    for (const p of pairs) byInvestigation.set(p.investigations[0]!, [...(byInvestigation.get(p.investigations[0]!) ?? []), p.company]);
+    expect([...byInvestigation].filter(([, companies]) => companies.length !== 1)).toEqual([]);
+  });
+
   it("links every concept from at least one investigation or concept", () => {
     const referenced = new Set<string>();
     for (const inv of listInvestigations()) {

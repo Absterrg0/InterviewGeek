@@ -6,10 +6,8 @@ import { Prose } from "@/components/prose";
 import { DIFFICULTY } from "@/components/investigation/investigation-tile";
 import { ShareButton } from "@/components/share";
 import { SystemThumb } from "@/components/system-thumb";
-import { SourceList } from "@/components/writeup";
-import { PageHeader, Section } from "@/components/page-header";
+import { DashList, PageHeader, Section } from "@/components/page-header";
 import { getCompany, getConcept, getInvestigation, listInvestigations, writeupsForInvestigation } from "@/lib/content";
-import { DIMENSION_LABELS, DIMENSIONS } from "@/lib/domain/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 import { jsonLd, pageMetadata } from "@/lib/metadata";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
@@ -31,26 +29,12 @@ export async function generateMetadata(props: PageProps<"/investigations/[invest
   });
 }
 
-function Bulleted({ items, muted = false }: { items: readonly string[]; muted?: boolean }) {
-  return (
-    <ul className={`space-y-2 text-[0.875rem] leading-relaxed ${muted ? "text-ink-2" : ""}`}>
-      {items.map((r) => (
-        <li key={r} className="flex gap-2.5">
-          <span className="mt-[0.6rem] h-px w-2 shrink-0 bg-ink-3" aria-hidden="true" />
-          <span>{r}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 export default async function InvestigationPage(props: PageProps<"/investigations/[investigationId]">) {
   const { investigationId } = await props.params;
   const inv = getInvestigation(investigationId);
   if (!inv) notFound();
 
   const stages: StageLink[] = inv.stages.map((s) => ({ id: s.id, title: s.title, phase: s.phase }));
-  const exercised = DIMENSIONS.filter((d) => inv.stages.some((s) => s.dimensions.includes(d)));
   const prerequisites = inv.prerequisites.flatMap((id) => {
     const c = getConcept(id);
     return c ? [c] : [];
@@ -64,8 +48,6 @@ export default async function InvestigationPage(props: PageProps<"/investigation
     const c = getCompany(id);
     return c ? [c] : [];
   });
-
-  let n = 0;
 
   return (
     <div>
@@ -90,18 +72,12 @@ export default async function InvestigationPage(props: PageProps<"/investigation
       />
       <PageHeader
         title={inv.title}
-        meta={
-          <>
-            <span className="chip">{DIFFICULTY[inv.difficulty]}</span>
-            <span className="chip">About {inv.estimatedMinutes} min</span>
-            <span className="chip">{inv.stages.length} stages</span>
-          </>
-        }
+        meta={`${DIFFICULTY[inv.difficulty]} · about ${inv.estimatedMinutes} minutes · ${inv.stages.length} stages`}
         actions={
           <>
             <ContinueLink investigationId={inv.id} stages={stages} />
             <Link href={`/investigations/${inv.id}/review`} className="btn btn-ghost">
-              Skip to the finished design
+              See the finished design
             </Link>
             <ShareButton
               url={`${SITE_URL}/investigations/${inv.id}`}
@@ -111,158 +87,79 @@ export default async function InvestigationPage(props: PageProps<"/investigation
           </>
         }
         aside={
-          <figure className="w-full md:w-64">
-            <div className="screen flex items-center justify-center px-6 py-6">
-              <SystemThumb components={inv.system.components} flows={inv.system.flows} given={visibleAfter(inv, 0).components} />
-            </div>
-            <figcaption className="mt-2 text-[0.6875rem] leading-relaxed text-ink-3">
-              The finished design. Solid parts are given; outlined parts are yours to work out.
-            </figcaption>
-          </figure>
+          <div className="screen hidden w-56 items-center justify-center px-6 py-6 md:flex" aria-hidden="true">
+            <SystemThumb components={inv.system.components} flows={inv.system.flows} given={visibleAfter(inv, 0).components} />
+          </div>
         }
       >
         {inv.premise}
       </PageHeader>
 
-      <Section id="scenario" n={++n} title="Scenario">
+      <Section id="scenario" title="The situation">
         <div className="max-w-[66ch]">
           <Prose text={inv.scenario} />
         </div>
       </Section>
 
-      {sources.length > 0 && (
-        <Section
-          id="sources"
-          n={++n}
-          title="Based on"
-          description="What the engineers who built systems like this published. Read them after you have made your own decisions."
-        >
-          <div className="grid gap-8 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <SourceList writeups={sources} />
-            <div className="sm:w-48">
-              <p className="eyebrow mb-3">Companies</p>
-              <ul className="space-y-1.5">
-                {companies.map((c) => (
-                  <li key={c.id}>
-                    <Link href={`/companies/${c.id}`} className="text-[0.8125rem] font-medium hover:text-accent">
-                      How {c.name} built it
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Section>
-      )}
-
-      <Section id="requirements" n={++n} title="Requirements" description="What it must do, and what it must guarantee.">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="panel p-5">
-            <p className="eyebrow mb-3">Must do</p>
-            <Bulleted items={inv.requirements.functional} />
-          </div>
-          <div className="panel p-5">
-            <p className="eyebrow mb-3">Must guarantee</p>
-            <Bulleted items={inv.requirements.nonFunctional} />
-          </div>
+      <Section id="requirements" title="What it has to do">
+        <div className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
+          <DashList items={inv.requirements.functional} />
+          <DashList items={inv.requirements.nonFunctional} />
+        </div>
+        <div className="mt-8 rounded-xl bg-well px-5 py-4">
+          <p className="mb-2 text-[0.875rem] font-medium">Working with</p>
+          <DashList items={[...inv.constraints, ...inv.assumptions]} muted />
         </div>
       </Section>
 
-      <Section id="constraints" n={++n} title="Constraints and assumptions">
-        <div className="grid gap-8 sm:grid-cols-2">
-          <div>
-            <p className="eyebrow mb-3">Constraints</p>
-            <Bulleted items={inv.constraints} muted />
-          </div>
-          <div>
-            <p className="eyebrow mb-3">Assumptions</p>
-            <Bulleted items={inv.assumptions} muted />
-          </div>
-        </div>
-      </Section>
-
-      <Section id="stages" n={++n} title="Stages" description={`${inv.stages.length} stages, grouped by what you do in them.`}>
+      <Section id="stages" title={`${inv.stages.length} stages`} description="Each one asks you to decide or explain before it shows you the reasoning.">
         <div className="max-w-xl">
-          <StageOutline investigationId={inv.id} stages={stages} />
+          <StageOutline investigationId={inv.id} stages={stages} withPhase withReview />
         </div>
       </Section>
 
-      <Section id="objectives" n={++n} title="You will be able to">
-        <ul className="space-y-px">
-          {inv.objectives.map((o) => (
-            <li key={o} className="flex items-baseline gap-2.5 py-1 text-[0.875rem]">
-              <span className="led led-accent size-1.5 translate-y-[-1px]" aria-hidden="true" />
-              <span>{o}</span>
-            </li>
-          ))}
-        </ul>
+      <Section id="variants" title="Interview questions it prepares you for">
+        <DashList items={inv.interviewVariants.map((v) => `“${v}”`)} muted />
       </Section>
 
-      <Section
-        id="evidence"
-        n={++n}
-        title="What your answers will show"
-        description="Each stage records evidence against these competencies."
-      >
-        <dl className="panel divide-y divide-dashed divide-rule px-5">
-          {inv.competencies.map((c) => (
-            <div key={c.id} className="py-3 sm:flex sm:gap-6">
-              <dt className="shrink-0 text-[0.875rem] font-medium sm:w-56">{c.label}</dt>
-              <dd className="mt-1 text-[0.8125rem] leading-relaxed text-ink-2 sm:mt-0">{c.description}</dd>
-            </div>
-          ))}
-        </dl>
-        <div className="mt-4 flex flex-wrap items-center gap-1.5">
-          <span className="eyebrow mr-1.5">Dimensions</span>
-          {exercised.map((d) => (
-            <span key={d} className="chip-flat" title={DIMENSION_LABELS[d].description}>
-              {DIMENSION_LABELS[d].label}
-            </span>
-          ))}
-        </div>
-      </Section>
-
-      <Section id="variants" n={++n} title="Interview questions this prepares you for">
-        <ul className="space-y-2">
-          {inv.interviewVariants.map((v) => (
-            <li key={v} className="well-sm px-4 py-3 text-[0.875rem] text-ink-2">
-              “{v}”
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      {(prerequisites.length > 0 || related.length > 0) && (
-        <Section id="before" n={++n} title="Around this investigation">
-          <div className="grid gap-8 sm:grid-cols-2">
+      {(sources.length > 0 || prerequisites.length > 0 || related.length > 0) && (
+        <Section id="more" title="Read and practise next">
+          <div className="space-y-6 text-[0.9375rem] leading-relaxed">
+            {companies.map((c) => (
+              <p key={c.id}>
+                <Link href={`/companies/${c.id}`} className="link">
+                  How {c.name} built it
+                </Link>
+                <span className="text-ink-2"> · {c.topic}, in their engineers&apos; own words</span>
+              </p>
+            ))}
             {prerequisites.length > 0 && (
-              <div>
-                <p className="eyebrow mb-3">Helpful to know first</p>
-                <ul className="space-y-3">
-                  {prerequisites.map((c) => (
-                    <li key={c.id}>
-                      <Link href={`/concepts/${c.id}`} className="text-[0.875rem] font-medium hover:text-accent">
-                        {c.title}
-                      </Link>
-                      <p className="mt-0.5 text-[0.8125rem] leading-snug text-ink-2">{c.summary}</p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <p className="text-ink-2">
+                Concepts to know first:{" "}
+                {prerequisites.map((c, i) => (
+                  <span key={c.id}>
+                    {i > 0 && ", "}
+                    <Link href={`/concepts/${c.id}`} className="concept-link text-ink">
+                      {c.title}
+                    </Link>
+                  </span>
+                ))}
+                .
+              </p>
             )}
             {related.length > 0 && (
-              <div>
-                <p className="eyebrow mb-3">Related systems</p>
-                <ul className="space-y-2">
-                  {related.map((r) => (
-                    <li key={r.id}>
-                      <Link href={`/investigations/${r.id}`} className="text-[0.875rem] font-medium hover:text-accent">
-                        {r.title}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <p className="text-ink-2">
+                Similar systems:{" "}
+                {related.map((r, i) => (
+                  <span key={r.id}>
+                    {i > 0 && ", "}
+                    <Link href={`/investigations/${r.id}`} className="concept-link text-ink">
+                      {r.searchTitle}
+                    </Link>
+                  </span>
+                ))}
+                .
+              </p>
             )}
           </div>
         </Section>

@@ -195,7 +195,7 @@ export const distributedCache = {
         reasoning: md`
           This is a **stale set**: a refill computed from old data lands after the invalidation meant to remove it. Deleting instead of setting on write does not fix it, because the problem is the *reader's* set.
 
-          Facebook's fix is a **lease**: on a miss, memcached returns a 64-bit token bound to the key. The refill must present the token. A delete for that key invalidates outstanding tokens, so A's late set is rejected. It is the same idea as a fencing token in [[leases-and-fencing]]: a write is only accepted if nothing newer has happened since it was authorised.
+          Facebook's fix is a **lease**: a miss hands the client a token for that key, and the refill is accepted only if it carries the token. A delete for that key invalidates outstanding tokens, so A's late set is rejected. It is the same idea as a fencing token in [[leases-and-fencing]]: a write is only accepted if nothing newer has happened since it was authorised.
         `,
       },
     },
@@ -341,7 +341,7 @@ export const distributedCache = {
         kind: "failure",
         title: "One memcached server stops responding",
         detail:
-          "Automated remediation will replace it, but that takes a few minutes. Every key it held now misses. Some of those keys are among the hottest in the cluster; a single key can account for 20% of a server's traffic.",
+          "Automated remediation will replace it, but that takes a few minutes. Every key it held now misses. Some of those keys are among the hottest in the cluster; one of them alone takes about a fifth of that server's requests.",
       },
       context: md`
         The database is provisioned for the normal miss rate. Decide what clients do in the minutes before the replacement arrives.

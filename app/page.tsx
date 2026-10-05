@@ -6,18 +6,14 @@ import { InlineText } from "@/components/prose-core";
 import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
 import { VERDICT_LABEL } from "@/components/ui";
-import { getConcept, getInvestigation, listCompanies, listConcepts, listInvestigations, listWriteups, writeupsByCompany } from "@/lib/content";
-import { CLAIM_VERDICTS } from "@/lib/domain/content";
+import { getConcept, getInvestigation, listCompanies, listInvestigations } from "@/lib/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 
 const LOOP = [
-  { step: "Requirements", text: "Start from what the system must do and guarantee, with real numbers." },
-  { step: "Decide", text: "Choose between designs that all sound plausible." },
-  { step: "Explain why", text: "Write your reasoning before you see anyone else's." },
-  { step: "Reveal", text: "See the mechanism, the tradeoff, and where another engineer would differ." },
-  { step: "Break it", text: "A worker dies, a message arrives twice, a request times out after succeeding.", led: "led-gap" },
-  { step: "Change it", text: "100x traffic, a new requirement, a promise from sales.", led: "led-partial" },
-  { step: "Defend it", text: "Explain what the design guarantees, what it assumes, and where it stops working." },
+  { step: "Decide", text: "Choose between designs that all sound plausible, and write down why." },
+  { step: "Break it", text: "A worker dies, a message arrives twice, a request times out after it succeeded." },
+  { step: "Change it", text: "Ten times the traffic, a new requirement, a promise from sales." },
+  { step: "Defend it", text: "Say what the design guarantees, what it assumes, and where it stops working." },
 ];
 
 /** The moment the product is about: a real system, mid-failure, waiting for your reasoning. */
@@ -41,11 +37,7 @@ export default function Home() {
     title: inv.title,
     stages: inv.stages.map((s) => ({ id: s.id, title: s.title, phase: s.phase })),
   }));
-  const conceptCount = listConcepts().length;
-  const writeupCount = listWriteups().length;
-  const companies = listCompanies()
-    .map((c) => ({ company: c, count: writeupsByCompany(c.id).length }))
-    .sort((a, b) => b.count - a.count);
+  const companies = listCompanies();
   const first = investigations[0];
   const example = getConcept("caching")?.claims.find((c) => c.id === "redis-faster");
   const scene = heroScene();
@@ -54,41 +46,32 @@ export default function Home() {
 
   return (
     <div>
-      <section className="section rise">
-        <p className="eyebrow">Free system design interview practice</p>
-        <h1 className="mt-4 max-w-[22ch] font-display text-[2.25rem] leading-[1.05] text-balance sm:text-[2.875rem]">
+      <section className="section rise pt-8 sm:pt-12">
+        <h1 className="max-w-[20ch] font-display text-[2.5rem] leading-[1.05] text-balance sm:text-[3.25rem]">
           Practise system design the way the interview tests it.
         </h1>
-        <p className="mt-4 max-w-[62ch] text-[0.9375rem] leading-relaxed text-ink-2 text-pretty">
+        <p className="mt-5 max-w-[58ch] text-[1.0625rem] leading-relaxed text-ink-2 text-pretty">
           You can build a job queue, a payment flow, a WebSocket app. The interview asks something else: why it is built
-          that way, what happens when it fails, and what you would change at 100x. This is where you practise that.
+          that way, what happens when it fails, and what you would change at ten times the load.
         </p>
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-7 flex flex-wrap gap-2">
           {first && (
             <Link href={`/investigations/${first.id}`} className="btn btn-primary">
               Start the first investigation
             </Link>
           )}
           <Link href="/investigations" className="btn btn-secondary">
-            Browse investigations
+            Browse all {investigations.length}
           </Link>
         </div>
-        <p className="mt-4 font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
-          Free · No signup · {investigations.length} systems · {conceptCount} concepts · {writeupCount} engineering sources
-        </p>
+        <p className="mt-4 text-[0.8125rem] text-ink-3">Free. No signup. Nothing graded by AI.</p>
 
         {scene && stage && visible && (
           <figure
-            className="panel rise mt-10 p-2.5"
+            className="panel rise mt-12 p-2.5"
             style={{ "--d": "120ms" } as React.CSSProperties}
             aria-label="An investigation in progress"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 px-2 pt-1 pb-2.5">
-              <p className="text-[0.8125rem] font-medium">{scene.investigation.title}</p>
-              <p className="font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
-                Stage {scene.index + 1} of {scene.investigation.stages.length}
-              </p>
-            </div>
             <SystemMap
               compact
               label={`${scene.investigation.title}: the system when this failure happens`}
@@ -103,10 +86,10 @@ export default function Home() {
                 <div className="flex gap-3">
                   <span className="led led-gap led-pulse mt-1.5" aria-hidden="true" />
                   <div className="min-w-0">
-                    <p className="text-[0.875rem] font-medium leading-snug">
+                    <p className="text-[0.9375rem] font-medium leading-snug">
                       <InlineText text={stage.event.title} />
                     </p>
-                    <p className="mt-1 max-w-[62ch] text-[0.8125rem] leading-relaxed text-ink-2">
+                    <p className="mt-1 max-w-[62ch] text-[0.875rem] leading-relaxed text-ink-2">
                       <InlineText text={stage.event.detail} /> What happens to the job now?
                     </p>
                   </div>
@@ -122,48 +105,22 @@ export default function Home() {
 
       <ContinueStrip investigations={outlines} />
 
-      <Section
-        id="loop"
-        n={1}
-        title="How an investigation works"
-        description="The same seven moves, in every system."
-      >
-        <ol className="space-y-px">
-          {LOOP.map((item, i) => (
-            <li key={item.step} className="flex items-baseline gap-3 rounded-lg py-1.5 text-[0.8125rem]">
-              <span className="w-5 shrink-0 font-mono text-[0.625rem] tabular-nums text-ink-3">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                <span className="inline-flex items-center gap-1.5 font-medium">
-                  {item.step}
-                  {item.led && <span className={`led ${item.led} size-1.5`} aria-hidden="true" />}
-                </span>
-                <span className="hidden text-ink-3 sm:inline" aria-hidden="true">
-                  ·
-                </span>
-                <span className="text-ink-2">{item.text}</span>
-              </span>
-            </li>
+      <Section id="loop" title="How it works" description="Every investigation is one system, built up from its requirements.">
+        <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
+          {LOOP.map((item) => (
+            <div key={item.step}>
+              <dt className="text-[0.9375rem] font-medium">{item.step}</dt>
+              <dd className="mt-0.5 text-[0.9375rem] leading-relaxed text-ink-2">{item.text}</dd>
+            </div>
           ))}
-        </ol>
-        <div className="tint mt-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-[62ch] text-[0.8125rem] leading-relaxed text-ink">
-            Every answer is evidence. Decisions, claims, sequences and diagnoses are checked against a key; written
-            reasoning you assess against specific points. No AI grading, no streaks.
-          </p>
-          <Link href="/understanding" className="link shrink-0 text-[0.8125rem]">
-            What evidence looks like
-          </Link>
-        </div>
+        </dl>
+        <p className="mt-6 max-w-[62ch] text-[0.875rem] leading-relaxed text-ink-3">
+          After each answer you see the reasoning and where another engineer could reasonably disagree. Choices are checked
+          against a key; written answers you mark yourself against specific points.
+        </p>
       </Section>
 
-      <Section
-        id="systems"
-        n={2}
-        title="Systems to investigate"
-        description="Each sketch is the finished design: solid parts are given, outlined parts are yours to work out."
-      >
+      <Section id="systems" title="Systems to design">
         <ul className="grid gap-3 md:grid-cols-2">
           {investigations.map((inv) => (
             <li key={inv.id}>
@@ -174,76 +131,45 @@ export default function Home() {
       </Section>
 
       <Section
-        id="sources"
-        n={3}
-        title="Built from what real teams published"
-        description="Each investigation follows decisions engineers wrote about: the schema, the incident, the migration, the numbers."
+        id="companies"
+        title="One idea from each company"
+        description="Each system pairs with a company that solved the same problem and wrote about it. Read the original once you have made your own decisions."
       >
-        <ul className="flex flex-wrap gap-1.5">
-          {companies.map(({ company, count }) => (
+        <ul className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+          {companies.map((company) => (
             <li key={company.id}>
-              <Link href={`/companies/${company.id}`} className="chip hover:text-accent">
-                {company.name}
-                <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">{count}</span>
+              <Link href={`/companies/${company.id}`} className="group block text-[0.9375rem] leading-snug">
+                <span className="font-medium group-hover:text-accent">{company.name}</span>
+                <span className="text-ink-2"> · {company.topic}</span>
               </Link>
             </li>
           ))}
         </ul>
-        <p className="mt-4 max-w-[62ch] text-[0.8125rem] leading-relaxed text-ink-2">
-          Discord&apos;s message storage, Twitter&apos;s timelines, Facebook&apos;s memcache, Notion&apos;s sharding, Slack&apos;s job
-          queue: you make each decision first, then see what they chose, what broke, and the original write-up to read next.
-        </p>
-        <Link href="/companies" className="btn btn-secondary mt-4">
-          Browse by company
-        </Link>
       </Section>
 
       {example && (
-        <Section
-          id="precision"
-          n={4}
-          title="Precision over slogans"
-          description="Statements engineers say in design reviews, checked."
-        >
-          <div className="tint p-5 sm:p-6">
+        <Section id="precision" title="Precision over slogans" description="Things engineers say in design reviews, checked.">
+          <div className="max-w-[66ch]">
             <p className="font-display text-[1.375rem] leading-snug">
               “<InlineText text={example.statement} />”
             </p>
-            <div
-              className="mt-4 inline-flex gap-0.5 rounded-[10px] bg-paper/70 p-[3px] shadow-[inset_0_0_0_1px_var(--rule)]"
-              aria-label="Verdict"
-            >
-              {CLAIM_VERDICTS.map((v) => (
-                <span
-                  key={v}
-                  aria-current={v === example.verdict ? "true" : undefined}
-                  className={`inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[0.75rem] font-medium ${
-                    v === example.verdict ? "bg-raised text-ink shadow-[var(--shadow-btn)]" : "text-ink-3"
-                  }`}
-                >
-                  {v === example.verdict && <span className="led led-accent size-1.5" aria-hidden="true" />}
-                  {VERDICT_LABEL[v]}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4 max-w-[64ch] text-ink-2">
+            <p className="mt-3 text-[0.9375rem] font-medium">
+              {VERDICT_LABEL[example.verdict]}.
+            </p>
+            <div className="mt-1 text-ink-2">
               <Prose text={example.explanation} className="prose-sm" />
             </div>
           </div>
-          <Link href="/practice" className="btn btn-secondary mt-4">
-            Try a claim check
+          <Link href="/practice" className="btn btn-secondary mt-5">
+            Check more claims
           </Link>
         </Section>
       )}
 
-      <Section id="own" n={5} title="Then, your own system" description="The questions an interviewer asks about it.">
-        <p className="max-w-[30ch] font-display text-[1.375rem] leading-snug text-balance">
-          “I built this project, but can I actually explain how it works?”
-        </p>
-        <p className="mt-3 max-w-[62ch] text-[0.875rem] leading-relaxed text-ink-2">
-          Describe a system you built: its components, flows and invariants. You get the questions an interviewer would
-          ask about it: trace this request, which state survives a restart, what happens when this dependency is slow,
-          where is that guarantee enforced. Your answers show which parts you understand and which you only assembled.
+      <Section id="own" title="Then, your own system">
+        <p className="max-w-[62ch] text-[0.9375rem] leading-relaxed text-ink-2">
+          Describe a system you built, its parts and how requests flow through it, and get the questions an interviewer
+          would ask about it: trace this request, what survives a restart, what happens when this dependency is slow.
         </p>
         <Link href="/projects" className="btn btn-primary mt-5">
           Describe a project

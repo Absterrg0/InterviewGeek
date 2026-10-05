@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** The opening of a page: a title and one paragraph saying what is here. */
+/** The opening of a page: a title, one paragraph saying what is here, and what to do next. */
 export function PageHeader({
   title,
   children,
@@ -10,17 +10,19 @@ export function PageHeader({
 }: {
   title: ReactNode;
   children?: ReactNode;
-  /** Chips above the title. */
+  /** One quiet line of facts under the paragraph, e.g. "Intermediate · 40 min". */
   meta?: ReactNode;
   actions?: ReactNode;
   aside?: ReactNode;
 }) {
   return (
-    <header className="section rise grid gap-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+    <header className="section rise grid gap-8 pt-6 sm:pt-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
       <div className="max-w-2xl">
-        {meta && <div className="mb-4 flex flex-wrap gap-1.5">{meta}</div>}
-        <h1 className="font-display text-[1.875rem] leading-[1.1] text-balance sm:text-[2.25rem]">{title}</h1>
-        {children && <p className="mt-3 max-w-[60ch] text-[0.9375rem] leading-relaxed text-ink-2 text-pretty">{children}</p>}
+        <h1 className="font-display text-[2rem] leading-[1.1] text-balance sm:text-[2.5rem]">{title}</h1>
+        {children && (
+          <p className="mt-4 max-w-[60ch] text-[1rem] leading-relaxed text-ink-2 text-pretty">{children}</p>
+        )}
+        {meta && <p className="mt-3 text-[0.8125rem] text-ink-3">{meta}</p>}
         {actions && <div className="mt-6 flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
       {aside}
@@ -28,13 +30,9 @@ export function PageHeader({
   );
 }
 
-/**
- * A numbered section of the main column. The number is shown only when the
- * sections on a page are meant to be read in order.
- */
+/** A titled block of the main column. */
 export function Section({
   id,
-  n,
   title,
   description,
   children,
@@ -42,7 +40,6 @@ export function Section({
   action,
 }: {
   id: string;
-  n?: number;
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
@@ -51,17 +48,32 @@ export function Section({
 }) {
   return (
     <section aria-labelledby={id} className={`section scroll-mt-14 ${className}`}>
-      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        {n !== undefined && (
-          <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">{String(n).padStart(2, "0")}</span>
-        )}
-        <h2 id={id} className="font-display text-[1.0625rem] leading-tight">
-          {title}
-        </h2>
-        {description && <p className="min-w-0 flex-1 basis-64 text-[0.8125rem] text-ink-3 text-pretty">{description}</p>}
-        {action && <div className="ml-auto">{action}</div>}
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h2 id={id} className="font-display text-[1.375rem] leading-tight">
+            {title}
+          </h2>
+          {description && (
+            <p className="mt-1.5 max-w-[60ch] text-[0.875rem] leading-relaxed text-ink-2 text-pretty">{description}</p>
+          )}
+        </div>
+        {action}
       </div>
       <div className="mt-5">{children}</div>
     </section>
+  );
+}
+
+/** A plain list with small dashes, for requirements, assumptions and the like. */
+export function DashList({ items, muted = false }: { items: readonly ReactNode[]; muted?: boolean }) {
+  return (
+    <ul className={`space-y-2 text-[0.9375rem] leading-relaxed ${muted ? "text-ink-2" : ""}`}>
+      {items.map((item, i) => (
+        <li key={i} className="flex gap-3">
+          <span className="mt-[0.7rem] h-px w-2.5 shrink-0 bg-ink-3" aria-hidden="true" />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

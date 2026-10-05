@@ -524,4 +524,76 @@ export const storageConcepts: ConceptInput[] = [
     },
     relatedConceptIds: ["durability", "event-log", "partitioning"],
   },
+  {
+    id: "columnar-storage",
+    title: "Columnar storage",
+    domain: "storage",
+    summary:
+      "Storing each column of a table separately, so analytical queries read only the columns they use and compress them well, at the cost of slow single-row lookups and updates.",
+    problem: md`
+      An analytics query such as "how many signups per day from Germany this quarter" touches millions of rows but only two or three columns. A row store keeps each row's columns together on disk, so it must read every column of every matching row, most of which the query throws away. With wide event rows, that is most of the I/O.
+    `,
+    mechanism: md`
+      A column store lays data out **one column at a time**:
+
+      1. Each column is written to its own files, in the table's **sort order**. A query reads only the files for the columns it names.
+      2. Values in one column look alike (the same few countries, timestamps that increase), so they **compress very well**, often by ten times or more. Less data read means less I/O and more of the working set in memory.
+      3. The sort order acts as a coarse index. Because rows are sorted by, say, (team, event, time), a query for one team's events can skip whole blocks whose minimum and maximum values rule them out. There is usually no index per row.
+      4. Data arrives in **batches** that become new immutable parts, merged in the background. Inserting one row at a time creates too many tiny parts.
+      5. **Updating or deleting** a row means rewriting the parts that contain it. That is fine occasionally and ruinous as a regular workload.
+
+      Execution works on blocks of column values at a time, which uses the CPU efficiently. The result: scans and aggregates over billions of rows in seconds, and point lookups and updates that are slow by comparison.
+    `,
+    assumptions: [
+      "Queries aggregate many rows but read few columns.",
+      "Data is mostly appended in batches and rarely updated.",
+      "The common filters match the table's sort order.",
+    ],
+    alternatives: [
+      { name: "Row store with indexes (Postgres, MySQL)", when: "Queries fetch or update individual rows, or the data fits comfortably and queries are selective." },
+      { name: "Pre-aggregated rollup tables", when: "The questions are known in advance, so totals can be computed as data arrives." },
+      { name: "Columnar files on object storage (Parquet) with a query engine", when: "Data is huge, queried occasionally, and latency of seconds to minutes is fine." },
+    ],
+    failureModes: [
+      { name: "Too many small inserts", description: "Each insert creates a part; background merging cannot keep up, and the table slows or rejects writes." },
+      { name: "Frequent updates", description: "Each update or delete rewrites whole parts. Many of them queue behind each other and starve merges." },
+      { name: "Sort order that does not match the queries", description: "Filters cannot skip blocks, so every query scans the full column." },
+      { name: "Everything in one JSON column", description: "Every query must read and parse the whole blob, losing most of the benefit of columns." },
+    ],
+    implementations: [
+      { name: "DuckDB", note: "Embedded, in-process column store, good for one machine's worth of data." },
+      { name: "ClickHouse", note: "A distributed column store built for real-time analytics on event data." },
+      { name: "BigQuery, Snowflake, Redshift", note: "Managed warehouses that separate columnar storage from compute." },
+    ],
+    claims: [
+      {
+        id: "faster-everything",
+        statement: "Moving to a column store makes every query faster.",
+        verdict: "fails",
+        explanation: "It makes scans and aggregates over few columns faster. Fetching one whole row, or updating it, gets slower, because the row is spread across many column files and parts are immutable.",
+      },
+      {
+        id: "compression",
+        statement: "Column stores compress better than row stores.",
+        verdict: "holds",
+        explanation: "Values within one column are similar, and often sorted, so encodings like run-length and dictionary compression work far better than on mixed rows.",
+      },
+      {
+        id: "batch-inserts",
+        statement: "Inserting events into a column store one at a time, as they arrive, is fine.",
+        verdict: "depends",
+        explanation: "Most column stores want batches: each insert creates a part to merge later. At low rates single inserts are tolerable; at high rates you buffer, usually in a queue, and insert in blocks.",
+      },
+    ],
+    explain: {
+      prompt: "Explain why a column store answers analytical queries faster than a row store, and what it is bad at.",
+      rubric: [
+        { id: "read-less", text: "Reads only the columns a query uses, instead of whole rows." },
+        { id: "compress", text: "Similar values in a column compress well, so less is read." },
+        { id: "skip", text: "Sorting lets queries skip blocks by their minimum and maximum values.", weight: "supporting" },
+        { id: "costs", text: "Single-row lookups, updates and small inserts are expensive." },
+      ],
+    },
+    relatedConceptIds: ["lsm-trees", "partitioning", "event-log"],
+  },
 ];

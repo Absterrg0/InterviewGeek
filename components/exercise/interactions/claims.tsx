@@ -42,7 +42,7 @@ export function ClaimsInput({ interaction, draftKey, onSubmit }: InputProps<Clai
         <strong className="font-medium text-ink">Depends</strong> means the statement is true under some conditions in
         the scenario and false under others. Use it when you can name the condition.
       </p>
-      <ol className="panel divide-y divide-dashed divide-rule">
+      <ol className="panel divide-y divide-rule-soft">
         {interaction.claims.map((claim, i) => (
           <li key={claim.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-6">
             <p className="flex-1 text-[0.875rem] leading-relaxed">
@@ -82,7 +82,7 @@ export function ClaimsFeedback({
   return (
     <div>
       <p className="font-display text-[1.125rem] leading-snug mb-4">{interaction.prompt}</p>
-      <ol className="panel divide-y divide-dashed divide-rule">
+      <ol className="panel divide-y divide-rule-soft">
         {shown.map((claim, i) => {
           const mine = response.verdicts[claim.id];
           const right = mine === claim.verdict;

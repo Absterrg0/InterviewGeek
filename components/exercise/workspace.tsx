@@ -184,9 +184,7 @@ function writtenPart(response: Response): Written | null {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-4">
-      <h2 className="eyebrow flex items-center gap-3 after:h-0 after:flex-1 after:border-t after:border-dashed after:border-rule">
-        {title}
-      </h2>
+      <h2 className="font-display text-[1.25rem] leading-tight">{title}</h2>
       {children}
     </section>
   );

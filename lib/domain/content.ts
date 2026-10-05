@@ -366,9 +366,11 @@ export type ConceptInput = z.input<typeof concept>;
 export const company = z.object({
   id: slug,
   name: z.string().min(1),
-  /** One sentence: the engineering problems that shape their systems. */
+  /** The one idea this company is here for, e.g. "Redirects at the edge". */
+  topic: z.string().min(1).max(48),
+  /** One sentence: the problem, in plain terms. */
   summary: z.string().min(1).max(240),
-  /** Why their writing is worth reading, in a short paragraph. */
+  /** Our own explanation of the idea and how they approached it. Never a paraphrase of one post. */
   context: prose,
   blogUrl: z.url(),
 });
@@ -378,8 +380,8 @@ export type CompanyInput = z.input<typeof company>;
 export const WRITEUP_FORMATS = ["post", "paper", "talk", "code"] as const;
 
 /**
- * A primary source: an engineering blog post, paper or talk by the people who
- * built the system. Investigations and concepts cite these; company pages list them.
+ * A primary source: an engineering blog post, paper, talk or code by the people
+ * who built the system. Investigations and concepts cite these; company pages list them.
  */
 export const writeup = z.object({
   id: slug,
@@ -390,10 +392,8 @@ export const writeup = z.object({
   /** Year and month, e.g. "2017-01", or just the year when the month is not known. */
   published: z.string().regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/),
   format: z.enum(WRITEUP_FORMATS),
-  /** What they built and why, in our words. */
-  summary: prose,
-  /** Mechanisms worth taking from it, one per line. */
-  takeaways: z.array(z.string().min(1)).min(2),
+  /** Why to read it, in a sentence or two of our own. The original is the content. */
+  note: z.string().min(1).max(320),
   investigationIds: z.array(slug),
   conceptIds: z.array(slug),
 });

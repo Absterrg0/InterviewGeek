@@ -7,10 +7,10 @@ import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { Prose } from "@/components/prose";
 import { ShareButton } from "@/components/share";
 import { SourceList } from "@/components/writeup";
-import { PageHeader, Section } from "@/components/page-header";
+import { DashList, PageHeader, Section } from "@/components/page-header";
 import { resolveExercise } from "@/lib/content/exercises";
 import { conceptsReferencing, getConcept, listConcepts, stagesUsingConcept, writeupsForConcept } from "@/lib/content";
-import { DOMAIN_LABELS, PHASE_LABELS } from "@/lib/domain/content";
+import { DOMAIN_LABELS } from "@/lib/domain/content";
 import { jsonLd, pageMetadata } from "@/lib/metadata";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
@@ -27,13 +27,13 @@ export async function generateMetadata(props: PageProps<"/concepts/[conceptId]">
   return pageMetadata({ title: `${c.title} in System Design`, description: c.summary, path: `/concepts/${c.id}` });
 }
 
-function Bullets({ items }: { items: { title: string; body: string }[] }) {
+function Terms({ items }: { items: { title: string; body: string }[] }) {
   return (
-    <dl className="grid gap-2 sm:grid-cols-2">
+    <dl className="max-w-[66ch] space-y-4">
       {items.map((item) => (
-        <div key={item.title} className="panel p-4">
-          <dt className="text-[0.875rem] font-medium">{item.title}</dt>
-          <dd className="mt-1 text-[0.8125rem] leading-relaxed text-ink-2">{item.body}</dd>
+        <div key={item.title}>
+          <dt className="text-[0.9375rem] font-medium">{item.title}</dt>
+          <dd className="mt-0.5 text-[0.9375rem] leading-relaxed text-ink-2">{item.body}</dd>
         </div>
       ))}
     </dl>
@@ -74,7 +74,6 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
     byInvestigation.set(use.investigation.id, entry);
   }
 
-  let n = 0;
   return (
     <div>
       <script
@@ -91,7 +90,7 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
       />
       <PageHeader
         title={concept.title}
-        meta={<span className="chip">{DOMAIN_LABELS[concept.domain]}</span>}
+        meta={DOMAIN_LABELS[concept.domain]}
         actions={
           <>
             <ConceptStanding conceptId={concept.id} />
@@ -116,64 +115,31 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
         {concept.summary}
       </PageHeader>
 
-      <Section id="problem" n={++n} title="The problem">
+      <Section id="problem" title="The problem">
         <div className="max-w-[66ch]">
           <Prose text={concept.problem} />
         </div>
       </Section>
-      <Section id="mechanism" n={++n} title="How it works">
+      <Section id="mechanism" title="How it works">
         <div className="max-w-[66ch]">
           <Prose text={concept.mechanism} />
         </div>
       </Section>
-      <Section id="assumptions" n={++n} title="What it assumes">
-        <ul className="space-y-2 text-[0.875rem] leading-relaxed">
-          {concept.assumptions.map((a) => (
-            <li key={a} className="flex gap-2.5">
-              <span className="mt-[0.6rem] h-px w-2 shrink-0 bg-ink-3" aria-hidden="true" />
-              <span>{a}</span>
-            </li>
-          ))}
-        </ul>
+      <Section id="assumptions" title="What it assumes">
+        <DashList items={concept.assumptions} />
       </Section>
-      <Section id="failures" n={++n} title="How it goes wrong">
-        <Bullets items={concept.failureModes.map((f) => ({ title: f.name, body: f.description }))} />
+      <Section id="failures" title="How it goes wrong">
+        <Terms items={concept.failureModes.map((f) => ({ title: f.name, body: f.description }))} />
       </Section>
-      <Section id="alternatives" n={++n} title="Alternatives">
-        <Bullets items={concept.alternatives.map((a) => ({ title: a.name, body: a.when }))} />
+      <Section id="alternatives" title="Alternatives">
+        <Terms items={concept.alternatives.map((a) => ({ title: a.name, body: a.when }))} />
       </Section>
-      <Section id="implementations" n={++n} title="In practice" description="From simplest to most specialised.">
-        <ol className="space-y-px">
-          {concept.implementations.map((impl, i) => (
-            <li key={impl.name} className="flex items-baseline gap-3 py-1.5 text-[0.8125rem]">
-              <span className="w-5 shrink-0 font-mono text-[0.625rem] tabular-nums text-ink-3">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span>
-                <span className="font-medium">{impl.name}</span>
-                <span className="text-ink-3" aria-hidden="true">
-                  {" · "}
-                </span>
-                <span className="text-ink-2">{impl.note}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
+      <Section id="implementations" title="In practice" description="From simplest to most specialised.">
+        <Terms items={concept.implementations.map((impl) => ({ title: impl.name, body: impl.note }))} />
       </Section>
-
-      {sources.length > 0 && (
-        <Section
-          id="in-production"
-          n={++n}
-          title="In production"
-          description="Engineers describing this mechanism in systems they run."
-        >
-          <SourceList writeups={sources} />
-        </Section>
-      )}
 
       {claims && (
-        <Section id="check" n={++n} title="Check yourself">
+        <Section id="check" title="Check yourself">
           <ExerciseWorkspace
             spec={{ ref: claims.summary.ref, interaction: claims.interaction, tags: claims.tags }}
             slots={buildSlots(claims.interaction)}
@@ -182,7 +148,7 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
         </Section>
       )}
       {explain && (
-        <Section id="explain" n={++n} title="Explain it in your own words">
+        <Section id="explain" title="Explain it in your own words">
           <ExerciseWorkspace
             spec={{ ref: explain.summary.ref, interaction: explain.interaction, tags: explain.tags }}
             slots={buildSlots(explain.interaction)}
@@ -191,58 +157,50 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
         </Section>
       )}
 
-      <Section id="used-in" n={++n} title="Where it shows up">
-        <div className="grid gap-8 sm:grid-cols-2">
-          <div>
-            <p className="eyebrow mb-3">Investigations</p>
-            {byInvestigation.size === 0 ? (
-              <p className="text-[0.8125rem] text-ink-2">
-                Not yet exercised by an investigation; it supports the concepts linked here.
-              </p>
-            ) : (
-              <ul className="space-y-4">
-                {[...byInvestigation].map(([id, entry]) => (
-                  <li key={id}>
-                    <Link href={`/investigations/${id}`} className="text-[0.875rem] font-medium hover:text-accent">
-                      {entry.title}
-                    </Link>
-                    <ul className="mt-1.5 space-y-1 border-l border-dashed border-rule pl-3">
-                      {entry.stages.map(({ stage }) => (
-                        <li key={stage.id}>
-                          <Link
-                            href={`/investigations/${id}/${stage.id}`}
-                            className="block text-[0.8125rem] leading-snug text-ink-2 hover:text-ink"
-                          >
-                            {stage.title}
-                            <span className="ml-2 font-mono text-[0.625rem] uppercase tracking-wider text-ink-3">
-                              {PHASE_LABELS[stage.phase]}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          {related.length > 0 && (
-            <div>
-              <p className="eyebrow mb-3">Connected concepts</p>
-              <ul className="space-y-3">
-                {related.map((c) => (
-                  <li key={c.id}>
-                    <Link href={`/concepts/${c.id}`} className="text-[0.875rem] font-medium hover:text-accent">
-                      {c.title}
-                    </Link>
-                    <p className="mt-0.5 text-[0.8125rem] leading-snug text-ink-2">{c.summary}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </Section>
+      {byInvestigation.size > 0 && (
+        <Section id="used-in" title="Where you practise it">
+          <ul className="max-w-[66ch] space-y-4">
+            {[...byInvestigation].map(([id, entry]) => (
+              <li key={id}>
+                <Link href={`/investigations/${id}`} className="text-[0.9375rem] font-medium hover:text-accent">
+                  {entry.title}
+                </Link>
+                <p className="mt-0.5 text-[0.875rem] leading-relaxed text-ink-2">
+                  {entry.stages.map(({ stage }, i) => (
+                    <span key={stage.id}>
+                      {i > 0 && " · "}
+                      <Link href={`/investigations/${id}/${stage.id}`} className="hover:text-ink">
+                        {stage.title}
+                      </Link>
+                    </span>
+                  ))}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {sources.length > 0 && (
+        <Section id="further-reading" title="Further reading" description="Engineers describing it in systems they run.">
+          <SourceList writeups={sources} showCompany />
+        </Section>
+      )}
+
+      {related.length > 0 && (
+        <Section id="related" title="Related concepts">
+          <ul className="grid max-w-[66ch] gap-x-8 gap-y-3 sm:grid-cols-2">
+            {related.map((c) => (
+              <li key={c.id}>
+                <Link href={`/concepts/${c.id}`} className="text-[0.9375rem] font-medium hover:text-accent">
+                  {c.title}
+                </Link>
+                <p className="mt-0.5 text-[0.8125rem] leading-snug text-ink-2">{c.summary}</p>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
     </div>
   );
 }

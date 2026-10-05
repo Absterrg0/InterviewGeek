@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 /*
- * A white page in a hatched frame: hairline rings instead of heavy shadows,
- * dashed rules between sections, one cyan accent, mono labels for metadata.
+ * A white page with a quiet sidebar: hairline rings instead of heavy shadows,
+ * space instead of rules between sections, and one cyan accent.
  */
 :root {
   --paper: #ffffff;
@@ -39,7 +39,6 @@
     0 2px 6px -4px rgb(0 0 0 / 0.28), 0 6px 14px -6px rgb(0 0 0 / 0.1);
   --plate-top: var(--well);
   --plate-bottom: var(--sunken);
-  --hatch: color-mix(in srgb, var(--ink) 9%, transparent);
   --font-display: var(--font-funnel-display), ui-sans-serif, system-ui, sans-serif;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   color-scheme: light;
@@ -172,40 +171,10 @@
 }
 
 @layer components {
-  /* ---------- Frame ---------- */
+  /* ---------- Layout ---------- */
 
-  /* The page column, with hatched gutters on either side. */
-  .frame {
-    position: relative;
-  }
-  @media (min-width: 1024px) {
-    .frame {
-      border-inline: 1px solid var(--rule);
-    }
-  }
-  @media (min-width: 1280px) {
-    .frame::before,
-    .frame::after {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 14px;
-      background: repeating-linear-gradient(-45deg, var(--hatch) 0 1px, transparent 1px 6px);
-    }
-    .frame::before {
-      right: 100%;
-      border-left: 1px solid var(--rule);
-    }
-    .frame::after {
-      left: 100%;
-      border-right: 1px solid var(--rule);
-    }
-  }
-
-  /* A section of the main column: content between dashed rules. */
+  /* A block of the main column. Separated by space, not rules. */
   .section {
-    border-bottom: 1px dashed var(--rule);
     padding: 1.75rem 1.25rem;
   }
   @media (min-width: 640px) {
@@ -334,14 +303,12 @@
     box-shadow: var(--shadow-btn);
   }
 
-  /* Small mono label above a group: NAVIGATION, SECTIONS. */
+  /* A quiet label above a group of fields or a list. */
   .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.625rem;
-    line-height: 0.875rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--ink-3);
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    color: var(--ink-2);
   }
 
   /* ---------- Prose ---------- */
@@ -434,14 +401,11 @@
     text-align: left;
     vertical-align: top;
     padding: 0.55rem 0.75rem 0.55rem 0;
-    border-bottom: 1px dashed var(--rule);
+    border-bottom: 1px solid var(--rule-soft);
   }
   .prose thead th {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    font-weight: 400;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-size: 0.75rem;
+    font-weight: 500;
     color: var(--ink-3);
   }
   .prose tbody th {
@@ -634,18 +598,15 @@
     text-align: left;
     vertical-align: top;
     padding: 0.7rem 1rem 0.7rem 0;
-    border-bottom: 1px dashed var(--rule);
+    border-bottom: 1px solid var(--rule-soft);
   }
   .data-table tr:last-child > th,
   .data-table tr:last-child > td {
     border-bottom: 0;
   }
   .data-table thead th {
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    font-weight: 400;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-size: 0.75rem;
+    font-weight: 500;
     color: var(--ink-3);
   }
   .data-table tbody th {

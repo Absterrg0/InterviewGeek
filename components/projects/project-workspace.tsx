@@ -144,7 +144,7 @@ function ProjectView({
                 });
               }}
             />
-            <div className="mt-2 border-t border-dashed border-rule pt-6">
+            <div className="mt-2 border-t border-rule-soft pt-6">
               {confirmDelete ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <p className="text-[0.8125rem] text-ink-2">Delete this project and every answer about it?</p>
@@ -261,7 +261,7 @@ function QuestionList({
               </h2>
               <p className="text-[0.8125rem] text-ink-3">{QUESTION_GROUP_LABELS[group].description}</p>
             </div>
-            <ul className="panel divide-y divide-dashed divide-rule">
+            <ul className="panel divide-y divide-rule-soft">
               {inGroup.map((q) => {
                 const status = exerciseStatus(attempts, refOf(q));
                 const isOpen = open === q.id;
@@ -285,7 +285,7 @@ function QuestionList({
                       </span>
                     </button>
                     {isOpen && (
-                      <div id={`q-${q.id}`} className="border-t border-dashed border-rule bg-well px-4 pb-6 pt-5 sm:px-6">
+                      <div id={`q-${q.id}`} className="border-t border-rule-soft bg-well px-4 pb-6 pt-5 sm:px-6">
                         <ExerciseWorkspace
                           spec={{
                             ref: refOf(q),

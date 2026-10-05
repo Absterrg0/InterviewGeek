@@ -164,7 +164,7 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
             </select>
           )}
         </div>
-        <div className="space-y-3 border-t border-dashed border-rule pt-6">
+        <div className="space-y-3 border-t border-rule-soft pt-6">
           <button type="button" className="btn btn-primary" onClick={start}>
             Start a {duration}-minute session
           </button>
@@ -185,7 +185,7 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
         {sessions.length === 0 ? (
           <p className="text-[0.8125rem] text-ink-3">None yet. Your sessions and their debriefs will be listed here.</p>
         ) : (
-          <ul className="panel divide-y divide-dashed divide-rule">
+          <ul className="panel divide-y divide-rule-soft">
             {sessions.map((s) => {
               const answered = s.items.filter((i) => i.attemptId).length;
               const date = new Date(s.startedAt).toLocaleDateString(undefined, {

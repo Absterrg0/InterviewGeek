@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { SignalDot, SIGNAL_LABEL } from "@/components/ui";
+import type { ReactNode } from "react";
+import { SIGNAL_LABEL } from "@/components/ui";
 import { PHASE_LABELS, type Phase } from "@/lib/domain/content";
 import type { Attempt } from "@/lib/domain/learner";
 import { exerciseStatus, type ExerciseStatus } from "@/lib/domain/understanding";
@@ -27,53 +28,113 @@ function statusLabel(status: ExerciseStatus | null): string {
   return `Answered: ${SIGNAL_LABEL[status].toLowerCase()}`;
 }
 
-function StatusMark({ status }: { status: ExerciseStatus | null }) {
-  if (status === "awaiting-assessment") {
-    return <span className="led led-idle" role="img" aria-label={statusLabel(status)} />;
-  }
-  return <SignalDot signal={status === null || status === "unattempted" ? null : status} label={statusLabel(status)} />;
+const STEP_FILL: Record<ExerciseStatus, string> = {
+  strong: "bg-mark-strong shadow-none",
+  partial: "bg-mark-partial shadow-none",
+  gap: "bg-mark-gap shadow-none",
+  "awaiting-assessment": "bg-ink-3 shadow-none",
+  unattempted: "bg-paper",
+};
+
+/** The circle on the stage line: filled in the colour of your latest answer, ringed when it is the current stage. */
+function StepMark({ status, current }: { status: ExerciseStatus | null; current: boolean }) {
+  return (
+    <span
+      role="img"
+      aria-label={statusLabel(status)}
+      className={`relative z-10 block size-[11px] shrink-0 rounded-full shadow-[inset_0_0_0_1.5px_var(--rule-strong)] ${STEP_FILL[status ?? "unattempted"]} ${
+        current ? "outline-2 outline-offset-2 outline-accent-solid [outline-style:solid]" : ""
+      }`}
+    />
+  );
 }
 
-/** The stage list: where you are, and what you have answered. `dense` drops the phase headings. */
+function StepRow({
+  href,
+  current,
+  status,
+  children,
+  aside,
+  onNavigate,
+}: {
+  href: string;
+  current: boolean;
+  status: ExerciseStatus | null;
+  children: ReactNode;
+  aside?: ReactNode;
+  onNavigate?: () => void;
+}) {
+  return (
+    <li className="relative">
+      <Link
+        href={href}
+        aria-current={current ? "step" : undefined}
+        onClick={onNavigate}
+        className={`flex items-baseline gap-3 rounded-md py-[5px] pr-2 pl-[7px] text-[0.8125rem] leading-snug transition-colors ${
+          current ? "bg-hover font-medium text-ink" : "text-ink-2 hover:text-ink"
+        }`}
+      >
+        <span className="translate-y-[1px] self-start pt-[3px]">
+          <StepMark status={status} current={current} />
+        </span>
+        <span className="min-w-0 flex-1">{children}</span>
+        {aside}
+      </Link>
+    </li>
+  );
+}
+
+/**
+ * The stages as a line of steps: where you are, and what you have answered.
+ * `withPhase` adds what you do in each stage, for the overview page.
+ */
 export function StageOutline({
   investigationId,
   stages,
   currentId,
-  dense = false,
+  withPhase = false,
+  withReview = false,
+  onNavigate,
 }: {
   investigationId: string;
   stages: StageLink[];
   currentId?: string;
-  dense?: boolean;
+  withPhase?: boolean;
+  /** End the line with the finished design. */
+  withReview?: boolean;
+  onNavigate?: () => void;
 }) {
   const state = useLearnerState();
   const marks = statuses(state?.attempts, investigationId, stages);
   return (
-    <ol className="space-y-px">
-      {stages.map((stage, i) => {
-        const current = stage.id === currentId;
-        const showPhase = !dense && (i === 0 || stages[i - 1]?.phase !== stage.phase);
-        return (
-          <li key={stage.id}>
-            {showPhase && <p className={`eyebrow px-2 pb-1.5 ${i === 0 ? "" : "pt-3"}`}>{PHASE_LABELS[stage.phase]}</p>}
-            <Link
-              href={`/investigations/${investigationId}/${stage.id}`}
-              aria-current={current ? "step" : undefined}
-              className={`flex items-baseline gap-2.5 rounded-lg px-2 py-1.5 text-[0.8125rem] leading-snug transition-colors ${
-                current ? "plate rounded-lg text-ink" : "text-ink-2 hover:text-ink hover:bg-hover"
-              }`}
-            >
-              <span className="w-4 shrink-0 font-mono text-[0.625rem] tabular-nums text-ink-3">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span className="flex-1">{stage.title}</span>
-              <span className="self-center">
-                <StatusMark status={marks[i] ?? null} />
-              </span>
-            </Link>
-          </li>
-        );
-      })}
+    <ol className="relative">
+      <span className="absolute top-3 bottom-3 left-[12px] w-px bg-rule" aria-hidden="true" />
+      {stages.map((stage, i) => (
+        <StepRow
+          key={stage.id}
+          href={`/investigations/${investigationId}/${stage.id}`}
+          current={stage.id === currentId}
+          status={marks[i] ?? null}
+          onNavigate={onNavigate}
+          aside={
+            withPhase ? (
+              <span className="hidden shrink-0 text-[0.75rem] text-ink-3 sm:inline">{PHASE_LABELS[stage.phase]}</span>
+            ) : undefined
+          }
+        >
+          {stage.title}
+        </StepRow>
+      ))}
+      {withReview && (
+        <StepRow
+          href={`/investigations/${investigationId}/review`}
+          current={currentId === "review"}
+          status={null}
+          onNavigate={onNavigate}
+        >
+          The finished design
+        </StepRow>
+      )}
     </ol>
   );
 }
@@ -129,9 +190,9 @@ export function InvestigationProgress({ investigationId, stages }: { investigati
         ))}
       </span>
       <span
-        className={`font-mono text-[0.6875rem] tabular-nums ${state ? "" : "invisible"} ${answered === 0 ? "text-ink-3" : "text-ink-2"}`}
+        className={`text-[0.75rem] tabular-nums ${state ? "" : "invisible"} ${answered === 0 ? "text-ink-3" : "text-ink-2"}`}
       >
-        {answered === 0 ? `${stages.length} stages, not started` : `${answered} of ${stages.length} answered`}
+        {answered === 0 ? `${stages.length} stages` : `${answered} of ${stages.length} answered`}
       </span>
     </span>
   );

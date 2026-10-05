@@ -489,7 +489,7 @@ export const chatMessageStore = {
         kind: "requirement-change",
         title: "The cluster has grown to 177 nodes and constant toil",
         detail:
-          "Garbage-collection pauses and compaction backlogs need daily manual work. The team decides to move every message to a Cassandra-compatible database written in C++ (ScyllaDB), without downtime.",
+          "Garbage-collection pauses and compaction backlogs need daily manual work. The team decides to move every message to ScyllaDB, which speaks the same protocol but avoids JVM garbage collection, without downtime.",
       },
       context: md`
         Messages keep arriving throughout. The old cluster must stay correct until the very end.

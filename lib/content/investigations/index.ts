@@ -2,9 +2,11 @@ import type { InvestigationInput } from "@/lib/domain/content";
 import { chatMessageStore } from "./chat-message-store";
 import { distributedCache } from "./distributed-cache";
 import { jobQueue } from "./job-queue";
+import { liveQueries } from "./live-queries";
 import { newsFeed } from "./news-feed";
 import { notificationSystem } from "./notification-system";
 import { paymentWorkflow } from "./payment-workflow";
+import { productAnalytics } from "./product-analytics";
 import { rateLimiter } from "./rate-limiter";
 import { realtimeCollaboration } from "./realtime-collaboration";
 import { shardLiveDatabase } from "./shard-live-database";
@@ -18,10 +20,12 @@ export const allInvestigations: InvestigationInput[] = [
   rateLimiter,
   newsFeed,
   jobQueue,
+  productAnalytics,
   notificationSystem,
   paymentWorkflow,
   distributedCache,
   chatMessageStore,
   realtimeCollaboration,
+  liveQueries,
   shardLiveDatabase,
 ];

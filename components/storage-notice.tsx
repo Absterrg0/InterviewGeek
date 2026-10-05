@@ -28,7 +28,7 @@ export function StorageNotice() {
   }
   if (messages.length === 0) return null;
   return (
-    <div role="status" className="border-b border-dashed border-rule px-5 py-3 sm:px-10">
+    <div role="status" className="border-b border-rule-soft px-5 py-3 sm:px-10">
       <div className="rounded-xl bg-signal-partial-soft">
         {messages.map((m) => (
           <div key={m.key} className="flex items-start justify-between gap-4 px-4 py-2.5 text-[0.8125rem] text-ink">
