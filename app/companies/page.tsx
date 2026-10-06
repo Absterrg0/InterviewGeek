@@ -28,17 +28,17 @@ export default function CompaniesPage() {
         original writing, and has an investigation to practise it.
       </PageHeader>
       <section aria-label="All companies" className="section pt-2 sm:pt-2">
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-x-16 lg:grid-cols-2">
           {companies.map(({ company, practise }) => (
-            <li key={company.id}>
-              <Link href={`/companies/${company.id}`} className="tile group flex h-full flex-col p-5">
-                <span className="text-[0.8125rem] text-ink-3">{company.name}</span>
-                <span className="mt-0.5 font-display text-[1.125rem] leading-snug transition-colors group-hover:text-accent">
+            <li key={company.id} className="border-t border-rule">
+              <Link href={`/companies/${company.id}`} className="group block py-6">
+                <span className="text-[0.875rem] font-medium text-ink-2">{company.name}</span>
+                <span className="mt-1 block font-display text-[1.3125rem] leading-snug transition-colors group-hover:text-accent">
                   {company.topic}
                 </span>
-                <span className="mt-2 block text-[0.875rem] leading-relaxed text-ink-2">{company.summary}</span>
+                <span className="mt-2 block max-w-[60ch] text-[0.9375rem] leading-relaxed text-ink-2">{company.summary}</span>
                 {practise[0] && (
-                  <span className="mt-auto pt-4 text-[0.8125rem] text-ink-3">Practise: {practise[0].searchTitle}</span>
+                  <span className="mt-3 block text-[0.8125rem] text-ink-3">Practise it in {practise[0].searchTitle}</span>
                 )}
               </Link>
             </li>

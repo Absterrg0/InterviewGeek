@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type CSSProperties, type ReactNode } from "react";
 import type { ArchitectureFlow, ComponentKind, FlowKind, PlacedComponent } from "@/lib/domain/content";
 
 const CELL_W = 186;
@@ -203,7 +203,12 @@ function flowGeometry(
 }
 
 function ComponentShape({ kind, highlighted, failed }: { kind: ComponentKind; highlighted: boolean; failed: boolean }) {
-  const stroke = failed ? "var(--mark-gap)" : highlighted ? "var(--accent)" : "var(--rule-strong)";
+  // Outlined in the ink itself, like a part drawn on the sheet.
+  const stroke = failed
+    ? "var(--mark-gap)"
+    : highlighted
+      ? "var(--accent)"
+      : "color-mix(in srgb, var(--ink) 42%, transparent)";
   const x = -BOX_W / 2;
   const y = -BOX_H / 2;
   const common = {
@@ -265,6 +270,10 @@ export type SystemMapProps = {
   failedComponents?: string[];
   /** Map only, without the flow key and legend. */
   compact?: boolean;
+  /** Drawn straight onto the page with no frame, scaled to fit rather than scrolled. */
+  bare?: boolean;
+  /** A note pinned to one component by a leader line, drawn under the map on wide screens. */
+  callout?: { componentId: string; content: ReactNode };
   label: string;
 };
 
@@ -277,6 +286,8 @@ export function SystemMap({
   highlightFlows = [],
   failedComponents = [],
   compact = false,
+  bare = false,
+  callout,
   label,
 }: SystemMapProps) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -315,13 +326,15 @@ export function SystemMap({
   // Curves that bend around obstacles may leave the grid; grow the canvas to fit them.
   const top = Math.min(0, ...geometry.map((g) => g.extent.min - 14));
   const bottom = Math.max(height, ...geometry.map((g) => g.extent.max + 14));
+  const pinned = callout ? byId.get(callout.componentId) : undefined;
+  const pin = pinned ? center(pinned, origin) : null;
 
   return (
     <figure>
-      <div className="screen overflow-x-auto p-3 sm:p-5">
+      <div className={bare ? "" : "screen overflow-x-auto p-3 sm:p-5"}>
         <svg
           viewBox={`0 ${top} ${width} ${bottom - top}`}
-          className="w-full min-w-[540px] h-auto select-none"
+          className={`h-auto w-full select-none ${bare ? "" : "min-w-[540px]"}`}
           role="group"
           aria-label={label}
         >
@@ -355,6 +368,18 @@ export function SystemMap({
               <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#000" floodOpacity="0.07" />
             </filter>
           </defs>
+          {pin && (
+            <line
+              x1={pin.x}
+              y1={pin.y + BOX_H / 2 + 3}
+              x2={pin.x}
+              y2={bottom}
+              stroke="var(--signal-gap)"
+              strokeWidth={1.5}
+              strokeDasharray="3 3"
+              className="max-lg:hidden"
+            />
+          )}
           {geometry.map(({ flow, path }) => {
             const style = FLOW_STYLE[flow.kind];
             const active = selectedFlowIds.has(flow.id) || (!selected && highlightF.has(flow.id));
@@ -456,6 +481,14 @@ export function SystemMap({
           })}
         </svg>
       </div>
+      {pin && callout && (
+        <div
+          className="border-l-2 border-signal-gap pl-5 lg:ml-[var(--pin)] lg:w-[min(30rem,calc(100%-var(--pin)))]"
+          style={{ "--pin": `calc(${((pin.x / width) * 100).toFixed(2)}% - 1px)` } as CSSProperties}
+        >
+          {callout.content}
+        </div>
+      )}
       <figcaption className={compact && !selectedComponent ? "sr-only" : "mt-3 space-y-3"}>
         {selectedComponent ? (
           <div className="panel p-4 text-[0.8125rem]">

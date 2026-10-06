@@ -64,8 +64,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+    { media: "(prefers-color-scheme: light)", color: "#fbfcfd" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1625" },
   ],
 };
 
@@ -85,7 +85,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to content
         </a>
-        <div className="flex min-h-dvh flex-col">
+        {/* The container for .bleed, so full-width bands measure the window without its scrollbar. */}
+        <div className="flex min-h-dvh flex-col [container-type:inline-size]">
           <SiteHeader investigations={investigations} />
           <StorageNotice />
           <main id="main" className="shell flex-1">

@@ -19,7 +19,7 @@ export function PageHeader({
   aside?: ReactNode;
 }) {
   return (
-    <header className="section rise grid gap-8 pt-10 sm:pt-14 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+    <header className="section rise grid gap-x-16 gap-y-8 pt-10 sm:pt-14 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="max-w-2xl">
         {eyebrow && <p className="mb-2 text-[0.8125rem] text-ink-3">{eyebrow}</p>}
         <h1 className="font-display text-[2rem] leading-[1.08] text-balance sm:text-[2.75rem]">{title}</h1>
@@ -54,7 +54,7 @@ export function Section({
     <section aria-labelledby={id} className={`section scroll-mt-14 ${className}`}>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
-          <h2 id={id} className="font-display text-[1.375rem] leading-tight">
+          <h2 id={id} className="font-display text-[1.5rem] leading-tight">
             {title}
           </h2>
           {description && (

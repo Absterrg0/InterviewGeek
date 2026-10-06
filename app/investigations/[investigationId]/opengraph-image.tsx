@@ -1,4 +1,4 @@
-import { DIFFICULTY } from "@/components/investigation/investigation-tile";
+import { DIFFICULTY } from "@/components/investigation/difficulty";
 import { getInvestigation, listInvestigations } from "@/lib/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 import { card, clip, Diagram, OG_CONTENT_TYPE, OG_SIZE } from "@/lib/og";

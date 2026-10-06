@@ -1,44 +1,46 @@
 @import "tailwindcss";
 
 /*
- * A white page under a single top bar: hairline rings instead of heavy shadows,
- * space instead of rules between sections, and one cyan accent.
+ * The drafting table. Light: cool drafting paper and navy ink. Dark: a blueprint,
+ * pale ink on deep navy. Surfaces are flat and held by hairlines; the one bold
+ * element is the architecture diagram, drawn straight onto squared paper.
  */
 :root {
-  --paper: #ffffff;
+  --paper: #fbfcfd;
   --raised: #ffffff;
-  --well: #fafafa;
-  --sunken: #f5f5f5;
-  --hover: #f0f0f0;
-  --ink: #0a0a0a;
-  --ink-2: #5c5c5c;
+  --well: #f4f6f9;
+  --sunken: #edf0f4;
+  --hover: #e9edf2;
+  --ink: #172033;
+  --ink-2: #47536a;
   /* 4.5:1 or better on every light surface, including --sunken and --hover. */
-  --ink-3: #6b6b6b;
-  --rule: #e5e5e5;
-  --rule-soft: #f0f0f0;
-  --rule-strong: #cccccc;
+  --ink-3: #5f6b80;
+  --rule: #dfe4eb;
+  --rule-soft: #e9edf2;
+  --rule-strong: #c3ccd8;
+  /* The squared paper behind diagrams: a fine grid with a heavier line every fifth square. */
+  --grid-minor: #e6eaf0;
+  --grid-major: #d6dde6;
   --accent-solid: #00bbff;
-  --accent: #00749e;
+  --accent: #006c99;
   --accent-ink: #ffffff;
-  --accent-soft: #e6f8ff;
+  --accent-soft: #e2f5fd;
   --signal-strong: #15803d;
   --signal-strong-soft: #e8f7ee;
   --signal-partial: #a16207;
   --signal-partial-soft: #fdf5e1;
-  --signal-gap: #c0262d;
+  --signal-gap: #c42b31;
   --signal-gap-soft: #fdecec;
   /* Fills for meters and dots; validated for CVD separation against --paper. */
   --mark-strong: #22a55a;
   --mark-partial: #e9a10f;
   --mark-gap: #e3474c;
 
-  --shadow-btn: 0 0 0 1px var(--rule-strong), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-  --shadow-card: 0 0 0 1px var(--rule), 0 1px 2px -1px rgb(0 0 0 / 0.06), 0 2px 4px rgb(0 0 0 / 0.04);
-  --shadow-raised: 0 0 0 1px var(--rule), 0 2px 6px -1px rgb(0 0 0 / 0.08), 0 6px 16px -4px rgb(0 0 0 / 0.06);
-  --shadow-plate:
-    inset 0 0 0 1px var(--rule-soft), inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 2px 5px rgb(0 0 0 / 0.04),
-    0 2px 6px -4px rgb(0 0 0 / 0.28), 0 6px 14px -6px rgb(0 0 0 / 0.1);
-  --plate-top: var(--well);
+  --shadow-btn: 0 0 0 1px var(--rule-strong);
+  --shadow-card: 0 0 0 1px var(--rule);
+  --shadow-raised: 0 0 0 1px var(--rule-strong), 0 12px 32px -16px rgb(23 32 51 / 0.28);
+  --shadow-plate: inset 0 0 0 1px var(--rule-strong);
+  --plate-top: var(--sunken);
   --plate-bottom: var(--sunken);
   --font-display: var(--font-funnel-display), ui-sans-serif, system-ui, sans-serif;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -47,38 +49,36 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #000000;
-    --raised: #0d0d0d;
-    --well: #0a0a0a;
-    --sunken: #141414;
-    --hover: #1a1a1a;
-    --ink: #ffffff;
-    --ink-2: #a3a3a3;
-    --ink-3: #858585;
-    --rule: #262626;
-    --rule-soft: #1a1a1a;
-    --rule-strong: #3d3d3d;
+    --paper: #0b1625;
+    --raised: #112033;
+    --well: #0e1b2c;
+    --sunken: #15263b;
+    --hover: #1a2d45;
+    --ink: #e7eef7;
+    --ink-2: #a9b7ca;
+    --ink-3: #8d9bb1;
+    --rule: #22354f;
+    --rule-soft: #1a2b42;
+    --rule-strong: #30476a;
+    --grid-minor: #14243a;
+    --grid-major: #1c3150;
     --accent-solid: #00bbff;
-    --accent: #33c9ff;
-    --accent-ink: #001620;
-    --accent-soft: #04202b;
+    --accent: #4fcbff;
+    --accent-ink: #04121e;
+    --accent-soft: #0c2a40;
     --signal-strong: #5fd28e;
-    --signal-strong-soft: #0c2416;
+    --signal-strong-soft: #0c2a1e;
     --signal-partial: #f2bd52;
-    --signal-partial-soft: #2a1f08;
+    --signal-partial-soft: #2a2410;
     --signal-gap: #ff7b7f;
-    --signal-gap-soft: #2e1011;
+    --signal-gap-soft: #321a24;
     --mark-strong: #3fbf72;
     --mark-partial: #f0aa2a;
     --mark-gap: #ee5c61;
-    --shadow-btn: 0 0 0 1px rgb(255 255 255 / 0.1), 0 1px 2px rgb(0 0 0 / 0.3);
-    --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.11), 0 1px 2px rgb(0 0 0 / 0.2), 0 2px 6px rgb(0 0 0 / 0.2);
-    --shadow-raised: 0 0 0 1px rgb(255 255 255 / 0.13), 0 2px 10px rgb(0 0 0 / 0.22);
-    --shadow-plate:
-      inset 0 0 0 1px rgb(255 255 255 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.1), inset 0 2px 5px rgb(0 0 0 / 0.25),
-      0 2px 6px -4px rgb(0 0 0 / 0.6), 0 6px 14px -6px rgb(0 0 0 / 0.4);
-    --plate-top: #1a1a1a;
-    --plate-bottom: #0f0f0f;
+    --shadow-btn: 0 0 0 1px var(--rule-strong);
+    --shadow-card: 0 0 0 1px var(--rule);
+    --shadow-raised: 0 0 0 1px var(--rule-strong), 0 16px 40px -16px rgb(0 0 0 / 0.6);
+    --shadow-plate: inset 0 0 0 1px var(--rule-strong);
     color-scheme: dark;
   }
 }
@@ -89,6 +89,7 @@
   --color-sunken: var(--sunken);
   --color-well: var(--well);
   --color-hover: var(--hover);
+  --color-grid-major: var(--grid-major);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
@@ -150,6 +151,12 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Thin scrollbars in the ink's own colour, everywhere: the page, maps, menus and popovers. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
+  }
+
   ::selection {
     background: color-mix(in srgb, var(--accent-solid) 25%, transparent);
     color: var(--ink);
@@ -200,6 +207,28 @@
     }
   }
 
+  /* Breaks out of the shell to the full width of the window (the page wrapper is the container). */
+  .bleed {
+    margin-inline: calc(50% - 50cqw);
+    padding-inline: calc(50cqw - 50%);
+  }
+
+  /* Squared drafting paper: a fine grid, a heavier line every fifth square. */
+  .drafting {
+    background-color: var(--well);
+    background-image:
+      linear-gradient(var(--grid-major) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+      linear-gradient(var(--grid-minor) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+    background-size:
+      120px 120px,
+      120px 120px,
+      24px 24px,
+      24px 24px;
+    background-position: center top;
+  }
+
   /* A centred reading column inside the shell, for pages that are one long argument. */
   .measure {
     max-width: 48rem;
@@ -208,25 +237,31 @@
 
   /* A link in the top bar. */
   .nav-link {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    height: 2rem;
-    padding-inline: 0.75rem;
-    border-radius: 8px;
+    height: 3.5rem;
+    padding-inline: 0.7rem;
     font-size: 0.875rem;
     color: var(--ink-2);
-    transition:
-      background-color 150ms var(--ease-out),
-      color 150ms var(--ease-out);
+    transition: color 150ms var(--ease-out);
   }
   .nav-link:hover {
     color: var(--ink);
-    background: var(--hover);
   }
+  /* The current section is underlined where the bar meets the page. */
   .nav-link[aria-current="page"] {
     color: var(--ink);
     font-weight: 500;
-    background: var(--hover);
+  }
+  .nav-link[aria-current="page"]::after {
+    content: "";
+    position: absolute;
+    left: 0.7rem;
+    right: 0.7rem;
+    bottom: -1px;
+    height: 2px;
+    background: var(--ink);
   }
 
   /* The stage list that drops from the stage bar, pinned under it at the shell's right edge. */
@@ -264,9 +299,9 @@
 
   /* Translucent chrome that content scrolls under. */
   .glass {
-    background: color-mix(in srgb, var(--paper) 92%, transparent);
-    backdrop-filter: saturate(1.6) blur(14px);
-    -webkit-backdrop-filter: saturate(1.6) blur(14px);
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   /* ---------- Surfaces ---------- */
@@ -274,13 +309,13 @@
   /* A card: a white surface held by a hairline ring. */
   .panel {
     background: var(--raised);
-    border-radius: 14px;
+    border-radius: 10px;
     box-shadow: var(--shadow-card);
   }
   /* A tile: a smaller card, usually a link or a row. */
   .tile {
     background: var(--raised);
-    border-radius: 10px;
+    border-radius: 8px;
     box-shadow: var(--shadow-card);
   }
   a.tile,
@@ -291,7 +326,7 @@
   }
   a.tile:hover,
   button.tile:hover {
-    box-shadow: var(--shadow-raised);
+    box-shadow: 0 0 0 1px var(--rule-strong);
   }
   a.tile:active,
   button.tile:active {
@@ -311,7 +346,7 @@
   /* A tinted callout in the accent colour. */
   .tint {
     background: var(--accent-soft);
-    border-radius: 14px;
+    border-radius: 10px;
   }
   /* The pressed-in plate behind a selected item. */
   .plate {
@@ -321,11 +356,19 @@
   }
   /* A canvas for system maps: a dotted grid, like squared paper. */
   .screen {
-    border-radius: 12px;
+    border-radius: 10px;
     background-color: var(--well);
-    background-image: radial-gradient(circle, color-mix(in srgb, var(--ink) 13%, transparent) 1px, transparent 1.2px);
-    background-size: 16px 16px;
-    background-position: 8px 8px;
+    background-image:
+      linear-gradient(var(--grid-major) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+      linear-gradient(var(--grid-minor) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+    background-size:
+      100px 100px,
+      100px 100px,
+      20px 20px,
+      20px 20px;
+    background-position: -1px -1px;
     box-shadow: inset 0 0 0 1px var(--rule);
   }
 
@@ -400,8 +443,8 @@
   /* ---------- Prose ---------- */
 
   .prose {
-    font-size: 0.9375rem;
-    line-height: 1.7;
+    font-size: 1rem;
+    line-height: 1.65;
     color: var(--ink);
   }
   .prose > * + * {
@@ -524,7 +567,7 @@
     width: 100%;
     background: var(--raised);
     border: 0;
-    border-radius: 10px;
+    border-radius: 7px;
     padding: 0.625rem 0.75rem;
     font-size: 0.875rem;
     color: var(--ink);
@@ -554,8 +597,8 @@
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    min-height: 2.125rem;
-    border-radius: 10px;
+    min-height: 2.25rem;
+    border-radius: 7px;
     padding: 0.5rem 0.875rem;
     font-size: 0.8125rem;
     font-weight: 500;
@@ -580,7 +623,6 @@
   .btn-primary {
     color: var(--paper);
     background: var(--ink);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
   }
   .btn-primary:not(:disabled):hover {
     background: color-mix(in srgb, var(--ink) 82%, var(--paper));
@@ -638,7 +680,7 @@
   .choice {
     display: flex;
     gap: 0.75rem;
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 0.875rem 1rem;
     cursor: pointer;
     background: var(--raised);
@@ -648,13 +690,11 @@
       background-color 150ms var(--ease-out);
   }
   .choice:hover {
-    box-shadow: var(--shadow-raised);
+    box-shadow: 0 0 0 1px var(--rule-strong);
   }
   .choice:has(:checked) {
     background: var(--accent-soft);
-    box-shadow:
-      0 0 0 1.5px var(--accent-solid),
-      0 2px 8px -2px color-mix(in srgb, var(--accent-solid) 30%, transparent);
+    box-shadow: 0 0 0 1.5px var(--accent-solid);
   }
   .choice:has(:focus-visible) {
     outline: 2px solid var(--accent-solid);

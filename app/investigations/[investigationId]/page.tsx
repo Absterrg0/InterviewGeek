@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContinueLink, InvestigationProgress, StageOutline, type StageLink } from "@/components/investigation/progress";
 import { Prose } from "@/components/prose";
-import { DIFFICULTY } from "@/components/investigation/investigation-tile";
+import { DIFFICULTY } from "@/components/investigation/difficulty";
 import { ShareButton } from "@/components/share";
 import { SystemThumb } from "@/components/system-thumb";
 import { DashList, PageHeader, Section } from "@/components/page-header";
@@ -78,31 +78,33 @@ export default async function InvestigationPage(props: PageProps<"/investigation
           }),
         }}
       />
-      <PageHeader
-        eyebrow={inv.title}
-        title={inv.searchTitle}
-        meta={`${DIFFICULTY[inv.difficulty]} · about ${inv.estimatedMinutes} minutes · ${inv.stages.length} stages`}
-        actions={
-          <>
-            <ContinueLink investigationId={inv.id} stages={stages} />
-            <Link href={`/investigations/${inv.id}/review`} className="btn btn-ghost">
-              See the full walkthrough
-            </Link>
-            <ShareButton
-              url={`${SITE_URL}/investigations/${inv.id}`}
-              title={`${inv.searchTitle} · ${SITE_NAME}`}
-              text={`${inv.searchTitle}, worked through like a real system design interview.`}
-            />
-          </>
-        }
-        aside={
-          <div className="screen hidden w-80 items-center justify-center px-8 py-10 md:flex" aria-hidden="true">
-            <SystemThumb components={inv.system.components} flows={inv.system.flows} given={visibleAfter(inv, 0).components} />
-          </div>
-        }
-      >
-        {inv.premise}
-      </PageHeader>
+      <div className="bleed drafting border-b border-rule">
+        <PageHeader
+          eyebrow={inv.title}
+          title={inv.searchTitle}
+          meta={`${DIFFICULTY[inv.difficulty]}, about ${inv.estimatedMinutes} minutes, ${inv.stages.length} stages`}
+          actions={
+            <>
+              <ContinueLink investigationId={inv.id} stages={stages} />
+              <Link href={`/investigations/${inv.id}/review`} className="btn btn-ghost">
+                See the full walkthrough
+              </Link>
+              <ShareButton
+                url={`${SITE_URL}/investigations/${inv.id}`}
+                title={`${inv.searchTitle} · ${SITE_NAME}`}
+                text={`${inv.searchTitle}, worked through like a real system design interview.`}
+              />
+            </>
+          }
+          aside={
+            <div className="hidden w-96 md:block" aria-hidden="true">
+              <SystemThumb components={inv.system.components} flows={inv.system.flows} given={visibleAfter(inv, 0).components} />
+            </div>
+          }
+        >
+          {inv.premise}
+        </PageHeader>
+      </div>
 
       <div className="grid gap-x-16 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="min-w-0">
@@ -113,12 +115,18 @@ export default async function InvestigationPage(props: PageProps<"/investigation
           </Section>
 
           <Section id="requirements" title="What it has to do">
-            <div className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
-              <DashList items={inv.requirements.functional} />
-              <DashList items={inv.requirements.nonFunctional} />
+            <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
+              <div>
+                <h3 className="mb-3 text-[0.875rem] font-medium text-ink-2">Functional</h3>
+                <DashList items={inv.requirements.functional} />
+              </div>
+              <div>
+                <h3 className="mb-3 text-[0.875rem] font-medium text-ink-2">Non-functional</h3>
+                <DashList items={inv.requirements.nonFunctional} />
+              </div>
             </div>
-            <div className="mt-8 rounded-xl bg-well px-5 py-4">
-              <p className="mb-2 text-[0.875rem] font-medium">Working with</p>
+            <div className="mt-10 border-l-2 border-rule-strong pl-5">
+              <h3 className="mb-3 text-[0.875rem] font-medium text-ink-2">Constraints and assumptions</h3>
               <DashList items={[...inv.constraints, ...inv.assumptions]} muted />
             </div>
           </Section>
@@ -172,7 +180,7 @@ export default async function InvestigationPage(props: PageProps<"/investigation
         </div>
 
         <aside aria-labelledby="stages" className="section lg:pt-10">
-          <div className="panel p-3 lg:sticky lg:top-20">
+          <div className="lg:sticky lg:top-20 lg:border-l lg:border-rule lg:pl-6">
             <div className="flex items-baseline justify-between gap-4 px-2 pt-1">
               <h2 id="stages" className="font-display text-[1.0625rem] leading-tight">
                 Stages

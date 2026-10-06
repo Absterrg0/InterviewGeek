@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { InvestigationTile } from "@/components/investigation/investigation-tile";
+import { InvestigationIndex } from "@/components/investigation/investigation-index";
 import { PageHeader } from "@/components/page-header";
 import { listInvestigations } from "@/lib/content";
 import { pageMetadata } from "@/lib/metadata";
@@ -20,13 +20,7 @@ export default function InvestigationsPage() {
         change the constraints, and defend what is left.
       </PageHeader>
       <section aria-label="All investigations" className="section pt-2 sm:pt-2">
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {investigations.map((inv) => (
-            <li key={inv.id}>
-              <InvestigationTile investigation={inv} />
-            </li>
-          ))}
-        </ul>
+        <InvestigationIndex investigations={investigations} />
       </section>
     </div>
   );

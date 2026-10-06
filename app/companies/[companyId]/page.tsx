@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { InvestigationTile } from "@/components/investigation/investigation-tile";
+import { InvestigationIndex } from "@/components/investigation/investigation-index";
 import { PageHeader, Section } from "@/components/page-header";
 import { Prose } from "@/components/prose";
 import { ShareButton } from "@/components/share";
@@ -111,13 +111,7 @@ export default async function CompanyPage(props: PageProps<"/companies/[companyI
 
       {investigations.length > 0 && (
         <Section id="practise" title="Practise it" description="Make the decisions yourself, then compare.">
-          <ul className="grid gap-3">
-            {investigations.map((inv) => (
-              <li key={inv.id}>
-                <InvestigationTile investigation={inv} wide />
-              </li>
-            ))}
-          </ul>
+          <InvestigationIndex investigations={investigations} />
         </Section>
       )}
     </div>

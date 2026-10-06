@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ContinueStrip } from "@/components/continue-strip";
-import { InvestigationTile } from "@/components/investigation/investigation-tile";
-import { Section } from "@/components/page-header";
+import { InvestigationIndex } from "@/components/investigation/investigation-index";
 import { InlineText } from "@/components/prose-core";
 import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
@@ -46,136 +45,149 @@ export default function Home() {
 
   return (
     <div>
-      <section className="section rise grid items-center gap-x-14 gap-y-12 pt-12 sm:pt-16 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div>
-          <p className="chip-flat w-fit">
-            <span className="led led-accent size-1.5" aria-hidden="true" />
-            {investigations.length} systems · free · no signup
-          </p>
-          <h1 className="mt-5 max-w-[18ch] font-display text-[2.5rem] leading-[1.04] text-balance sm:text-[3.5rem] xl:text-[3.25rem]">
-            Practise system design the way the interview tests it.
-          </h1>
-          <p className="mt-5 max-w-[54ch] text-[1.0625rem] leading-relaxed text-ink-2 text-pretty">
-            You can build a job queue, a payment flow, a WebSocket app. The interview asks something else: why it is built
-            that way, what happens when it fails, and what you would change at ten times the load.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-2">
-            {first && (
-              <Link href={`/investigations/${first.id}`} className="btn btn-primary min-h-10 px-4 text-[0.875rem]">
-                Start the first investigation
-              </Link>
-            )}
-            <Link href="/investigations" className="btn btn-secondary min-h-10 px-4 text-[0.875rem]">
-              Browse all {investigations.length}
-            </Link>
+      <section className="bleed drafting border-b border-rule">
+        <div className="pt-14 pb-12 sm:pt-20 sm:pb-16">
+          <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:items-end">
+            <h1 className="max-w-[13ch] font-display text-[2.75rem] leading-[0.98] tracking-[-0.035em] text-balance sm:text-[4.25rem]">
+              Practise system design the way the interview tests it.
+            </h1>
+            <div className="max-w-[46ch] lg:pb-2">
+              <p className="text-[1.0625rem] leading-relaxed text-ink-2 text-pretty">
+                You can build a job queue, a payment flow, a WebSocket app. The interview asks something else: why it is
+                built that way, what happens when it fails, and what you would change at ten times the load.
+              </p>
+              <div className="mt-7 flex flex-wrap gap-2">
+                {first && (
+                  <Link href={`/investigations/${first.id}`} className="btn btn-primary min-h-10 px-4 text-[0.875rem]">
+                    Start the first investigation
+                  </Link>
+                )}
+                <Link href="/investigations" className="btn btn-secondary min-h-10 px-4 text-[0.875rem]">
+                  Browse all {investigations.length} systems
+                </Link>
+              </div>
+              <p className="mt-4 text-[0.8125rem] text-ink-3">Free and without signup. Nothing is graded by AI.</p>
+            </div>
           </div>
-          <p className="mt-4 text-[0.8125rem] text-ink-3">Nothing graded by AI. Your progress stays in your browser.</p>
-        </div>
 
-        {scene && stage && visible && (
-          <figure
-            className="panel rise min-w-0 p-2.5"
-            style={{ "--d": "120ms" } as React.CSSProperties}
-            aria-label="An investigation in progress"
-          >
-            <SystemMap
-              compact
-              label={`${scene.investigation.title}: the system when this failure happens`}
-              components={scene.investigation.system.components}
-              flows={scene.investigation.system.flows}
-              visibleComponents={[...visible.components]}
-              visibleFlows={[...visible.flows]}
-              failedComponents={scene.failed.filter((id) => visible.components.has(id))}
-            />
-            <figcaption className="grid gap-4 px-2 pt-4 pb-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              {stage.event && (
-                <div className="flex gap-3">
-                  <span className="led led-gap led-pulse mt-1.5" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <p className="text-[0.9375rem] font-medium leading-snug">
-                      <InlineText text={stage.event.title} />
-                    </p>
-                    <p className="mt-1 max-w-[62ch] text-[0.875rem] leading-relaxed text-ink-2">
-                      <InlineText text={stage.event.detail} /> What happens to the job now?
-                    </p>
-                  </div>
-                </div>
-              )}
-              <Link href={`/investigations/${scene.investigation.id}/${stage.id}`} className="btn btn-secondary">
-                Reason through it
-              </Link>
-            </figcaption>
-          </figure>
-        )}
+          {scene && stage && visible && (
+            <figure className="mt-10 sm:mt-12" aria-label="An investigation in progress">
+              <SystemMap
+                bare
+                compact
+                label={`${scene.investigation.title}: the system when this failure happens`}
+                components={scene.investigation.system.components}
+                flows={scene.investigation.system.flows}
+                visibleComponents={[...visible.components]}
+                visibleFlows={[...visible.flows]}
+                failedComponents={scene.failed.filter((id) => visible.components.has(id))}
+                callout={
+                  stage.event && scene.failed[0]
+                    ? {
+                        componentId: scene.failed[0],
+                        content: (
+                          <div className="pt-1 pb-1">
+                            <p className="font-display text-[1.25rem] leading-snug">
+                              <InlineText text={stage.event.title} />
+                            </p>
+                            <p className="mt-2 text-[0.9375rem] leading-relaxed text-ink-2">
+                              <InlineText text={stage.event.detail} /> What happens to the job now?
+                            </p>
+                            <Link
+                              href={`/investigations/${scene.investigation.id}/${stage.id}`}
+                              className="btn btn-secondary mt-5"
+                            >
+                              Reason through it
+                            </Link>
+                          </div>
+                        ),
+                      }
+                    : undefined
+                }
+              />
+            </figure>
+          )}
+        </div>
       </section>
 
       <ContinueStrip investigations={outlines} />
 
-      <Section id="loop" title="How it works" description="Every investigation is one system, built up from its requirements.">
-        <ol className="grid gap-px overflow-hidden rounded-[14px] bg-rule shadow-[0_0_0_1px_var(--rule)] sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-labelledby="loop" className="section pt-14 sm:pt-20">
+        <h2 id="loop" className="max-w-[30ch] font-display text-[1.75rem] leading-tight text-balance">
+          Every investigation is one system, built up from its requirements, in the same loop.
+        </h2>
+        <ol className="mt-10 grid gap-y-8 lg:grid-cols-4">
           {LOOP.map((item, i) => (
-            <li key={item.step} className="bg-raised p-5">
-              <span className="font-mono text-[0.75rem] text-ink-3 tabular-nums">{String(i + 1).padStart(2, "0")}</span>
-              <p className="mt-3 font-display text-[1.125rem] leading-tight">{item.step}</p>
-              <p className="mt-1.5 text-[0.875rem] leading-relaxed text-ink-2">{item.text}</p>
+            <li key={item.step} className="min-w-0">
+              <div className="flex items-center">
+                <span className="rounded-lg border border-ink/40 bg-raised px-4 py-2 text-[0.9375rem] font-medium">
+                  {item.step}
+                </span>
+                {i < LOOP.length - 1 && (
+                  <span className="relative mx-3 hidden h-px flex-1 bg-ink/40 lg:block" aria-hidden="true">
+                    <span className="absolute -top-[3.5px] right-0 border-y-[4px] border-l-[7px] border-y-transparent border-l-ink/40" />
+                  </span>
+                )}
+              </div>
+              <p className="mt-4 max-w-[30ch] text-[0.9375rem] leading-relaxed text-ink-2 lg:pr-6">{item.text}</p>
             </li>
           ))}
         </ol>
-        <p className="mt-5 max-w-[70ch] text-[0.875rem] leading-relaxed text-ink-3">
+        <p className="mt-10 max-w-[70ch] text-[0.875rem] leading-relaxed text-ink-3">
           After each answer you see the reasoning and where another engineer could reasonably disagree. Choices are checked
           against a key; written answers you mark yourself against specific points.
         </p>
-      </Section>
+      </section>
 
-      <Section
-        id="systems"
-        title="Systems to design"
-        action={
-          <Link href="/investigations" className="btn btn-ghost">
-            All {investigations.length} →
-          </Link>
-        }
-      >
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {investigations.map((inv) => (
-            <li key={inv.id}>
-              <InvestigationTile investigation={inv} />
-            </li>
-          ))}
-        </ul>
-      </Section>
+      <section aria-labelledby="systems" className="section pt-14 sm:pt-20">
+        <div className="mb-8 flex flex-wrap items-baseline justify-between gap-4">
+          <h2 id="systems" className="font-display text-[1.75rem] leading-tight">
+            Systems to design
+          </h2>
+          <p className="text-[0.875rem] text-ink-3">
+            Solid parts are given; you design the outlined ones.
+          </p>
+        </div>
+        <InvestigationIndex investigations={investigations.slice(0, 6)} clamp />
+        <Link href="/investigations" className="btn btn-secondary mt-8">
+          See all {investigations.length} systems
+        </Link>
+      </section>
 
-      <Section
-        id="companies"
-        title="One idea from each company"
-        description="Each system pairs with a company that solved the same problem and wrote about it. Read the original once you have made your own decisions."
-        action={
-          <Link href="/companies" className="btn btn-ghost">
-            All companies →
-          </Link>
-        }
-      >
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {companies.map((company) => (
-            <li key={company.id}>
-              <Link href={`/companies/${company.id}`} className="tile group flex h-full flex-col px-4 py-3.5">
-                <span className="text-[0.8125rem] text-ink-3">{company.name}</span>
-                <span className="mt-0.5 text-[0.9375rem] font-medium leading-snug group-hover:text-accent">
-                  {company.topic}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </Section>
+      <section aria-labelledby="companies" className="section pt-14 sm:pt-20">
+        <div className="grid gap-x-16 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <div>
+            <h2 id="companies" className="font-display text-[1.75rem] leading-tight">
+              One idea from each company
+            </h2>
+            <p className="mt-3 max-w-[42ch] text-[0.9375rem] leading-relaxed text-ink-2">
+              Each system pairs with a company that solved the same problem and wrote about it. Read the original once you
+              have made your own decisions.
+            </p>
+            <Link href="/companies" className="link mt-5 inline-block text-[0.875rem]">
+              All companies
+            </Link>
+          </div>
+          <ul className="grid gap-x-10 sm:grid-cols-2">
+            {companies.map((company) => (
+              <li key={company.id} className="border-t border-rule">
+                <Link href={`/companies/${company.id}`} className="group block py-3.5 text-[0.9375rem] leading-snug">
+                  <span className="font-medium group-hover:text-accent">{company.name}</span>
+                  <span className="mt-0.5 block text-ink-2">{company.topic}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
-      <section aria-label="More ways to practise" className="section grid gap-4 lg:grid-cols-2">
+      <section aria-label="More ways to practise" className="section grid gap-x-16 gap-y-14 pt-14 sm:pt-20 lg:grid-cols-2">
         {example && (
-          <div className="panel flex flex-col p-6 sm:p-7">
-            <h2 className="font-display text-[1.375rem] leading-tight">Precision over slogans</h2>
-            <p className="mt-1.5 text-[0.875rem] text-ink-2">Things engineers say in design reviews, checked.</p>
-            <blockquote className="mt-6 border-l-2 border-accent-solid pl-4">
-              <p className="font-display text-[1.25rem] leading-snug">
+          <div>
+            <h2 className="font-display text-[1.75rem] leading-tight">Precision over slogans</h2>
+            <p className="mt-2 text-[0.9375rem] text-ink-2">Things engineers say in design reviews, checked.</p>
+            <blockquote className="mt-7 border-l-2 border-accent-solid pl-5">
+              <p className="font-display text-[1.375rem] leading-snug">
                 “<InlineText text={example.statement} />”
               </p>
               <p className="mt-3 text-[0.9375rem] font-medium">{VERDICT_LABEL[example.verdict]}.</p>
@@ -183,20 +195,18 @@ export default function Home() {
                 <Prose text={example.explanation} className="prose-sm" />
               </div>
             </blockquote>
-            <div className="mt-auto pt-6">
-              <Link href="/practice" className="btn btn-secondary">
-                Check more claims
-              </Link>
-            </div>
+            <Link href="/practice" className="btn btn-secondary mt-7">
+              Check more claims
+            </Link>
           </div>
         )}
-        <div className="tint flex flex-col p-6 sm:p-7">
-          <h2 className="font-display text-[1.375rem] leading-tight">Then, your own system</h2>
-          <p className="mt-3 max-w-[56ch] text-[0.9375rem] leading-relaxed text-ink-2">
+        <div className="lg:border-l lg:border-rule lg:pl-16">
+          <h2 className="font-display text-[1.75rem] leading-tight">Then, your own system</h2>
+          <p className="mt-4 max-w-[52ch] text-[1rem] leading-relaxed text-ink-2">
             Describe a system you built, its parts and how requests flow through it, and get the questions an interviewer
             would ask about it: trace this request, what survives a restart, what happens when this dependency is slow.
           </p>
-          <div className="mt-auto flex flex-wrap gap-2 pt-6">
+          <div className="mt-7 flex flex-wrap gap-2">
             <Link href="/projects" className="btn btn-primary">
               Describe a project
             </Link>

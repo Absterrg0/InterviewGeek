@@ -114,10 +114,12 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
         <p className="text-[0.8125rem] text-ink-3">
           <Link href={`/investigations/${investigation.id}`} className="hover:text-ink">
             {investigation.searchTitle}
-          </Link>{" "}
-          · Stage {index + 1} of {investigation.stages.length} · {PHASE_LABELS[stage.phase]}
+          </Link>
+          , stage {index + 1} of {investigation.stages.length}: {PHASE_LABELS[stage.phase].toLowerCase()}
         </p>
-        <h1 className="mt-2 font-display text-[2rem] leading-[1.1] text-balance sm:text-[2.5rem]">{stage.title}</h1>
+        <h1 className="mt-3 font-display text-[2.25rem] leading-[1.05] tracking-[-0.03em] text-balance sm:text-[3rem]">
+          {stage.title}
+        </h1>
       </header>
 
       <section aria-label="The situation" className="section space-y-6">
@@ -161,25 +163,25 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
         />
       </section>
 
-      <nav aria-label="Stage navigation" className="section grid gap-3 sm:grid-cols-2">
+      <nav aria-label="Stage navigation" className="mt-6 grid grid-cols-2 gap-6 border-t border-rule py-8">
         {previous ? (
           <Link
             href={`/investigations/${investigation.id}/${previous.id}`}
-            className="tile group block min-w-0 px-4 py-3.5 text-[0.875rem]"
+            className="group min-w-0 text-[0.9375rem] leading-snug"
           >
-            <span className="block text-[0.75rem] text-ink-3">← Previous</span>
-            <span className="mt-0.5 block font-medium leading-snug group-hover:text-accent">{previous.title}</span>
+            <span className="block text-[0.8125rem] text-ink-3">Previous stage</span>
+            <span className="mt-1 block font-medium group-hover:text-accent">{previous.title}</span>
           </Link>
         ) : (
-          <span className="hidden sm:block" />
+          <span />
         )}
         <Link
           href={`/investigations/${investigation.id}/${next ? next.id : "review"}`}
-          className="tile group block min-w-0 px-4 py-3.5 text-right text-[0.875rem]"
+          className="group min-w-0 text-right text-[0.9375rem] leading-snug"
         >
-          <span className="block text-[0.75rem] text-ink-3">{next ? "Next" : "Finish"} →</span>
-          <span className="mt-0.5 block font-medium leading-snug group-hover:text-accent">
-            {next ? next.title : "The full walkthrough"}
+          <span className="block text-[0.8125rem] text-ink-3">{next ? "Next stage" : "Finished the stages"}</span>
+          <span className="mt-1 block font-medium group-hover:text-accent">
+            {next ? next.title : "Read the full walkthrough"}
           </span>
         </Link>
       </nav>
