@@ -44,7 +44,7 @@ export function ProjectList() {
   };
 
   return (
-    <>
+    <div className="grid gap-x-14 lg:grid-cols-[minmax(0,1fr)_26rem]">
       <section aria-labelledby="your-projects" className="section min-w-0">
         <div className="mb-5 flex items-baseline gap-2.5">
           <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">01</span>
@@ -178,6 +178,6 @@ export function ProjectList() {
           the same model, so your answers will carry over.
         </p>
       </section>
-    </>
+    </div>
   );
 }

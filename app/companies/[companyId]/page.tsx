@@ -40,7 +40,7 @@ export default async function CompanyPage(props: PageProps<"/companies/[companyI
   const url = `${SITE_URL}/companies/${company.id}`;
 
   return (
-    <div>
+    <div className="measure">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

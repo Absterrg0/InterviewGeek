@@ -75,7 +75,7 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
   }
 
   return (
-    <div>
+    <div className="measure">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

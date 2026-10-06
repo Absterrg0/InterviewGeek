@@ -28,7 +28,7 @@ export default function CompaniesPage() {
         original writing, and has an investigation to practise it.
       </PageHeader>
       <section aria-label="All companies" className="section pt-2 sm:pt-2">
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {companies.map(({ company, practise }) => (
             <li key={company.id}>
               <Link href={`/companies/${company.id}`} className="tile group flex h-full flex-col p-5">

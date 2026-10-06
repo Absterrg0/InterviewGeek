@@ -36,28 +36,30 @@ export default function UnderstandingPage() {
 
       <UnderstandingView investigations={investigations} concepts={concepts} curated={curated} />
 
-      <Section id="method" title="How evidence works">
-        <div className="max-w-[66ch] space-y-3 text-[0.875rem] leading-relaxed text-ink-2">
-          <p>
-            <strong className="font-medium text-ink">Checked</strong> evidence comes from comparing your answer with an
-            authored key: which option you chose and how it is assessed, your verdicts on claims, your sequence, the
-            lines you flagged.
-          </p>
-          <p>
-            <strong className="font-medium text-ink">Self-assessed</strong> evidence comes from your written reasoning.
-            After seeing the reference, you mark which specific points your answer covered. Nothing grades your writing
-            automatically, so it is only as honest as your marks.
-          </p>
-          <p>
-            Every exercise trains some of six dimensions (trace, explain, defend, change, break, implement) and touches
-            named concepts. An exercise&apos;s signal is its weakest part: a sound decision defended with missing
-            reasoning is partial, not strong.
-          </p>
-        </div>
-      </Section>
-      <Section id="data" title="Your data">
-        <DataControls />
-      </Section>
+      <div className="grid gap-x-14 lg:grid-cols-2">
+        <Section id="method" title="How evidence works">
+          <div className="max-w-[66ch] space-y-3 text-[0.875rem] leading-relaxed text-ink-2">
+            <p>
+              <strong className="font-medium text-ink">Checked</strong> evidence comes from comparing your answer with an
+              authored key: which option you chose and how it is assessed, your verdicts on claims, your sequence, the
+              lines you flagged.
+            </p>
+            <p>
+              <strong className="font-medium text-ink">Self-assessed</strong> evidence comes from your written reasoning.
+              After seeing the reference, you mark which specific points your answer covered. Nothing grades your writing
+              automatically, so it is only as honest as your marks.
+            </p>
+            <p>
+              Every exercise trains some of six dimensions (trace, explain, defend, change, break, implement) and touches
+              named concepts. An exercise&apos;s signal is its weakest part: a sound decision defended with missing
+              reasoning is partial, not strong.
+            </p>
+          </div>
+        </Section>
+        <Section id="data" title="Your data">
+          <DataControls />
+        </Section>
+      </div>
     </div>
   );
 }

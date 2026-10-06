@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ContinueLink, StageOutline, type StageLink } from "@/components/investigation/progress";
+import { ContinueLink, InvestigationProgress, StageOutline, type StageLink } from "@/components/investigation/progress";
 import { Prose } from "@/components/prose";
 import { DIFFICULTY } from "@/components/investigation/investigation-tile";
 import { ShareButton } from "@/components/share";
@@ -96,7 +96,7 @@ export default async function InvestigationPage(props: PageProps<"/investigation
           </>
         }
         aside={
-          <div className="screen hidden w-56 items-center justify-center px-6 py-6 md:flex" aria-hidden="true">
+          <div className="screen hidden w-80 items-center justify-center px-8 py-10 md:flex" aria-hidden="true">
             <SystemThumb components={inv.system.components} flows={inv.system.flows} given={visibleAfter(inv, 0).components} />
           </div>
         }
@@ -104,75 +104,90 @@ export default async function InvestigationPage(props: PageProps<"/investigation
         {inv.premise}
       </PageHeader>
 
-      <Section id="scenario" title="The situation">
-        <div className="max-w-[66ch]">
-          <Prose text={inv.scenario} />
-        </div>
-      </Section>
+      <div className="grid gap-x-16 lg:grid-cols-[minmax(0,1fr)_21rem]">
+        <div className="min-w-0">
+          <Section id="scenario" title="The situation">
+            <div className="max-w-[66ch]">
+              <Prose text={inv.scenario} />
+            </div>
+          </Section>
 
-      <Section id="requirements" title="What it has to do">
-        <div className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
-          <DashList items={inv.requirements.functional} />
-          <DashList items={inv.requirements.nonFunctional} />
-        </div>
-        <div className="mt-8 rounded-xl bg-well px-5 py-4">
-          <p className="mb-2 text-[0.875rem] font-medium">Working with</p>
-          <DashList items={[...inv.constraints, ...inv.assumptions]} muted />
-        </div>
-      </Section>
+          <Section id="requirements" title="What it has to do">
+            <div className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
+              <DashList items={inv.requirements.functional} />
+              <DashList items={inv.requirements.nonFunctional} />
+            </div>
+            <div className="mt-8 rounded-xl bg-well px-5 py-4">
+              <p className="mb-2 text-[0.875rem] font-medium">Working with</p>
+              <DashList items={[...inv.constraints, ...inv.assumptions]} muted />
+            </div>
+          </Section>
 
-      <Section id="stages" title={`${inv.stages.length} stages`} description="Each one asks you to decide or explain before it shows you the reasoning.">
-        <div className="max-w-xl">
-          <StageOutline investigationId={inv.id} stages={stages} withPhase withReview />
-        </div>
-      </Section>
+          <Section id="variants" title="Interview questions it prepares you for">
+            <DashList items={inv.interviewVariants.map((v) => `“${v}”`)} muted />
+          </Section>
 
-      <Section id="variants" title="Interview questions it prepares you for">
-        <DashList items={inv.interviewVariants.map((v) => `“${v}”`)} muted />
-      </Section>
-
-      {(sources.length > 0 || prerequisites.length > 0 || related.length > 0) && (
-        <Section id="more" title="Read and practise next">
-          <div className="space-y-6 text-[0.9375rem] leading-relaxed">
-            {companies.map((c) => (
-              <p key={c.id}>
-                <Link href={`/companies/${c.id}`} className="link">
-                  How {c.name} built it
-                </Link>
-                <span className="text-ink-2"> · {c.topic}, in their engineers&apos; own words</span>
-              </p>
-            ))}
-            {prerequisites.length > 0 && (
-              <p className="text-ink-2">
-                Concepts to know first:{" "}
-                {prerequisites.map((c, i) => (
-                  <span key={c.id}>
-                    {i > 0 && ", "}
-                    <Link href={`/concepts/${c.id}`} className="concept-link text-ink">
-                      {c.title}
+          {(sources.length > 0 || prerequisites.length > 0 || related.length > 0) && (
+            <Section id="more" title="Read and practise next">
+              <div className="space-y-6 text-[0.9375rem] leading-relaxed">
+                {companies.map((c) => (
+                  <p key={c.id}>
+                    <Link href={`/companies/${c.id}`} className="link">
+                      How {c.name} built it
                     </Link>
-                  </span>
+                    <span className="text-ink-2"> · {c.topic}, in their engineers&apos; own words</span>
+                  </p>
                 ))}
-                .
-              </p>
-            )}
-            {related.length > 0 && (
-              <p className="text-ink-2">
-                Similar systems:{" "}
-                {related.map((r, i) => (
-                  <span key={r.id}>
-                    {i > 0 && ", "}
-                    <Link href={`/investigations/${r.id}`} className="concept-link text-ink">
-                      {r.searchTitle}
-                    </Link>
-                  </span>
-                ))}
-                .
-              </p>
-            )}
+                {prerequisites.length > 0 && (
+                  <p className="text-ink-2">
+                    Concepts to know first:{" "}
+                    {prerequisites.map((c, i) => (
+                      <span key={c.id}>
+                        {i > 0 && ", "}
+                        <Link href={`/concepts/${c.id}`} className="concept-link text-ink">
+                          {c.title}
+                        </Link>
+                      </span>
+                    ))}
+                    .
+                  </p>
+                )}
+                {related.length > 0 && (
+                  <p className="text-ink-2">
+                    Similar systems:{" "}
+                    {related.map((r, i) => (
+                      <span key={r.id}>
+                        {i > 0 && ", "}
+                        <Link href={`/investigations/${r.id}`} className="concept-link text-ink">
+                          {r.searchTitle}
+                        </Link>
+                      </span>
+                    ))}
+                    .
+                  </p>
+                )}
+              </div>
+            </Section>
+          )}
+        </div>
+
+        <aside aria-labelledby="stages" className="section lg:pt-10">
+          <div className="panel p-3 lg:sticky lg:top-20">
+            <div className="flex items-baseline justify-between gap-4 px-2 pt-1">
+              <h2 id="stages" className="font-display text-[1.0625rem] leading-tight">
+                Stages
+              </h2>
+              <InvestigationProgress investigationId={inv.id} stages={stages} />
+            </div>
+            <p className="mt-1.5 px-2 text-[0.8125rem] leading-relaxed text-ink-2">
+              Each asks you to decide or explain before it shows the reasoning.
+            </p>
+            <div className="mt-4">
+              <StageOutline investigationId={inv.id} stages={stages} withPhase withReview />
+            </div>
           </div>
-        </Section>
-      )}
+        </aside>
+      </div>
     </div>
   );
 }

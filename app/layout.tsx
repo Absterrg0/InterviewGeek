@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import Link from "next/link";
 import { Funnel_Display, Funnel_Sans } from "next/font/google";
 import localFont from "next/font/local";
-import { SiteHeader, SiteSidebar } from "@/components/site-header";
-import type { NavInvestigation } from "@/components/site-nav";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
 import { StorageNotice } from "@/components/storage-notice";
-import { listCompanies, listConcepts, listInvestigations } from "@/lib/content";
+import type { StageBarInvestigation } from "@/components/investigation/stage-bar";
+import { listInvestigations } from "@/lib/content";
 import { jsonLd, TITLE_SUFFIX } from "@/lib/metadata";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -70,22 +70,11 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const investigations: NavInvestigation[] = listInvestigations().map((inv) => ({
+  const investigations: StageBarInvestigation[] = listInvestigations().map((inv) => ({
     id: inv.id,
     title: inv.title,
     stages: inv.stages.map((s) => ({ id: s.id, title: s.title, phase: s.phase })),
   }));
-  const concepts = listConcepts();
-  const companies = listCompanies();
-  const titles: Record<string, string> = Object.fromEntries([
-    ...investigations.flatMap((inv) => [
-      [`/investigations/${inv.id}`, inv.title],
-      [`/investigations/${inv.id}/review`, "The full walkthrough"],
-      ...inv.stages.map((s) => [`/investigations/${inv.id}/${s.id}`, s.title]),
-    ]),
-    ...concepts.map((c) => [`/concepts/${c.id}`, c.title]),
-    ...companies.map((c) => [`/companies/${c.id}`, c.name]),
-  ]);
 
   return (
     <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable} ${pixel.variable}`}>
@@ -96,22 +85,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to content
         </a>
-        <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
-          <SiteSidebar investigations={investigations} />
-          <div className="flex min-w-0 flex-col">
-            <SiteHeader investigations={investigations} titles={titles} />
-            <StorageNotice />
-            <main id="main" className="mx-auto w-full max-w-[56rem] flex-1">
-              {children}
-            </main>
-            <footer className="mx-auto w-full max-w-[56rem] px-5 pt-10 pb-8 text-[0.75rem] text-ink-3 sm:px-10">
-              Free, no accounts, no AI grading. Your progress stays in this browser; export it from{" "}
-              <Link href="/understanding" className="underline underline-offset-2 hover:text-ink">
-                Your progress
-              </Link>
-              .
-            </footer>
-          </div>
+        <div className="flex min-h-dvh flex-col">
+          <SiteHeader investigations={investigations} />
+          <StorageNotice />
+          <main id="main" className="shell flex-1">
+            {children}
+          </main>
+          <SiteFooter />
         </div>
         <script
           type="application/ld+json"

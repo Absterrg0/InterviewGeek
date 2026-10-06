@@ -20,10 +20,10 @@ export default function InvestigationsPage() {
         change the constraints, and defend what is left.
       </PageHeader>
       <section aria-label="All investigations" className="section pt-2 sm:pt-2">
-        <ul className="space-y-3">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {investigations.map((inv) => (
             <li key={inv.id}>
-              <InvestigationTile investigation={inv} wide />
+              <InvestigationTile investigation={inv} />
             </li>
           ))}
         </ul>

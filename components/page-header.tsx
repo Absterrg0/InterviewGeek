@@ -19,12 +19,12 @@ export function PageHeader({
   aside?: ReactNode;
 }) {
   return (
-    <header className="section rise grid gap-8 pt-6 sm:pt-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+    <header className="section rise grid gap-8 pt-10 sm:pt-14 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="max-w-2xl">
         {eyebrow && <p className="mb-2 text-[0.8125rem] text-ink-3">{eyebrow}</p>}
-        <h1 className="font-display text-[2rem] leading-[1.1] text-balance sm:text-[2.5rem]">{title}</h1>
+        <h1 className="font-display text-[2rem] leading-[1.08] text-balance sm:text-[2.75rem]">{title}</h1>
         {children && (
-          <p className="mt-4 max-w-[60ch] text-[1rem] leading-relaxed text-ink-2 text-pretty">{children}</p>
+          <p className="mt-4 max-w-[62ch] text-[1.0625rem] leading-relaxed text-ink-2 text-pretty">{children}</p>
         )}
         {meta && <p className="mt-3 text-[0.8125rem] text-ink-3">{meta}</p>}
         {actions && <div className="mt-6 flex flex-wrap items-center gap-2">{actions}</div>}

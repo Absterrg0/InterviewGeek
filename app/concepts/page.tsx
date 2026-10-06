@@ -30,7 +30,7 @@ export default function ConceptsPage() {
             id={`domain-${domain}`}
             title={DOMAIN_LABELS[domain]}
           >
-            <ul className="space-y-px">
+            <ul className="grid gap-x-10 gap-y-px md:grid-cols-2">
               {concepts.map((c) => {
                 const uses = stagesUsingConcept(c.id);
                 const investigations = new Set(uses.map((u) => u.investigation.id)).size;

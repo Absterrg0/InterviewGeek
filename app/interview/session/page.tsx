@@ -43,7 +43,7 @@ export default async function InterviewSessionPage(props: PageProps<"/interview/
   const concepts = Object.fromEntries(listConcepts().map((c) => [c.id, { title: c.title, summary: c.summary }]));
 
   return (
-    <div>
+    <div className="measure">
       <InterviewRunner sessionId={sessionId} curated={curated} concepts={concepts} />
     </div>
   );

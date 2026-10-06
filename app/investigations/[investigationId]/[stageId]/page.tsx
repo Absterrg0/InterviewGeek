@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { buildSlots, Reveal } from "@/components/exercise/slots";
 import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { EventBanner } from "@/components/investigation/event-banner";
-import { StageOutline, type StageLink } from "@/components/investigation/progress";
 import { SystemMap } from "@/components/system-map";
 import { Prose } from "@/components/prose";
 import { getConcept, getStage, listInvestigations } from "@/lib/content";
@@ -49,11 +48,6 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
   const { investigation, stage, index } = found;
   const ref: ExerciseRef = { kind: "stage", investigationId: investigation.id, stageId: stage.id };
 
-  const stages: StageLink[] = investigation.stages.map((s) => ({
-    id: s.id,
-    title: s.title,
-    phase: s.phase,
-  }));
   const previous = investigation.stages[index - 1];
   const next = investigation.stages[index + 1];
   const before = visibleAfter(investigation, index);
@@ -103,7 +97,7 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
   );
 
   return (
-    <article>
+    <article className="measure">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -116,15 +110,7 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
           ),
         }}
       />
-      <header className="section rise pt-6 pb-0 sm:pt-8 sm:pb-0">
-        <details className="mb-6 rounded-xl bg-well lg:hidden">
-          <summary className="cursor-pointer select-none px-4 py-2.5 text-[0.8125rem] font-medium text-ink-2">
-            All stages
-          </summary>
-          <div className="px-2 pb-3">
-            <StageOutline investigationId={investigation.id} stages={stages} currentId={stage.id} withReview />
-          </div>
-        </details>
+      <header className="section rise pb-0 sm:pb-0">
         <p className="text-[0.8125rem] text-ink-3">
           <Link href={`/investigations/${investigation.id}`} className="hover:text-ink">
             {investigation.searchTitle}
@@ -175,21 +161,26 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
         />
       </section>
 
-      <nav aria-label="Stage navigation" className="section flex items-start justify-between gap-6 text-[0.875rem]">
+      <nav aria-label="Stage navigation" className="section grid gap-3 sm:grid-cols-2">
         {previous ? (
-          <Link href={`/investigations/${investigation.id}/${previous.id}`} className="group min-w-0 text-ink-2 hover:text-ink">
-            <span className="block text-[0.75rem] text-ink-3">Previous</span>
-            <span className="font-medium">← {previous.title}</span>
+          <Link
+            href={`/investigations/${investigation.id}/${previous.id}`}
+            className="tile group block min-w-0 px-4 py-3.5 text-[0.875rem]"
+          >
+            <span className="block text-[0.75rem] text-ink-3">← Previous</span>
+            <span className="mt-0.5 block font-medium leading-snug group-hover:text-accent">{previous.title}</span>
           </Link>
         ) : (
-          <span />
+          <span className="hidden sm:block" />
         )}
         <Link
           href={`/investigations/${investigation.id}/${next ? next.id : "review"}`}
-          className="group min-w-0 text-right text-ink-2 hover:text-ink"
+          className="tile group block min-w-0 px-4 py-3.5 text-right text-[0.875rem]"
         >
-          <span className="block text-[0.75rem] text-ink-3">{next ? "Next" : "Finish"}</span>
-          <span className="font-medium">{next ? next.title : "The full walkthrough"} →</span>
+          <span className="block text-[0.75rem] text-ink-3">{next ? "Next" : "Finish"} →</span>
+          <span className="mt-0.5 block font-medium leading-snug group-hover:text-accent">
+            {next ? next.title : "The full walkthrough"}
+          </span>
         </Link>
       </nav>
     </article>

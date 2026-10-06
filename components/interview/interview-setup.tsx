@@ -94,7 +94,7 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
   };
 
   return (
-    <>
+    <div className="grid gap-x-14 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section aria-labelledby="setup" className="section space-y-7">
         <div className="flex items-baseline gap-2.5">
           <span className="font-mono text-[0.625rem] tabular-nums text-ink-3">01</span>
@@ -226,6 +226,6 @@ export function InterviewSetup({ candidates }: { candidates: InterviewCandidate[
           </ul>
         )}
       </section>
-    </>
+    </div>
   );
 }

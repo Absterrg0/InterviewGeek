@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * A white page with a quiet sidebar: hairline rings instead of heavy shadows,
+ * A white page under a single top bar: hairline rings instead of heavy shadows,
  * space instead of rules between sections, and one cyan accent.
  */
 :root {
@@ -113,6 +113,20 @@
   --font-pixel: var(--font-geist-pixel), ui-monospace, monospace;
 }
 
+/* The page's horizontal frame: the top bar, the stage bar, main and the footer all share it. */
+@utility shell {
+  width: 100%;
+  max-width: 76rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  @media (min-width: 640px) {
+    padding-inline: 2rem;
+  }
+  @media (min-width: 1024px) {
+    padding-inline: 2.5rem;
+  }
+}
+
 /* Headings: Funnel Display, tightened. */
 @utility font-display {
   font-family: var(--font-display);
@@ -122,6 +136,8 @@
 
 @layer base {
   html {
+    /* Clear the sticky top bar (and the stage bar under it) when jumping to an anchor. */
+    scroll-padding-top: 7.5rem;
     background: var(--paper);
     color: var(--ink);
     -webkit-text-size-adjust: 100%;
@@ -174,14 +190,83 @@
 @layer components {
   /* ---------- Layout ---------- */
 
-  /* A block of the main column. Separated by space, not rules. */
+  /* A block of the main column. Separated by space, not rules; the shell supplies the sides. */
   .section {
-    padding: 1.75rem 1.25rem;
+    padding-block: 1.75rem;
   }
   @media (min-width: 640px) {
     .section {
-      padding: 2.25rem 2.5rem;
+      padding-block: 2.5rem;
     }
+  }
+
+  /* A centred reading column inside the shell, for pages that are one long argument. */
+  .measure {
+    max-width: 48rem;
+    margin-inline: auto;
+  }
+
+  /* A link in the top bar. */
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    height: 2rem;
+    padding-inline: 0.75rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: var(--ink-2);
+    transition:
+      background-color 150ms var(--ease-out),
+      color 150ms var(--ease-out);
+  }
+  .nav-link:hover {
+    color: var(--ink);
+    background: var(--hover);
+  }
+  .nav-link[aria-current="page"] {
+    color: var(--ink);
+    font-weight: 500;
+    background: var(--hover);
+  }
+
+  /* The stage list that drops from the stage bar, pinned under it at the shell's right edge. */
+  .stage-popover {
+    position: fixed;
+    inset: auto;
+    top: 6.75rem;
+    right: max(1.25rem, calc((100vw - 76rem) / 2 + 2.5rem));
+    margin: 0;
+    border: 0;
+    width: min(23rem, calc(100vw - 2.5rem));
+    max-height: calc(100dvh - 8rem);
+    overflow-y: auto;
+    padding: 0.75rem 0.5rem 0.5rem;
+    color: inherit;
+    box-shadow: var(--shadow-raised);
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 160ms var(--ease-out),
+      transform 160ms var(--ease-out),
+      overlay 160ms allow-discrete,
+      display 160ms allow-discrete;
+  }
+  .stage-popover:not(:popover-open) {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  @starting-style {
+    .stage-popover:popover-open {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  /* Translucent chrome that content scrolls under. */
+  .glass {
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: saturate(1.6) blur(14px);
+    -webkit-backdrop-filter: saturate(1.6) blur(14px);
   }
 
   /* ---------- Surfaces ---------- */
