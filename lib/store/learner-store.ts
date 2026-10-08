@@ -10,10 +10,12 @@
 import { track } from "@vercel/analytics";
 import { useSyncExternalStore } from "react";
 import type { Interaction } from "@/lib/domain/content";
+import type { DesignRound } from "@/lib/domain/design-round";
 import { evaluate, type ExerciseTags } from "@/lib/domain/evaluate";
 import type {
   Attempt,
   AttemptContext,
+  Citations,
   ExerciseRef,
   InterviewSession,
   LearnerState,
@@ -187,9 +189,10 @@ export function assessAttempt(input: {
   interaction: Interaction;
   tags: ExerciseTags;
   selfAssessment: SelfAssessment;
+  citations: Citations;
 }) {
   const evidence = evaluate(input.interaction, input.attempt.response, input.selfAssessment, input.tags);
-  commit(transitions.assessAttempt(current(), input.attempt.id, input.selfAssessment, evidence));
+  commit(transitions.assessAttempt(current(), input.attempt.id, input.selfAssessment, evidence, input.citations));
 }
 
 export function saveProject(project: Project) {
@@ -214,6 +217,15 @@ export function finishInterview(sessionId: string) {
 
 export function deleteInterview(sessionId: string) {
   commit(transitions.deleteInterview(current(), sessionId));
+}
+
+export function saveRound(round: DesignRound) {
+  commit(transitions.saveRound(current(), round));
+  track("design_round_saved", { investigation: round.investigationId });
+}
+
+export function deleteRound(roundId: string) {
+  commit(transitions.deleteRound(current(), roundId));
 }
 
 export function exportState(): string {

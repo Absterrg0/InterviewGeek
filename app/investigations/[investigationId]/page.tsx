@@ -8,6 +8,7 @@ import { ShareButton } from "@/components/share";
 import { SystemThumb } from "@/components/system-thumb";
 import { DashList, PageHeader, Section } from "@/components/page-header";
 import { getCompany, getConcept, getInvestigation, listInvestigations, writeupsForInvestigation } from "@/lib/content";
+import { DESIGN_ROUND_MINUTES } from "@/lib/domain/design-round";
 import { visibleAfter } from "@/lib/domain/visibility";
 import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
@@ -86,6 +87,9 @@ export default async function InvestigationPage(props: PageProps<"/investigation
           actions={
             <>
               <ContinueLink investigationId={inv.id} stages={stages} />
+              <Link href={`/investigations/${inv.id}/design`} className="btn btn-secondary">
+                Design it from a blank page
+              </Link>
               <Link href={`/investigations/${inv.id}/review`} className="btn btn-ghost">
                 See the full walkthrough
               </Link>
@@ -188,11 +192,18 @@ export default async function InvestigationPage(props: PageProps<"/investigation
               <InvestigationProgress investigationId={inv.id} stages={stages} />
             </div>
             <p className="mt-1.5 px-2 text-[0.8125rem] leading-relaxed text-ink-2">
-              Each asks you to decide or explain before it shows the reasoning.
+              Each teaches what you need, then asks you to decide.
             </p>
             <div className="mt-4">
               <StageOutline investigationId={inv.id} stages={stages} withPhase withReview />
             </div>
+            <p className="mt-5 border-t border-rule-soft px-2 pt-4 text-[0.8125rem] leading-relaxed text-ink-2">
+              Ready to drive it yourself?{" "}
+              <Link href={`/investigations/${inv.id}/design`} className="link font-normal">
+                Do it as a {DESIGN_ROUND_MINUTES}-minute round
+              </Link>{" "}
+              from a blank page, then compare with this design.
+            </p>
           </div>
         </aside>
       </div>

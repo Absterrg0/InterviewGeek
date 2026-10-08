@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ConceptStanding } from "@/components/concept-standing";
 import { PageHeader, Section } from "@/components/page-header";
-import { conceptsByDomain, stagesUsingConcept } from "@/lib/content";
+import { conceptsByDomain, listConcepts, stagesUsingConcept } from "@/lib/content";
 import { CONCEPT_DOMAINS, DOMAIN_LABELS } from "@/lib/domain/content";
-import { pageMetadata } from "@/lib/metadata";
+import { itemList, jsonLd, pageMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = pageMetadata({
   title: "System Design Concepts",
@@ -18,6 +18,17 @@ export default function ConceptsPage() {
   const domains = CONCEPT_DOMAINS.filter((d) => (groups.get(d) ?? []).length > 0);
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd(
+            itemList(
+              "System design concepts",
+              listConcepts().map((c) => ({ name: c.title, path: `/concepts/${c.id}` })),
+            ),
+          ),
+        }}
+      />
       <PageHeader title="System design concepts">
         The mechanisms the investigations depend on. Each one starts from the problem it solves, explains how it actually
         works, and ends with how it fails, not with a product name.

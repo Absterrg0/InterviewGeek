@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { Prose } from "@/components/prose";
+import { InlineText } from "@/components/prose-core";
+import { getConcept } from "@/lib/content";
 import type { Interaction, Stage } from "@/lib/domain/content";
 import { EMPTY_SLOTS, type InteractionSlots } from "./types";
 
@@ -47,6 +49,15 @@ export function Reveal({ reveal, headingLevel = 3 }: { reveal: Stage["reveal"]; 
   const Heading = `h${headingLevel}` as "h3" | "h4";
   return (
     <div className="space-y-6">
+      {reveal.takeaways && reveal.takeaways.length > 0 && (
+        <ol className="takeaways space-y-3 text-[1rem] leading-relaxed" aria-label="Key points">
+          {reveal.takeaways.map((t) => (
+            <li key={t}>
+              <InlineText text={t} resolve={getConcept} />
+            </li>
+          ))}
+        </ol>
+      )}
       <Prose text={reveal.reasoning} />
       {reveal.tradeoffs && reveal.tradeoffs.length > 0 && (
         <div>

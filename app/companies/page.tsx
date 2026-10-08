@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { getInvestigation, listCompanies, writeupsByCompany } from "@/lib/content";
-import { pageMetadata } from "@/lib/metadata";
+import { itemList, jsonLd, pageMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = pageMetadata({
   title: "How Real Companies Do System Design",
@@ -23,6 +23,17 @@ export default function CompaniesPage() {
 
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd(
+            itemList(
+              "How real companies do system design",
+              companies.map(({ company }) => ({ name: `${company.name}: ${company.topic}`, path: `/companies/${company.id}` })),
+            ),
+          ),
+        }}
+      />
       <PageHeader title="How real companies do system design">
         One idea per company, from what their engineers published about it. Each page explains the idea, links to the
         original writing, and has an investigation to practise it.

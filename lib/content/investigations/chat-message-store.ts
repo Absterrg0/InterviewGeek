@@ -115,6 +115,66 @@ export const chatMessageStore = {
       context: md`
         Use 86,400 seconds in a day. Messages are about 1 KB.
       `,
+      lesson: [
+
+        {
+          kind: "estimate",
+          id: "write-rate",
+          prompt: "120 million messages a day. About how many writes a second on average?",
+          answer: 1400,
+          unit: "per second",
+          working: md`
+            120,000,000 ÷ 86,400 ≈ **1,400 a second**. Even several times that at peak is within one good database's reach. The write rate isn't the problem.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "yearly-data",
+          prompt: "At about 1 KB per message, how many terabytes a year (before replication)?",
+          answer: 44,
+          unit: "TB",
+          working: md`
+            120 GB a day × 365 ≈ **44 TB a year**, and growing several-fold a year. What outgrows one machine is the data.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            When data and indexes fit in memory, a random read is a memory lookup. When they don't, it becomes a **disk seek**, and latency becomes unpredictable. The usual fix is to store what one query needs **physically together**, so it takes one seek and a short sequential read instead of fifty random ones.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            A **Snowflake ID** is 64 bits: a millisecond timestamp in the high bits, then a worker number and a per-worker sequence. Any server can generate one without coordinating, and sorting IDs sorts messages by creation time. See [[id-generation]].
+
+            So "the latest 50 messages in a channel" is "the 50 largest IDs in that channel".
+          `,
+        },
+        {
+          kind: "choice",
+          id: "central-sequence",
+          prompt: "Do time-ordered IDs require one central counter?",
+          options: [
+            {
+              id: "no",
+              label: "No: putting the timestamp in the high bits makes independently generated IDs sort by time.",
+              correct: true,
+              why: "Each worker's number and sequence keep IDs unique; the timestamp makes them sortable. No coordination needed.",
+            },
+            {
+              id: "yes",
+              label: "Yes, otherwise two servers' IDs can't be compared.",
+              why: "They can: the timestamp bits dominate the comparison.",
+            },
+            {
+              id: "clocks",
+              label: "Yes, because server clocks differ.",
+              why: "Clock differences make ordering approximate across servers (to a few milliseconds), which is fine for chat.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements follow from the scenario?",
@@ -155,6 +215,11 @@ export const chatMessageStore = {
         ],
       },
       reveal: {
+        takeaways: [
+          "The write rate is modest; what outgrows one machine is the ever-growing data.",
+          "Store a channel's messages together in time order so the latest page is one contiguous read.",
+          "Snowflake IDs sort by time without central coordination.",
+        ],
         reasoning: md`
           Chat storage is a **data-shape** problem. The write rate is modest; the dataset is huge, ever-growing and read at random. The design has to make the common read (a channel's latest page) touch a small, contiguous piece of data, whatever the total size.
 
@@ -172,6 +237,57 @@ export const chatMessageStore = {
       context: md`
         The requirements ask for growth by adding nodes, survival of node loss, and a team too small for constant manual operations.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A **log-structured** (LSM) store turns every write into an append: new data goes to memory, then is flushed to immutable sorted files on disk, which are periodically merged (**compaction**). Writes are cheap; reads may consult several files. See [[lsm-trees]].
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            A **wide-column** store like Cassandra or ScyllaDB has two keys per table:
+
+            - The **partition key** decides which nodes hold a row, and which rows are stored together.
+            - The **clustering key** orders rows **within** a partition.
+
+            Capacity grows by adding nodes; each partition is replicated (typically 3 copies) automatically. See [[partitioning]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "doc-per-channel",
+          prompt: "Why not one document per channel holding an array of its messages?",
+          options: [
+            {
+              id: "unbounded",
+              label: "Documents grow without bound, every send rewrites a growing document, and size limits cap history.",
+              correct: true,
+              why: "The busiest channels become the slowest writes, and a 16 MB document limit eventually caps a channel's history.",
+            },
+            {
+              id: "slow-read",
+              label: "Reading one document is slow.",
+              why: "Reading one document is fast. Writing to an ever-growing one isn't.",
+            },
+            {
+              id: "fine",
+              label: "It's fine; document stores are built for this.",
+              why: "Not for unbounded arrays that grow with every message.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "costs",
+          prompt: "What do you give up with a wide-column LSM store compared with Postgres?",
+          answer: md`
+            Flexible queries (you query by key, not arbitrary filters or joins), strong consistency by default, and cheap deletes: a delete is a **tombstone** that reads must skip until compaction removes it. You also take on compaction and repair as ongoing operational work.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "Which store should hold the messages?",
@@ -216,6 +332,11 @@ export const chatMessageStore = {
         },
       },
       reveal: {
+        takeaways: [
+          "Append-mostly data read by contiguous key ranges suits a wide-column LSM store.",
+          "Growth by adding nodes, with built-in replication, matches a small team and fast growth.",
+          "LSM costs: reads touch several files, deletes are tombstones, compaction competes with traffic.",
+        ],
         reasoning: md`
           The choice follows from three facts: the data is append-mostly, the main query reads a contiguous slice of one channel, and the team wants growth to be "add a node". A wide-column store built on [[lsm-trees]] fits all three.
 
@@ -235,6 +356,58 @@ export const chatMessageStore = {
       context: md`
         In this store, the partition key decides which nodes hold a row and which rows are stored together. The clustering key orders rows inside a partition. Some channels will receive millions of messages over their lifetime; most receive a few hundred.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Partitions must stay **bounded**. A partition that grows forever (many gigabytes) makes compaction, repair and replacing a node slow and memory-hungry, and reads of it get slower.
+
+            The natural key here, the channel, is unbounded: a busy channel gets messages for years.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            **Bucketing** bounds it: add a time window to the partition key, say 10 days. Partition = (channel, bucket), where the bucket is computed from the message's timestamp. Each partition holds at most 10 days of one channel.
+
+            Because the bucket comes from the Snowflake ID's timestamp, any message's partition can be computed from its ID alone.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "bucket-size",
+          prompt: "A very busy channel gets 10,000 messages a day at 1 KB each. About how many megabytes in one 10-day bucket?",
+          answer: 100,
+          unit: "MB",
+          working: md`
+            10,000 × 10 days × 1 KB = **100 MB**, which is Discord's target ceiling. Without buckets, after 5 years the same channel's partition would be about 18 GB.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "by-message",
+          prompt: "Why not partition by message_id so writes spread perfectly evenly?",
+          options: [
+            {
+              id: "scatter",
+              label: "The latest 50 messages of a channel would be on up to 50 different partitions: every page becomes a scatter-gather.",
+              correct: true,
+              why: "Even spreading helps writes, but the dominant read needs a channel's messages together.",
+            },
+            {
+              id: "hot",
+              label: "It creates hot partitions.",
+              why: "It's the opposite: perfectly even, and that's the trouble for reads.",
+            },
+            {
+              id: "fine",
+              label: "It's the best choice.",
+              why: "Not for this read pattern.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What should the primary key of the messages table be?",
@@ -279,6 +452,11 @@ export const chatMessageStore = {
         },
       },
       reveal: {
+        takeaways: [
+          "Keep a page's rows together and every partition bounded.",
+          "Bucket an unbounded key by time: partition by (channel, bucket), cluster by message ID.",
+          "Quiet channels may need to walk back through several buckets to fill a page.",
+        ],
         reasoning: md`
           \`PRIMARY KEY ((channel_id, bucket), message_id)\` does two jobs: it keeps the rows a page needs **together**, and it keeps every partition **bounded**. Bucketing by time is the standard way to stop a partition growing forever when the natural key (the channel) is unbounded.
 
@@ -307,6 +485,54 @@ export const chatMessageStore = {
       context: md`
         Here is what the message service and the store logged when one member opened the channel. Find the lines that explain the stall.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            In an LSM store, a **delete is a write**: a tombstone marking the row as deleted. Older copies of the row may sit in files that haven't been compacted yet, so the tombstone must be kept, and read past, until compaction removes both.
+
+            Tombstones are kept for a grace period (\`gc_grace_seconds\`) so replicas that missed the delete can learn of it through **repair**.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "empty-read",
+          prompt: "A channel had 2 million messages; a bot deleted all but one. A read asks for the latest 50 messages. How much work is it?",
+          answer: md`
+            Huge. The read has to scan past every tombstone in each bucket before concluding the bucket has nothing live, then move to the previous bucket and do it again. Reading "nothing" costs millions of steps, on every replica that serves the read.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "nulls",
+          prompt: "A writer inserts every column, writing explicit NULL for the 12 columns a message doesn't use. What does that do in this store?",
+          options: [
+            {
+              id: "tombstones",
+              label: "Creates a tombstone for each null column: a dozen useless tombstones per message.",
+              correct: true,
+              why: "Writing NULL means 'delete this cell'. Write only the columns a message actually has.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing; NULLs take no space.",
+              why: "In this store, an explicit NULL is a deletion marker.",
+            },
+            {
+              id: "error",
+              label: "The insert fails.",
+              why: "It succeeds, which is why the cost goes unnoticed.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Three ways to bound the damage: track which buckets are empty so reads skip them; shorten the tombstone grace period (safe if repair runs more often than the period); and stop writing needless nulls.
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the lines that are part of the problem.",
@@ -350,6 +576,11 @@ export const chatMessageStore = {
         },
       },
       reveal: {
+        takeaways: [
+          "In an LSM store a delete is a tombstone, and reads must scan past tombstones until compaction.",
+          "Bound the work: skip empty buckets and shorten tombstone lifetime when repair runs regularly.",
+          "Write only the columns you have; explicit nulls create tombstones.",
+        ],
         reasoning: md`
           This is the incident from Discord's 2017 post. In a log-structured store, **a delete is a write**: a tombstone that must be read past until compaction removes it. A channel with millions of deletions becomes a channel where reading "nothing" costs millions of steps, and those steps allocate enough memory to trigger stop-the-world garbage collection on every replica holding the partition.
 
@@ -373,6 +604,48 @@ export const chatMessageStore = {
       context: md`
         In this store, \`UPDATE\` and \`INSERT\` are both upserts: they write the given columns with a timestamp. Conflicts are resolved per column by last write wins.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            In this store, writes are **blind upserts**: an UPDATE doesn't check whether the row exists; it just writes the given columns with a timestamp. Conflicts are resolved **per column** by **last write wins** (LWW): each cell keeps its newest value. See [[conflict-resolution]].
+
+            A row is a collection of cells, not a single value.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "half-row",
+          prompt: "A delete at time T1 writes a tombstone for the row. An edit at T2 > T1 writes the body and edited_at columns. What does a reader see?",
+          answer: md`
+            A half-row: body and edited_at (newer than the tombstone, so they win), and every other column deleted. A message with no author, channel or timestamp, which no user ever wrote.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "fix",
+          prompt: "The race is rare. What's the cheaper fix?",
+          options: [
+            {
+              id: "repair",
+              label: "Treat a row missing a required column (like author_id) as deleted, and clean it up on read",
+              correct: true,
+              why: "The invalid state is easy to recognise and rare, so repairing it costs almost nothing.",
+            },
+            {
+              id: "lwt",
+              label: "Make every edit a conditional write (IF EXISTS)",
+              why: "That works, but costs a consensus round trip on every edit to prevent a rare race. Repair is cheaper here.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing; last write wins already handles it",
+              why: "Per-column LWW is what produced the half-row.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -405,6 +678,11 @@ export const chatMessageStore = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Per-column last-write-wins means each cell keeps its newest value, not that the last operation wins.",
+          "A racing edit and delete can leave a row nobody wrote.",
+          "When a race is rare and its result recognisable, repairing on read beats preventing with consensus.",
+        ],
         reasoning: md`
           Eventual consistency with per-column last-write-wins does not mean "the last operation wins". It means **each cell keeps its newest value**, and a row is just a collection of cells. An edit racing a delete leaves a row that no single user ever wrote.
 
@@ -428,6 +706,53 @@ export const chatMessageStore = {
       context: md`
         The cluster has plenty of total capacity. One partition is getting far more reads than three nodes can serve.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A partition lives on its replicas, typically three nodes. Adding nodes adds capacity for **other** partitions; it can't split one partition's load. A burst of reads for one channel lands on the same three nodes however big the cluster is.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            But hundreds of thousands of "latest page of channel X" requests are **the same question**. If they meet in one place, they can be answered by one query. That's **request coalescing**: the first request runs the query; identical requests that arrive while it's running wait for its result. See [[request-coalescing]].
+
+            Requests only meet if they're routed to the same place, which is what consistent hashing on the channel ID does for a fleet of data-service instances.
+          `,
+        },
+        {
+          kind: "simulation",
+          simulation: "cache-stampede",
+          body: md`
+            The same arithmetic applies to a burst of identical reads: compare no protection, coalescing per instance, and one query fleet-wide.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "routing",
+          prompt: "Why route each channel's requests to one data-service instance?",
+          options: [
+            {
+              id: "meet",
+              label: "So all identical requests for a channel reach the same instance, where they can be coalesced",
+              correct: true,
+              why: "Spread randomly over 50 instances, each would issue its own query. Routed by channel, one instance sees them all.",
+            },
+            {
+              id: "cache",
+              label: "So the instance can cache the channel forever",
+              why: "Coalescing shares in-flight queries; it doesn't keep results afterwards.",
+            },
+            {
+              id: "security",
+              label: "For permission checks",
+              why: "Permissions are checked upstream. Routing is about letting duplicates meet.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What do you change?",
@@ -471,6 +796,11 @@ export const chatMessageStore = {
         },
       },
       reveal: {
+        takeaways: [
+          "One partition's load stays on its replicas; adding nodes doesn't split it.",
+          "A burst of identical reads is one question: coalesce it into one query.",
+          "Route by channel (consistent hashing) so identical requests meet where they can be coalesced.",
+        ],
         reasoning: md`
           A hot key is a key-level problem, so it needs a key-level fix. The burst is not a thousand different questions; it is one question asked a thousand times. [[request-coalescing]] answers it once.
 
@@ -494,6 +824,52 @@ export const chatMessageStore = {
       context: md`
         Messages keep arriving throughout. The old cluster must stay correct until the very end.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A live migration follows the same shape every time. See [[online-migrations]]:
+
+            1. **Capture new writes** in both places, so the new store never falls further behind.
+            2. **Backfill** the past, which has now stopped changing.
+            3. **Verify** by comparing reads from both.
+            4. **Move reads** to the new store, keeping a way back.
+            5. **Stop writing** to the old store.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "why-dual-first",
+          prompt: "Why start dual writes before copying the old data?",
+          options: [
+            {
+              id: "frozen",
+              label: "So everything after a known point is already in both stores; the copy only has to handle a past that no longer changes.",
+              correct: true,
+              why: "If you copy first, messages written during the copy are missing from the new store, and you have to chase a moving target.",
+            },
+            {
+              id: "speed",
+              label: "It makes the copy faster.",
+              why: "It makes the copy correct, not faster.",
+            },
+            {
+              id: "test",
+              label: "To load-test the new cluster.",
+              why: "That's a useful side effect, but the reason is correctness.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "checkpoint",
+          prompt: "Copying trillions of rows takes days. Why checkpoint each token range?",
+          answer: md`
+            So a failure partway costs one range, not the whole copy. Without checkpoints, a crash on day 3 means starting over.
+          `,
+        },
+      ],
       interaction: {
         kind: "ordering",
         prompt: "Put the migration steps in a safe order.",
@@ -512,6 +888,11 @@ export const chatMessageStore = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Capture new writes first, then backfill a past that has stopped changing.",
+          "Verify by comparing reads, then move reads before writes so there's always a way back.",
+          "Checkpoint the copy per range and throttle it so live traffic isn't starved.",
+        ],
         reasoning: md`
           Every safe migration is the same shape: capture new writes first, backfill a past that has stopped changing, verify, then move reads before writes so there is always a way back.
 
@@ -529,6 +910,51 @@ export const chatMessageStore = {
       context: md`
         Implement the read path in the data service so that identical concurrent reads share one database query. Permissions have already been checked by the API servers. Think about what happens when the shared query fails or hangs.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A coalescer is a map from request key to in-flight promise:
+
+            1. If the key is in the map, await the existing promise.
+            2. Otherwise, start the query, store its promise, and remove the entry when it settles.
+
+            The key must include **every parameter that changes the result**: channel, cursor and limit. Two requests that differ in any of them aren't the same question.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "on-failure",
+          prompt: "The shared query fails. What must happen to its map entry?",
+          options: [
+            {
+              id: "remove",
+              label: "Remove it, so the next request tries again instead of receiving the cached failure",
+              correct: true,
+              why: "Keeping a failed promise in the map would hand the same error to every later request.",
+            },
+            {
+              id: "keep",
+              label: "Keep it briefly to stop a retry storm",
+              why: "That's caching errors. Waiters already got the failure; new requests should retry.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing special; it's removed on success",
+              why: "Only removing on success leaves failures stuck forever.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "hang",
+          prompt: "The shared query hangs for 60 seconds. What happens to the hundreds of thousands of waiters, and what prevents it?",
+          answer: md`
+            They all wait 60 seconds: coalescing turned one slow query into a slow page for everyone. A timeout on the shared query bounds it; when it fires, the entry is removed and the next request starts fresh.
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement getMessages with request coalescing.",
@@ -583,6 +1009,11 @@ export const chatMessageStore = {
         },
       },
       reveal: {
+        takeaways: [
+          "Key in-flight queries by every parameter that changes the result.",
+          "Remove entries when the query settles, on failure as well as success.",
+          "Bound the shared query with a timeout, and don't keep results afterwards.",
+        ],
         reasoning: md`
           The code is a dozen lines; the guarantees are in the details. An entry must disappear on failure, the shared work must have a deadline, and the key must capture everything that makes two requests the same. Each of those is an easy omission that turns a protective layer into an outage amplifier.
         `,
@@ -598,6 +1029,38 @@ export const chatMessageStore = {
       context: md`
         Your interviewer pushes back: "This is a lot of machinery. Why not shard Postgres by channel and be done? And isn't the data service just an extra hop that adds latency?"
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            "Postgres doesn't scale" isn't true and isn't a defence. A convincing answer names the conditions under which the alternative wins (slower growth, a need for relational queries, more people to run it) and shows which of those conditions doesn't hold here.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "hop",
+          prompt: "\"The data service is just an extra hop.\" What does the hop buy?",
+          options: [
+            {
+              id: "coalesce",
+              label: "Request coalescing and isolation from hot channels, worth far more than a sub-millisecond hop",
+              correct: true,
+              why: "Without it, a single @everyone ping can saturate three database nodes and slow unrelated channels.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing measurable",
+              why: "It's what turns a burst of identical reads into one query.",
+            },
+            {
+              id: "security",
+              label: "Only security",
+              why: "Permissions are checked elsewhere; the hop is about protecting the database.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Answer both questions, saying when you would choose Postgres instead and what the extra hop buys.",
@@ -617,6 +1080,11 @@ export const chatMessageStore = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Name when sharded Postgres would win, and why those conditions don't hold here.",
+          "The growth rate and team size make repeated manual resharding the cost being avoided.",
+          "Own the chosen store's costs: eventual consistency, tombstones, compaction and repair.",
+        ],
         reasoning: md`
           The strongest defence names the conditions under which the alternative wins. "Postgres would work if growth were slower or the team bigger" is a much more convincing answer than "Postgres doesn't scale", which is not true.
         `,

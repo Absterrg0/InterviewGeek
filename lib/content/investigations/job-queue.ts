@@ -3,7 +3,7 @@ import { md } from "../md";
 
 export const jobQueue = {
   id: "job-queue",
-  title: "A job queue that survives its own backlog",
+  title: "A job queue that keeps working when workers fall behind",
   searchTitle: "Design a Distributed Job Queue",
   premise:
     "Built from Slack's account of the outage that made it rebuild its job queue: make enqueues safe when workers fall behind, keep one slow job type from starving the rest, and drain a backlog without causing the next outage.",
@@ -105,6 +105,68 @@ export const jobQueue = {
       context: md`
         Use 86,400 seconds in a day, and about 2 KB per job.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A day has **86,400 seconds**. Divide a daily total by 86,400 to get the average per second, then compare it with the peak to see how spiky the traffic is.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "average-rate",
+          prompt: "1.4 billion jobs a day. About how many jobs a second is that on average?",
+          answer: 16200,
+          unit: "per second",
+          working: md`
+            1,400,000,000 ÷ 86,400 ≈ **16,200 a second**. The 33,000 peak is about twice that.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            A queue holds the difference between what arrives and what is finished. If workers keep up, the queue stays near empty. If they slow down, the backlog grows by **(arrival rate − completion rate)** every second, for as long as that lasts.
+
+            So the question for any buffer is: how long a bad period can it hold, and what does that cost?
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "ten-minutes",
+          prompt: "Workers stop completely for 10 minutes at the 33,000-a-second peak. Jobs are about 2 KB. About how many gigabytes of jobs pile up?",
+          answer: 40,
+          unit: "GB",
+          working: md`
+            33,000 × 600 seconds ≈ 20 million jobs. 20 million × 2 KB ≈ **40 GB**.
+
+            On disk, 40 GB is nothing. In RAM, it's 40 GB of headroom you have to keep free on every normal day, just in case.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "where-backlog",
+          prompt: "Where is it cheapest to hold a backlog that might reach 40 GB a few times a year?",
+          options: [
+            {
+              id: "disk",
+              label: "A disk-backed log",
+              correct: true,
+              why: "Disk costs a small fraction of RAM per gigabyte, and a log written sequentially is fast enough to absorb 33,000 jobs a second. Memory is best kept for the small set of jobs workers are about to take.",
+            },
+            {
+              id: "memory",
+              label: "An in-memory store, because it's fastest",
+              why: "Speed matters for handing jobs to workers, not for holding a backlog. Paying for RAM sized to the worst day means paying for idle memory every other day.",
+            },
+            {
+              id: "nowhere",
+              label: "Nowhere: reject jobs when workers fall behind",
+              why: "Then a slow database turns into failed user requests. A buffer exists precisely so producers don't fail when consumers are slow.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements follow?",
@@ -136,6 +198,11 @@ export const jobQueue = {
         ],
       },
       reveal: {
+        takeaways: [
+          "A backlog grows by arrivals minus completions per second; size buffers for the worst period you expect.",
+          "Hold large backlogs on disk; keep memory for the small working set workers are about to take.",
+          "A queue absorbs bursts; it can't make producers outpace consumers forever.",
+        ],
         reasoning: md`
           A job queue has two jobs that pull in different directions: **hand work to workers quickly** (which suits memory) and **hold a backlog safely when workers fall behind** (which suits disk). The original design asked Redis to do both, so its worst day was decided by how much RAM happened to be free.
         `,
@@ -156,6 +223,68 @@ export const jobQueue = {
       context: md`
         Select the lines that describe causes in the design, not just symptoms.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Redis has a memory limit (\`maxmemory\`). When a Redis used as a queue reaches it, commands that would **add** data fail with an out-of-memory error. Commands that only remove data still work.
+
+            The catch is in the details: a reliable dequeue usually **moves** the job to a "processing" list (\`RPOPLPUSH\`) so it isn't lost if the worker crashes. Moving writes a new entry, and writing needs memory.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "full-drain",
+          prompt: "Redis is at its memory limit. Workers dequeue with RPOPLPUSH, which writes the job into a processing list. What happens to the queue?",
+          answer: md`
+            It freezes. Enqueues fail (they add data), and dequeues fail too (they add the job to the processing list). Nothing leaves, so no memory is ever freed.
+
+            The only action that would make room is the one Redis refuses.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            When a shared pool of workers serves several job types, each worker takes whatever job is next. Fast jobs leave quickly; slow jobs stay. Over time, the workers fill up with whichever type is slowest.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "occupancy",
+          prompt: "200 workers share a queue. Search jobs used to take 30 ms; now they take 1.1 s. If 10% of arriving jobs are search jobs and the rest take 30 ms, roughly what share of busy worker time goes to search?",
+          answer: 80,
+          unit: "%",
+          working: md`
+            Per 10 jobs: 1 search job × 1,100 ms + 9 others × 30 ms = 1,100 + 270 = 1,370 ms of work. Search is 1,100 ÷ 1,370 ≈ **80%** of it.
+
+            10% of the jobs take 80% of the workers. Everything else waits for the few workers left.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "more-workers",
+          prompt: "Every worker holds a connection to every Redis instance. During the outage, operators add 200 workers. What does that do?",
+          options: [
+            {
+              id: "load",
+              label: "Adds connections and polling load to the Redis that is already failing",
+              correct: true,
+              why: "New workers can't dequeue from a full Redis anyway, and each one adds connections and commands to it. The fix adds pressure to the broken component.",
+            },
+            {
+              id: "drain",
+              label: "Drains the queue faster",
+              why: "Only if workers can dequeue. Here dequeue needs memory that isn't there, and the slow database is still the bottleneck for the jobs that do run.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing at all",
+              why: "It isn't neutral: hundreds of extra connections and failing commands land on Redis.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the faulty lines.",
@@ -198,6 +327,11 @@ export const jobQueue = {
         },
       },
       reveal: {
+        takeaways: [
+          "Ask what happens when a buffer is completely full; make sure the way out doesn't need the exhausted resource.",
+          "In a shared worker pool, the slowest job type ends up occupying most workers.",
+          "Adding consumers can add load to the component that is failing.",
+        ],
         reasoning: md`
           The outage was not one bug but a chain, and the worst link was a **drain that required the resource that was exhausted**. Systems that fail this way are common: disks too full to delete files, out-of-memory processes that need memory to shut down cleanly. When designing a buffer, ask what happens when it is completely full, and make sure the way out does not need more of what has run out.
         `,
@@ -213,6 +347,58 @@ export const jobQueue = {
       context: md`
         Thousands of job handlers and the worker fleet consume from Redis. Rewriting all of them at once would be a risky project on the most critical async path in the company.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A **log** like Kafka stores messages in order, on disk, and keeps them for a set time (say two days) whether or not anyone has read them. Consumers track how far they have read.
+
+            So writing to the log never depends on consumers keeping up. Reading can lag by hours and the producer doesn't notice.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Kafka and a Redis list hand out work differently:
+
+            | | Kafka partition | Redis-style queue |
+            | --- | --- | --- |
+            | Unit of progress | an offset: "everything up to here is done" | each job, leased and acknowledged on its own |
+            | A slow job | holds up the jobs behind it in its partition | holds up only its own worker |
+            | Retrying one job | needs extra machinery (retry topics) | built in: let the lease expire or re-enqueue |
+          `,
+        },
+        {
+          kind: "choice",
+          id: "offset",
+          prompt: "A Kafka consumer reads jobs 1 to 10 from a partition. Job 3 fails and must be retried later; 4 to 10 succeed. What offset can it commit?",
+          options: [
+            {
+              id: "two",
+              label: "Up to job 2: committing past job 3 would mark it done",
+              correct: true,
+              why: "An offset means 'everything before this is finished'. Until job 3 is handled, the consumer can't move past it, unless it copies job 3 somewhere else (a retry topic) first.",
+            },
+            {
+              id: "ten",
+              label: "Up to job 10, and retry job 3 separately",
+              why: "Committing job 10's offset tells Kafka jobs 1 to 10 are done. If the consumer then crashes, job 3 is never retried.",
+            },
+            {
+              id: "per-job",
+              label: "Each job is acknowledged separately, so it doesn't matter",
+              why: "That's how per-job queues work. Kafka tracks one offset per partition per consumer group.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            When a change touches the most critical path in a system, *how* you get there matters as much as where you end up. A design that keeps thousands of existing workers unchanged can be rolled out one job type at a time and rolled back at any point. A design that rewrites them all has to work everywhere on the first try.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you make enqueueing safe?",
@@ -255,6 +441,11 @@ export const jobQueue = {
         },
       },
       reveal: {
+        takeaways: [
+          "Put the backlog in a durable, disk-backed log so enqueueing never depends on consumers keeping up.",
+          "Keep the fast in-memory queue for handing out work, filled at a controlled rate.",
+          "Designs that keep existing consumers unchanged can be rolled out incrementally and reversed.",
+        ],
         reasoning: md`
           The new design gives each store the job it is good at: **Kafka holds the backlog** (durable, cheap, days long), **Redis hands out work** (fast, small). The relay between them is where flow control lives, which is exactly what the old design lacked: nothing ever said "Redis is full, stop filling it".
 
@@ -279,6 +470,56 @@ export const jobQueue = {
       context: md`
         Dropbox's task framework gives each combination of task type and priority its own queue. Slack's relay can rate-limit each job type independently.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Isolation means giving each kind of work its own **capacity**, so that a problem in one can't consume another's. In a job system that means separate queues, separate worker pools, and separate rate limits per job type or priority.
+
+            A **priority** is different: it changes the order work is taken in, but everything still shares the same workers.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "priority-not-isolation",
+          prompt: "Notifications have high priority and indexing low. All workers are already busy with slow indexing jobs when a notification arrives. When does it run?",
+          options: [
+            {
+              id: "after",
+              label: "Only when one of the slow indexing jobs finishes and frees a worker",
+              correct: true,
+              why: "Priority decides what a free worker picks next. It can't interrupt jobs already running, so if every worker is stuck on a slow job, the notification waits for one of them.",
+            },
+            {
+              id: "immediately",
+              label: "Immediately: high priority jumps the line",
+              why: "It jumps the line of waiting jobs, but there is no free worker to take it.",
+            },
+            {
+              id: "never",
+              label: "Never, until all indexing is done",
+              why: "Priority prevents that: the next free worker takes the notification first.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Isolation also protects **downstream** systems. If search is degraded, every indexing job makes it worse. A per-type rate limit caps how fast indexing jobs are released, so the degraded search cluster gets room to recover instead of a flood.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "delay-or-drop",
+          prompt: "Search is degraded for an hour. Should indexing jobs be dropped, or delayed until it recovers?",
+          answer: md`
+            Delayed. Dropping an indexing job means that message is never searchable. It's a permanent loss to avoid a temporary slowdown.
+
+            Shedding (dropping) is for work that can be lost or that loses its value with time. Indexing keeps its value, so it waits.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you stop slow indexing from delaying notifications?",
@@ -320,6 +561,11 @@ export const jobQueue = {
         },
       },
       reveal: {
+        takeaways: [
+          "Separate queues, worker pools and rate limits per job type stop one slow dependency from starving the rest.",
+          "Priorities change order but share capacity; under sustained load they don't isolate.",
+          "Delay work that keeps its value; only shed work that can be lost.",
+        ],
         reasoning: md`
           Isolation is how you stop a **local** failure becoming a **global** one. In a shared pool, the slowest job type always wins, because slow jobs are exactly the ones that stay in the workers. Give each type its own capacity and its own throttle, and a degraded dependency only slows the work that depends on it.
         `,
@@ -335,6 +581,67 @@ export const jobQueue = {
       context: md`
         Workers lease a job (it becomes invisible to other workers until the lease expires), run it, then acknowledge. Some jobs fail; some workers crash mid-job.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A **lease** (a "visibility timeout" in SQS) hides a job from other workers for a fixed time while one worker runs it. If the worker acknowledges in time, the job is deleted. If not, the lease expires and the job becomes visible again for another worker.
+
+            That's what makes crashes safe. It's also how the same job ends up running twice.
+          `,
+        },
+        {
+          kind: "simulation",
+          simulation: "lease-fencing",
+          body: md`
+            Here the lease belongs to worker A. Freeze A for longer than its lease and watch what happens to the job. Leave the fencing option off for now.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "twice",
+          prompt: "A worker finishes a job and crashes just before acknowledging it. What happens?",
+          options: [
+            {
+              id: "again",
+              label: "The lease expires and another worker runs the job again.",
+              correct: true,
+              why: "The queue only knows the job wasn't acknowledged. It can't tell 'crashed before starting' from 'crashed after finishing', so it runs the job again.",
+            },
+            {
+              id: "lost",
+              label: "The job is lost.",
+              why: "Leases prevent exactly that: an unacknowledged job comes back.",
+            },
+            {
+              id: "done",
+              label: "The queue sees the work was done and deletes the job.",
+              why: "The queue has no view into the handler's side effects. Only the acknowledgement tells it the job is done.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            So every handler must be safe to run twice: **idempotent**. The usual way is to record the job ID alongside the effect ("email for job 812 sent") and skip work that has already been recorded. See [[idempotency]].
+
+            Retries need care too. If a job failed because a database is struggling, retrying immediately adds load to that database. Exponential backoff waits 1 s, 2 s, 4 s… and random **jitter** spreads retries so they don't arrive in waves.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "backoff-total",
+          prompt: "A job retries with backoff of 1 s, then 2 s, 4 s, 8 s, 16 s, 32 s and 64 s. About how many seconds pass across those seven waits?",
+          answer: 127,
+          unit: "seconds",
+          working: md`
+            1 + 2 + 4 + 8 + 16 + 32 + 64 = **127 seconds**, about two minutes. Doubling makes the total roughly twice the last wait.
+
+            Backoff gives a struggling dependency minutes, not milliseconds, to recover, while still retrying.
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -366,6 +673,11 @@ export const jobQueue = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Leases make crashes safe by returning unacknowledged jobs, which also means jobs can run twice.",
+          "At-least-once delivery requires idempotent handlers, usually keyed on the job ID.",
+          "Retry with exponential backoff and jitter, cap attempts, and dead-letter jobs that keep failing.",
+        ],
         reasoning: md`
           At-least-once is the practical guarantee, and it has two obligations attached: **handlers must tolerate repeats**, and **retries must be bounded and spaced out**. Everything that goes wrong with job systems in production is one of those obligations being skipped. See [[delivery-guarantees]].
         `,
@@ -387,6 +699,60 @@ export const jobQueue = {
       context: md`
         Amazon's Builders' Library describes how backlogs turn one outage into two: the recovery itself overloads the dependency that just recovered.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            After an outage, the backlog is a second problem. Workers can usually run far faster than the downstream system can absorb, and that system has just recovered: its caches are cold and its connection pools are refilling.
+
+            Draining at full speed points several times the normal load at the weakest system in the room.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "drain-time",
+          prompt: "20 million jobs are waiting. The downstream database can take 4,000 extra jobs a second on top of normal traffic. About how many minutes does a safe drain take?",
+          answer: 83,
+          unit: "minutes",
+          working: md`
+            20,000,000 ÷ 4,000 = 5,000 seconds ≈ **83 minutes**.
+
+            Slower than the workers could go, but the database stays up. A faster drain that knocks it over again takes longer in total.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Not every job in a backlog is still worth running. Some lose their value with time: a typing indicator from 40 minutes ago, or a push notification about a message the user has already read. A job can carry an **expiry**, and a worker that sees an expired job acknowledges it without running it.
+
+            The useful measure of a backlog is the **age of the oldest job** per type, not the count. A million fast jobs can be minutes of work; a hundred stuck ones can be a broken feature.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "fresh-first",
+          prompt: "During the drain, a user sends a message. Its notification job is enqueued behind 40 minutes of old notifications. What should happen?",
+          options: [
+            {
+              id: "fresh",
+              label: "Fresh interactive work should be able to go first; old ones expire or wait.",
+              correct: true,
+              why: "A notification that arrives 40 minutes late is nearly useless. Letting new work through, and dropping expired work, keeps the product working during the drain.",
+            },
+            {
+              id: "fifo",
+              label: "It waits its turn: queues are first in, first out.",
+              why: "Strict order is right for some job types (billing events), but for notifications it means every user sees 40-minute-old alerts until the drain ends.",
+            },
+            {
+              id: "drop",
+              label: "Drop the whole backlog so new work flows.",
+              why: "That loses billing events, exports and indexing. Dropping is only for job types that are designed to be lossy.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you drain it?",
@@ -429,6 +795,11 @@ export const jobQueue = {
         },
       },
       reveal: {
+        takeaways: [
+          "Drain backlogs at the rate the downstream can take, not the rate workers can go.",
+          "Let fresh interactive work go first, and drop jobs whose usefulness has expired.",
+          "Track the age of the oldest job per type, not just queue length.",
+        ],
         reasoning: md`
           A backlog is **work promised to the past**. Some of it still matters (billing), some has expired (a typing indicator), and all of it competes with the present. Draining well means deciding, per job type, how fast, in what order, and whether at all. See [[load-shedding]].
 
@@ -446,6 +817,74 @@ export const jobQueue = {
       context: md`
         Write the loop each worker runs for one job type. The queue supports leases, acknowledgements, delayed retries and a dead-letter queue.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A worker loop handles one job at a time, and each job ends in exactly one of these ways:
+
+            | Outcome | When | Queue call |
+            | --- | --- | --- |
+            | Done | the handler succeeded | \`ack\` |
+            | Retry later | it failed, attempts remain | \`retryLater\` with a delay |
+            | Dead letter | it failed too many times | \`deadLetter\` |
+            | Expired | it's too old to matter | \`ack\` without running |
+          `,
+        },
+        {
+          kind: "choice",
+          id: "ack-order",
+          prompt: "Where should the acknowledgement go?",
+          options: [
+            {
+              id: "after",
+              label: "After the handler succeeds",
+              correct: true,
+              why: "If the worker crashes before acknowledging, the lease expires and the job runs again. A repeat is safe with idempotent handlers; a lost job is not recoverable.",
+            },
+            {
+              id: "before",
+              label: "Before running the handler, so the job isn't run twice",
+              why: "Then a crash during the handler loses the job: it's already acknowledged, so nobody retries it.",
+            },
+            {
+              id: "both",
+              label: "Either: leases make the order irrelevant",
+              why: "Leases only bring back unacknowledged jobs. Acknowledging first removes that safety net.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            **Jitter** spreads retries out. If 1,000 jobs fail at the same moment and all wait exactly 4 seconds, they all retry at the same moment, too. "Equal jitter" waits half the backoff plus a random amount up to the other half:
+
+            \`\`\`
+            base = min(1000 × 2^attempts, cap)
+            delay = base / 2 + random() × base / 2
+            \`\`\`
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "delay-range",
+          prompt: "With equal jitter, attempt 3 has base = 1000 × 2³ ms. What's the longest delay it can get, in seconds?",
+          answer: 8,
+          unit: "seconds",
+          working: md`
+            base = 1000 × 8 = 8,000 ms. The delay is between 4,000 ms and **8,000 ms (8 s)**: half fixed, half random.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "empty-queue",
+          prompt: "What should the loop do when lease() returns no job?",
+          answer: md`
+            Sleep briefly (a few hundred milliseconds, ideally with a little randomness) before asking again. Without the sleep, every idle worker polls the queue in a tight loop and adds load to it for nothing.
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement runWorker.",
@@ -518,6 +957,11 @@ export const jobQueue = {
         },
       },
       reveal: {
+        takeaways: [
+          "Acknowledge only after the handler succeeds; a crash then means a repeat, never a loss.",
+          "Back off exponentially with jitter, cap attempts, and dead-letter what keeps failing.",
+          "Check expiry before running, and pass the job ID so handlers can deduplicate.",
+        ],
         reasoning: md`
           A worker loop is a small state machine: leased → done, retry later, dead-lettered or expired. Each transition answers a failure the previous stages raised: crashes (leases), repeats (idempotency keys), struggling dependencies (backoff), poison jobs (dead letters), stale work (expiry).
         `,
@@ -538,6 +982,52 @@ export const jobQueue = {
       context: md`
         Slack's rollout used a shadow mode in which the relay read jobs from Kafka and discarded them instead of pushing them to Redis.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Changing a critical path safely has a standard shape:
+
+            1. Build the new path and prove it is alive, with synthetic traffic.
+            2. Run it on **real** traffic in parallel with the old path, with its output thrown away (**shadow mode**).
+            3. Compare the two until they agree.
+            4. Move a small, low-risk part over, with a way back.
+            5. Move the rest in batches.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "heartbeats",
+          prompt: "Why send heartbeat jobs through every Kafka partition?",
+          options: [
+            {
+              id: "alive",
+              label: "So you notice when one partition stops flowing, even if it carries no real traffic",
+              correct: true,
+              why: "A silent partition looks the same as an idle one. A heartbeat that should arrive every few seconds turns 'nothing happened' into an alert.",
+            },
+            {
+              id: "load",
+              label: "To load-test the new path",
+              why: "Heartbeats are tiny. Shadow mode with real traffic is the load test.",
+            },
+            {
+              id: "warm",
+              label: "To warm Kafka's caches",
+              why: "Their purpose is detection: proving every path is alive end to end.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "shadow",
+          prompt: "In shadow mode, every job is enqueued both the old way and through the new gateway, and the relay discards what it reads. What does that let you check that synthetic tests can't?",
+          answer: md`
+            That the new path handles the **real** load and the real mix of jobs (sizes, types, bursts) end to end, while the old path still does all the work. If the counts at each stage match the old path's, nothing is being lost or duplicated. If the new path falls over, no job is affected.
+          `,
+        },
+      ],
       interaction: {
         kind: "ordering",
         prompt: "Put the rollout steps in order.",
@@ -549,10 +1039,15 @@ export const jobQueue = {
           { id: "all-types", label: "Move the remaining job types in batches, keeping the old path available to switch back" },
         ],
         explanation: md`
-          The new path carries real traffic long before anything depends on it: heartbeats prove every partition is alive, and shadow mode proves the gateway and relay keep up with the full load while the old path still does the real work. Counts at each stage are the verification. Only then do job types move, a few at a time, each one reversible. It is the same pattern as a data migration, applied to a pipeline. See [[online-migrations]].
+          The new path carries real traffic long before anything depends on it: heartbeats prove every partition is alive, and shadow mode proves the gateway and relay keep up with the full load while the old path still processes every job. Counts at each stage are the verification. Only then do job types move, a few at a time, each one reversible. It is the same pattern as a data migration, applied to a pipeline. See [[online-migrations]].
         `,
       },
       reveal: {
+        takeaways: [
+          "Prove a new critical path on real traffic in shadow mode before anything depends on it.",
+          "Heartbeats through every partition turn silent failures into alerts.",
+          "Move a few low-risk parts first, keep every step reversible, and verify with counts at each stage.",
+        ],
         reasoning: md`
           You cannot test a critical path's new version with synthetic load alone. Running it in parallel with the old one, on real traffic, with its output thrown away, is how Slack (and many others) gained confidence before the switch.
         `,
@@ -568,6 +1063,44 @@ export const jobQueue = {
       context: md`
         Your interviewer: "You now run Kafka and Redis and two new services. Kafka alone could be the queue, or you could have used SQS. Why this?"
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            "Why not use X instead?" is a standard interview follow-up. A strong answer has three parts:
+
+            1. **The constraint that decided it**, which is often not technical elegance but risk, time or what already exists.
+            2. **What each part of your design is for**, so nothing looks accidental.
+            3. **What the alternative does better**, and when you would choose it.
+
+            Conceding real costs reads as judgement, not weakness.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "deciding-constraint",
+          prompt: "Which reason best explains putting Kafka in front of Redis instead of replacing Redis?",
+          options: [
+            {
+              id: "unchanged",
+              label: "Thousands of handlers and the worker fleet already spoke Redis, so this changed the failure mode without rewriting them.",
+              correct: true,
+              why: "The design is shaped by what existed. It turned a risky rewrite into an incremental rollout.",
+            },
+            {
+              id: "faster",
+              label: "Kafka plus Redis is faster than either alone.",
+              why: "Adding a hop doesn't make enqueueing faster. The benefit is a durable backlog plus unchanged consumers.",
+            },
+            {
+              id: "best",
+              label: "It's what anyone would design from scratch.",
+              why: "From scratch, a managed queue or a single system might be simpler. Admitting that is part of a good defence.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Defend the hybrid, concede what the alternatives offer, and say when you would choose them.",
@@ -589,6 +1122,11 @@ export const jobQueue = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Defend a design by naming the constraint that shaped it, including what already existed.",
+          "Explain each component's single job: Kafka holds the backlog, Redis hands out work, the relay controls flow.",
+          "Concede what alternatives do better, and say when you'd pick them.",
+        ],
         reasoning: md`
           A good defence is honest about why the design looks the way it does, including history. "We kept Redis because the workers depended on it, and it let us ship safely" is a better engineering argument than pretending the hybrid is what anyone would design from scratch.
         `,

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { buildSlots, Reveal } from "@/components/exercise/slots";
 import { ExerciseWorkspace } from "@/components/exercise/workspace";
 import { EventBanner } from "@/components/investigation/event-banner";
+import { Lesson } from "@/components/lesson/lesson";
 import { SystemMap } from "@/components/system-map";
 import { Prose } from "@/components/prose";
 import { getConcept, getStage, listInvestigations } from "@/lib/content";
@@ -96,6 +97,20 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
     </div>
   );
 
+  const workspace = (
+    <ExerciseWorkspace
+      key={stage.id}
+      spec={{
+        ref,
+        interaction: stage.interaction,
+        tags: { dimensions: stage.dimensions, conceptIds: stage.conceptIds, competencyIds: stage.competencyIds },
+      }}
+      slots={buildSlots(stage.interaction)}
+      reveal={reveal}
+      context="investigation"
+    />
+  );
+
   return (
     <article className="measure">
       <script
@@ -149,19 +164,25 @@ export default async function StagePage(props: PageProps<"/investigations/[inves
         )}
       </section>
 
-      <section aria-label="Your answer" className="section">
-        <ExerciseWorkspace
-          key={stage.id}
-          spec={{
-            ref,
-            interaction: stage.interaction,
-            tags: { dimensions: stage.dimensions, conceptIds: stage.conceptIds, competencyIds: stage.competencyIds },
-          }}
-          slots={buildSlots(stage.interaction)}
-          reveal={reveal}
-          context="investigation"
-        />
-      </section>
+      {stage.lesson ? (
+        <section aria-labelledby="learn" className="section">
+          <h2 id="learn" className="mb-2 font-display text-[1.5rem] leading-tight">
+            What you need to know
+          </h2>
+          <Lesson
+            lessonKey={`stage:${investigation.id}/${stage.id}`}
+            steps={stage.lesson}
+            finishLabel="the question"
+          >
+            <h2 className="mb-5 font-display text-[1.5rem] leading-tight">Your turn</h2>
+            {workspace}
+          </Lesson>
+        </section>
+      ) : (
+        <section aria-label="Your answer" className="section">
+          {workspace}
+        </section>
+      )}
 
       <nav aria-label="Stage navigation" className="mt-6 grid grid-cols-2 gap-6 border-t border-rule py-8">
         {previous ? (

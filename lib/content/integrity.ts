@@ -3,7 +3,7 @@
  * document's shape; this validates the graph between documents: every id a
  * document mentions must exist, and ids must be unique where they are keys.
  */
-import type { Company, Concept, Investigation, Writeup } from "@/lib/domain/content";
+import type { Company, Concept, Investigation, Lesson, Writeup } from "@/lib/domain/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 
 const CONCEPT_REF = /\[\[([a-z0-9-]+)(?:\|[^\]]+)?\]\]/g;
@@ -34,7 +34,7 @@ function duplicates(ids: readonly string[]): string[] {
   return [...dupes];
 }
 
-const RESERVED_STAGE_IDS = new Set(["review"]);
+const RESERVED_STAGE_IDS = new Set(["review", "design"]);
 
 export function checkContentIntegrity(
   investigations: readonly Investigation[],
@@ -98,6 +98,10 @@ export function checkContentIntegrity(
         if (!flowIds.has(id)) errors.push(`${where}: reveals unknown flow "${id}"`);
       }
       errors.push(...checkInteraction(where, stage.interaction));
+      // Every stage teaches before it asks, and ends with what to remember.
+      if (stage.lesson) errors.push(...checkLesson(where, stage.lesson));
+      else errors.push(`${where}: has no lesson`);
+      if (!stage.reveal.takeaways?.length) errors.push(`${where}: has no takeaways`);
     }
     for (const c of inv.competencies) {
       if (!usedCompetencies.has(c.id)) errors.push(`${at}: competency "${c.id}" is never exercised`);
@@ -128,6 +132,9 @@ export function checkContentIntegrity(
     for (const id of duplicates(concept.explain.rubric.map((r) => r.id)))
       errors.push(`${at}: duplicate rubric id "${id}"`);
     if (!concept.explain.rubric.some((r) => r.weight === "core")) errors.push(`${at}: explain rubric has no core point`);
+    // The lesson replaces the problem and mechanism prose on the concept page, so every concept needs one.
+    if (concept.lesson) errors.push(...checkLesson(at, concept.lesson));
+    else errors.push(`${at}: has no lesson`);
     for (const id of conceptReferences(concept)) requireConcept(`${at} prose`, id);
   }
 
@@ -201,6 +208,20 @@ function checkInteraction(where: string, interaction: Investigation["stages"][nu
     case "implementation":
       rubricIds(interaction.rubric);
       break;
+  }
+  return errors;
+}
+
+function checkLesson(where: string, lesson: Lesson): string[] {
+  const errors: string[] = [];
+  const ids = lesson.flatMap((step) => (step.kind === "read" || step.kind === "simulation" ? [] : [step.id]));
+  for (const id of duplicates(ids)) errors.push(`${where}: duplicate lesson step "${id}"`);
+  if (ids.length === 0) errors.push(`${where}: lesson never checks understanding`);
+  for (const step of lesson) {
+    if (step.kind !== "choice") continue;
+    for (const id of duplicates(step.options.map((o) => o.id))) errors.push(`${where} step ${step.id}: duplicate option "${id}"`);
+    const correct = step.options.filter((o) => o.correct).length;
+    if (correct !== 1) errors.push(`${where} step ${step.id}: ${correct} correct options, expected exactly one`);
   }
   return errors;
 }

@@ -25,6 +25,67 @@ export const performanceConcepts: ConceptInput[] = [
 
       The design rule: **every queue and buffer needs a bound and a policy for when it is full.** Unbounded buffers do not avoid the choice; they defer it until the process runs out of memory.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Every component has a maximum throughput. When arrivals exceed it, the excess accumulates somewhere: in a queue, in buffers, in open connections, in threads waiting on locks. It's invisible until latency explodes or memory runs out, and then the whole system fails, not just the excess.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          Two pieces of arithmetic explain most capacity problems:
+
+          - **Little's law:** items in the system = arrival rate × time each spends there (L = λW).
+          - **Utilization:** as a server nears 100% busy, queueing delay grows roughly as 1 ÷ (1 − utilization). At 50% a request waits about one service time; at 90% about nine; at 99% about ninety.
+        `,
+      },
+      {
+        kind: "estimate",
+        id: "littles-law",
+        prompt: "Requests arrive at 200 a second and each takes 50 ms. How many are in flight on average?",
+        answer: 10,
+        unit: "requests",
+        working: md`
+          L = 200 × 0.05 = **10** in flight.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          When arrivals exceed capacity, there are only three responses:
+
+          1. **Buffer** the excess: overload becomes latency. Fine for short bursts that drain in time; disastrous otherwise.
+          2. **Backpressure:** bounded buffers that block or reject push the problem upstream, toward something that can decide (a client that retries later, a user who sees "busy"). TCP flow control is backpressure.
+          3. **Shed load:** reject or drop work early so what you accept still finishes in time. See [[load-shedding]].
+        `,
+      },
+      {
+        kind: "choice",
+        id: "unbounded",
+        prompt: "A service puts an unbounded in-memory queue in front of a slow dependency. Under sustained overload, what happens?",
+        options: [
+          {
+            id: "oom",
+            label: "Latency grows without limit and eventually the process runs out of memory.",
+            correct: true,
+            why: "An unbounded buffer doesn't avoid the choice between buffering, backpressure and shedding; it postpones it until memory runs out.",
+          },
+          {
+            id: "fine",
+            label: "The queue absorbs it and the dependency catches up.",
+            why: "Only if the overload is a short burst. Sustained overload never drains.",
+          },
+          {
+            id: "rejects",
+            label: "The queue starts rejecting work.",
+            why: "Only bounded queues reject. That's the point of the bound.",
+          },
+        ],
+      },
+    ],
     assumptions: [
       "You can measure arrival rate, service time and queue age.",
       "Upstream callers can handle rejection or slow-down signals sensibly.",
@@ -98,6 +159,101 @@ export const performanceConcepts: ConceptInput[] = [
 
       A cache is a performance tool, not a correctness tool. The system must still behave correctly on a cold or empty cache, though perhaps more slowly.
     `,
+    lesson: [
+      {
+        kind: "read",
+        body: md`
+          A cache keeps a copy of data somewhere faster or closer than the original: in the app's memory, in Redis, or on a CDN server near the user. A read checks the cache first. A **hit** is answered from the copy. A **miss** goes to the source, and usually stores the answer for next time.
+        `,
+      },
+      {
+        kind: "estimate",
+        id: "hit-rate",
+        prompt: "A database read takes 10 ms and a cache read takes 1 ms. A miss costs both (check the cache, then read the database). With a 90% hit rate, what's the average read time?",
+        answer: 2,
+        unit: "ms",
+        working: md`
+          Hits: 0.9 × 1 ms = 0.9 ms. Misses: 0.1 × (1 + 10) ms = 1.1 ms. Average: **2 ms**, five times faster than going to the database every time.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "low-hit-rate",
+        prompt: "Same timings, but each item is read about once, so the hit rate is 5%. What does the cache do?",
+        options: [
+          {
+            id: "slower",
+            label: "It makes reads slower on average.",
+            correct: true,
+            why: "0.05 × 1 + 0.95 × 11 ≈ 10.5 ms, worse than the 10 ms without a cache. Almost every read pays for the cache check and then goes to the database anyway.",
+          },
+          {
+            id: "bit-faster",
+            label: "It makes reads a little faster.",
+            why: "Only the 5% of hits get faster; the other 95% get 1 ms slower. Work it out: about 10.5 ms on average versus 10 ms without the cache.",
+          },
+          {
+            id: "no-change",
+            label: "Nothing much, since the cache is fast.",
+            why: "A miss still costs the cache lookup. When nearly everything misses, that cost is added to nearly every read.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Every cache is a second copy, and the copy can fall out of date. Two ways to limit that:
+
+          - **TTL (time to live):** copies expire after a set time, so they're never more than that old.
+          - **Invalidation:** when the data changes, delete or update the cached copy. Data is fresher, but this is easy to get wrong: a delete can be lost, or it can race with a read that puts the old value back.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "race",
+        prompt: "Request B misses the cache and reads a user's name from the database. Before B writes it to the cache, request A renames the user in the database and deletes the cache entry. Then B writes what it read into the cache. What's in the cache now?",
+        answer: md`
+          The **old** name. B read it before the rename, and wrote it after A's delete. It stays wrong until something else deletes it or the TTL expires.
+
+          That's why caches that use invalidation still set a TTL as a backstop.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          The most reliable fix is to never change cached data at all. Give each version a new key, like \`/assets/app.3f9a1c.js\` or \`avatar-v2.png\`. Old copies are never wrong, only unused, so they can be cached for a year.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "stampede",
+        prompt: "A very popular item's cache entry expires, and thousands of requests miss at the same moment and all query the database. What helps?",
+        options: [
+          {
+            id: "coalesce",
+            label: "Let one request refill the entry while the others wait for it, or keep serving the old value until it's refreshed.",
+            correct: true,
+            why: "This is a cache stampede. Request coalescing and stale-while-revalidate turn thousands of identical database queries into one.",
+          },
+          {
+            id: "more-memory",
+            label: "Give the cache more memory.",
+            why: "The entry wasn't evicted for lack of space; it expired. More memory doesn't change what happens at expiry.",
+          },
+          {
+            id: "shorter-ttl",
+            label: "Use a shorter TTL.",
+            why: "That makes expiries, and therefore stampedes, happen more often.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          One last rule: the system must still work with an empty cache, even if slowly. Caches get restarted and flushed. If the database can't survive the load of an empty cache, the cache has become critical infrastructure without any of a database's durability.
+        `,
+      },
+    ],
     assumptions: [
       "Reads substantially outnumber writes for the cached data.",
       "Bounded staleness is acceptable, or invalidation is reliable.",
@@ -172,6 +328,67 @@ export const performanceConcepts: ConceptInput[] = [
 
       Limiting **outbound** calls is just as important: if a provider allows 100 requests per second, your fleet needs a shared limiter, plus queueing for work that can wait, rather than discovering the limit through 429s.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Without limits, one client can consume a shared resource: a buggy script hammering an API, a tenant monopolising workers, or your own system exceeding a provider's quota and getting cut off for everyone.
+
+          A rate limiter tracks usage per **key** (user, API token, IP, tenant, or "us, towards provider X") and rejects or delays requests over the limit.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          The common algorithms:
+
+          - **Token bucket:** holds up to *B* tokens, refills at *r* per second; each request takes one. Bursts up to *B*, sustained rate *r*. The most common choice.
+          - **Leaky bucket:** requests drain at a fixed rate; excess queues or drops. Smooths output in front of a strict downstream limit.
+          - **Fixed window:** count per minute. Simple, but allows 2× bursts at window boundaries.
+          - **Sliding window:** smooths the boundary at more bookkeeping.
+        `,
+      },
+      {
+        kind: "simulation",
+        simulation: "rate-limit-windows",
+      },
+      {
+        kind: "read",
+        body: md`
+          Where it runs matters as much as the algorithm. A limiter inside each of 20 API instances enforces 20× the intended limit unless state is **shared** (Redis with atomic scripts) or the limit is divided among instances. Shared state adds a dependency on every request, so decide what happens when the store is down: fail open or closed.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "per-instance",
+        prompt: "10 servers each enforce 100 requests a minute per user in their own memory. Requests are spread evenly. What's a user's real limit?",
+        options: [
+          {
+            id: "thousand",
+            label: "About 1,000 a minute",
+            correct: true,
+            why: "Each server gives the user a full allowance. The limit multiplies by the number of servers, and changes as the fleet scales.",
+          },
+          {
+            id: "hundred",
+            label: "100 a minute",
+            why: "Only with shared state or a divided limit.",
+          },
+          {
+            id: "ten",
+            label: "10 a minute",
+            why: "That would be dividing the limit, which isn't what each server is doing.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Limiting **outbound** calls matters too: if a provider allows 100 requests a second, your fleet needs a shared limiter, plus queueing for work that can wait, rather than discovering the limit through 429s.
+        `,
+      },
+    ],
     assumptions: [
       "Requests can be attributed to a meaningful key.",
       "Rejected clients receive a clear signal (429 with Retry-After) and back off.",
@@ -243,6 +460,60 @@ export const performanceConcepts: ConceptInput[] = [
       - **Don't fan out to people who aren't reading.** Precompute timelines only for recently active users; rebuild the rest on demand when they return.
       - **Store references, not copies.** Timeline entries hold IDs; the content is fetched (and cached) separately, so edits and deletions do not need another fan-out.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          A post from someone with ten million followers must appear in ten million home feeds. A feed shows posts from hundreds of accounts. Somebody does the multiplication between "one author" and "many readers"; the question is **when**.
+
+          - **Fan-out on write (push):** when an item is written, insert a reference into every reader's precomputed list. Reads are one lookup; writes cost O(followers).
+          - **Fan-out on read (pull):** store each item once. At read time, fetch recent items from everyone the reader follows and merge. Writes are O(1); reads cost O(following).
+        `,
+      },
+      {
+        kind: "choice",
+        id: "which-side",
+        prompt: "Feeds are read about 50 times for every post. Which side should usually pay?",
+        options: [
+          {
+            id: "write",
+            label: "Write time: the work is paid on the rarer side.",
+            correct: true,
+            why: "Precomputing once per post is cheaper than merging 50 times, for ordinary audiences.",
+          },
+          {
+            id: "read",
+            label: "Read time: reads are more important.",
+            why: "Importance isn't frequency. Pushing work to the frequent side multiplies it.",
+          },
+          {
+            id: "either",
+            label: "It doesn't matter.",
+            why: "With a 50:1 ratio, it matters a lot.",
+          },
+        ],
+      },
+      {
+        kind: "estimate",
+        id: "celebrity",
+        prompt: "One author has 10 million followers. With pure fan-out on write, how many timeline inserts does one post cost?",
+        answer: 10000000,
+        unit: "inserts",
+        working: md`
+          **10 million**, arriving all at once and delaying everyone else's deliveries. That's why push breaks for the few very large accounts.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          The standard answer is **hybrid**: push for ordinary authors; for the few with huge audiences, skip fan-out and merge their recent items in at read time. Two refinements:
+
+          - **Don't fan out to people who aren't reading.** Precompute only for recently active users; rebuild the rest when they return.
+          - **Store references, not copies,** so edits and deletions don't need another fan-out.
+        `,
+      },
+    ],
     assumptions: [
       "Reads of the combined view vastly outnumber writes.",
       "A short delay between writing and appearing in every reader's view is acceptable.",
@@ -311,6 +582,54 @@ export const performanceConcepts: ConceptInput[] = [
 
       Related tools solve neighbouring problems: **stale-while-revalidate** serves the old value while one caller refreshes it, and **jittered TTLs** stop many keys from expiring at once.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Popular data is requested in bursts: a message in a huge channel, a cache entry that just expired. If every request goes to the database independently, a thousand concurrent readers become a thousand identical queries, and the database falls over computing the same answer a thousand times.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          **Request coalescing** keeps a table of in-flight requests keyed by what's being fetched. The first caller for a key starts the fetch; later callers for the same key **wait on that result** instead of starting their own. When it completes, every waiter gets the answer and the entry is removed.
+        `,
+      },
+      {
+        kind: "simulation",
+        simulation: "cache-stampede",
+      },
+      {
+        kind: "choice",
+        id: "fleet",
+        prompt: "Coalescing runs inside each of 50 instances, and requests are spread randomly. A burst for one key arrives. How many database queries, at most?",
+        options: [
+          {
+            id: "fifty",
+            label: "Up to 50: one per instance",
+            correct: true,
+            why: "Each instance coalesces only what it sees. Routing requests for a key to the same instance (consistent hashing) brings it down to one.",
+          },
+          {
+            id: "one",
+            label: "Exactly one",
+            why: "Only if all requests for the key reach the same place.",
+          },
+          {
+            id: "thousands",
+            label: "One per request",
+            why: "Within each instance, duplicates do wait on one query.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Coalescing collapses **simultaneous** requests; a cache serves **repeated** ones. Related tools: **stale-while-revalidate** serves the old value while one caller refreshes it, and **jittered TTLs** stop many keys expiring at once. At the cache layer, the same idea appears as a **lease on miss**: one caller may refill; the rest wait briefly and retry.
+        `,
+      },
+    ],
     assumptions: [
       "Concurrent callers can accept the same result (the query is not per-caller).",
       "Requests for the same key can be routed to the same place.",
@@ -382,6 +701,56 @@ export const performanceConcepts: ConceptInput[] = [
 
       Load shedding complements rate limiting: rate limits enforce **fairness per client** under normal load; shedding protects **the system as a whole** when total demand exceeds capacity, whoever caused it.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          An overloaded server that accepts everything does everything slowly. Requests time out after consuming CPU, retries pile on, and **goodput** (useful work finished in time) falls toward zero while the server is 100% busy. Overload that isn't shed becomes an outage.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "kinder",
+        prompt: "At 150% of capacity, which outcome is better for users?",
+        options: [
+          {
+            id: "reject",
+            label: "Reject a third of requests quickly, and serve the rest within their deadlines",
+            correct: true,
+            why: "Two thirds of users get fast answers and the rest get a clear 'try again'. Accepting everything can mean nearly everyone times out.",
+          },
+          {
+            id: "accept",
+            label: "Accept every request and process them all slowly",
+            why: "Slow past the deadline is the same as failed, after wasting the work.",
+          },
+          {
+            id: "same",
+            label: "They're equivalent.",
+            why: "Goodput collapses when everything is accepted.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Decide early and cheaply:
+
+          - **Detect overload** from a leading signal: concurrency in flight, queue age, worker utilisation. CPU alone is often too late.
+          - **Reject before expensive work:** at the edge, before parsing big bodies or taking locks.
+          - **Prioritise:** shed low-priority work (analytics, batch) first; reserve capacity for what matters.
+          - **Tell callers what to do:** 503 or 429 with \`Retry-After\`.
+          - **Drop work nobody is waiting for:** a queued request whose client already timed out should be discarded.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          Load shedding complements [[rate-limiting]]: rate limits enforce **fairness per client** under normal load; shedding protects **the whole system** when total demand exceeds capacity, whoever caused it.
+        `,
+      },
+    ],
     assumptions: [
       "Work can be ranked, so some of it is safe to refuse.",
       "Callers handle rejection by backing off rather than retrying at once.",

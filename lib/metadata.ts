@@ -51,9 +51,39 @@ export function breadcrumbs(items: { name: string; path: string }[]): Record<str
   };
 }
 
+/** A schema.org ItemList of pages, for index pages: tells engines what the collection contains and in what order. */
+export function itemList(name: string, items: { name: string; path: string }[]): Record<string, unknown> {
+  return {
+    "@type": "ItemList",
+    name,
+    numberOfItems: items.length,
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      url: `${SITE_URL}${item.path}`,
+    })),
+  };
+}
+
 /** Plain text cut at a word boundary, for meta descriptions that should not be truncated mid-word. */
 export function clip(text: string, max = 158): string {
   if (text.length <= max) return text;
   const cut = text.slice(0, max - 1);
   return `${cut.slice(0, cut.lastIndexOf(" ")).replace(/[\s,;:.—-]+$/, "")}…`;
+}
+
+/**
+ * A schema.org FAQPage. Every question and answer must also be visible on the page;
+ * answer engines quote these pairs, and Google ignores markup that the page does not show.
+ */
+export function faqPage(items: { question: string; answer: string }[]): Record<string, unknown> {
+  return {
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  };
 }

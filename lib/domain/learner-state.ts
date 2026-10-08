@@ -14,12 +14,14 @@ import {
   RUBRIC_MARKS,
   SIGNALS,
   type Attempt,
+  type Citations,
   type Evidence,
   type InterviewSession,
   type LearnerState,
   type Project,
   type SelfAssessment,
 } from "./learner";
+import { DESIGN_SECTION_IDS, type DesignRound } from "./design-round";
 import { CLAIM_VERDICTS, COMPONENT_KINDS, DIMENSIONS, FLOW_KINDS, isSlug } from "./taxonomy";
 
 export function createLearnerState(learnerId: string, now: string): LearnerState {
@@ -30,6 +32,7 @@ export function createLearnerState(learnerId: string, now: string): LearnerState
     attempts: [],
     projects: [],
     interviews: [],
+    rounds: [],
   };
 }
 
@@ -42,10 +45,11 @@ export function assessAttempt(
   attemptId: string,
   selfAssessment: SelfAssessment,
   evidence: Evidence | null,
+  citations: Citations = {},
 ): LearnerState {
   return {
     ...state,
-    attempts: state.attempts.map((a) => (a.id === attemptId ? { ...a, selfAssessment, evidence } : a)),
+    attempts: state.attempts.map((a) => (a.id === attemptId ? { ...a, selfAssessment, citations, evidence } : a)),
   };
 }
 
@@ -107,6 +111,18 @@ export function finishInterview(state: LearnerState, sessionId: string, now: str
 
 export function deleteInterview(state: LearnerState, sessionId: string): LearnerState {
   return { ...state, interviews: state.interviews.filter((s) => s.id !== sessionId) };
+}
+
+export function saveRound(state: LearnerState, round: DesignRound): LearnerState {
+  const exists = state.rounds.some((r) => r.id === round.id);
+  return {
+    ...state,
+    rounds: exists ? state.rounds.map((r) => (r.id === round.id ? round : r)) : [...state.rounds, round],
+  };
+}
+
+export function deleteRound(state: LearnerState, roundId: string): LearnerState {
+  return { ...state, rounds: state.rounds.filter((r) => r.id !== roundId) };
 }
 
 // ---------------------------------------------------------------------------
@@ -199,7 +215,7 @@ function responseCheck(value: unknown, path: string): Check {
   if (!isRecord(value)) return `${path} must be an object.`;
   switch (value.kind) {
     case "decision":
-      return slugCheck(value.optionId, `${path}.optionId`) ?? textCheck(value.rationale, `${path}.rationale`, { max: 20_000 });
+      return slugCheck(value.optionId, `${path}.optionId`) ?? textCheck(value.rationale, `${path}.rationale`, { max: 20_000, min: 0 });
     case "claims": {
       if (!isRecord(value.verdicts)) return `${path}.verdicts must be an object.`;
       for (const [id, verdict] of Object.entries(value.verdicts)) {
@@ -215,7 +231,7 @@ function responseCheck(value: unknown, path: string): Check {
       for (const line of value.selected) {
         if (!isInt(line) || line < 0) return `${path}.selected must be line numbers.`;
       }
-      return textCheck(value.rationale, `${path}.rationale`, { max: 20_000 });
+      return textCheck(value.rationale, `${path}.rationale`, { max: 20_000, min: 0 });
     }
     case "open":
       return textCheck(value.text, `${path}.text`, { max: 20_000 });
@@ -230,6 +246,15 @@ function selfAssessmentCheck(value: unknown, path: string): Check {
   if (!isRecord(value)) return `${path} must be an object.`;
   for (const [id, mark] of Object.entries(value)) {
     const error = slugCheck(id, `${path}`) ?? (oneOf(mark, RUBRIC_MARKS) ? null : `${path}.${id} is not a rubric mark.`);
+    if (error) return error;
+  }
+  return null;
+}
+
+function citationsCheck(value: unknown, path: string): Check {
+  if (!isRecord(value)) return `${path} must be an object.`;
+  for (const [id, quote] of Object.entries(value)) {
+    const error = slugCheck(id, path) ?? textCheck(quote, `${path}.${id}`, { max: 20_000 });
     if (error) return error;
   }
   return null;
@@ -270,6 +295,7 @@ function attemptCheck(value: unknown, path: string): Check {
     responseCheck(value.response, `${path}.response`) ??
     (isDateTime(value.submittedAt) ? null : `${path}.submittedAt must be a date.`) ??
     (value.selfAssessment === null ? null : selfAssessmentCheck(value.selfAssessment, `${path}.selfAssessment`)) ??
+    (value.citations === undefined ? null : citationsCheck(value.citations, `${path}.citations`)) ??
     (value.evidence === null ? null : evidenceCheck(value.evidence, `${path}.evidence`))
   );
 }
@@ -370,6 +396,29 @@ function interviewCheck(value: unknown, path: string): Check {
   return null;
 }
 
+function roundCheck(value: unknown, path: string): Check {
+  if (!isRecord(value)) return `${path} must be an object.`;
+  if (textCheck(value.id, `${path}.id`)) return `${path}.id must be text.`;
+  const inv = slugCheck(value.investigationId, `${path}.investigationId`);
+  if (inv) return inv;
+  if (!isDateTime(value.startedAt)) return `${path}.startedAt must be a date.`;
+  if (!isDateTime(value.finishedAt)) return `${path}.finishedAt must be a date.`;
+  if (!isRecord(value.answers)) return `${path}.answers must be an object.`;
+  for (const [section, text] of Object.entries(value.answers)) {
+    if (!oneOf(section, DESIGN_SECTION_IDS)) return `${path}.answers.${section} is not a section.`;
+    const error = textCheck(text, `${path}.answers.${section}`, { max: 50_000, min: 0 });
+    if (error) return error;
+  }
+  if (!isRecord(value.covered)) return `${path}.covered must be an object.`;
+  for (const [section, items] of Object.entries(value.covered)) {
+    if (!oneOf(section, DESIGN_SECTION_IDS)) return `${path}.covered.${section} is not a section.`;
+    if (!Array.isArray(items) || !items.every((item) => typeof item === "string")) {
+      return `${path}.covered.${section} must be a list of item ids.`;
+    }
+  }
+  return null;
+}
+
 /**
  * Evidence gained `competencyIds` after the first states were written, so a
  * missing list is filled in rather than treated as corruption.
@@ -377,6 +426,7 @@ function interviewCheck(value: unknown, path: string): Check {
 function normalize(state: LearnerState): LearnerState {
   return {
     ...state,
+    rounds: state.rounds ?? [],
     attempts: state.attempts.map((attempt) =>
       attempt.evidence && attempt.evidence.competencyIds === undefined
         ? { ...attempt, evidence: { ...attempt.evidence, competencyIds: [] } }
@@ -398,5 +448,9 @@ function readLearnerState(json: unknown): ParseResult {
   if (projects) return { ok: false, error: projects };
   const interviews = listCheck(json.interviews, "interviews", interviewCheck);
   if (interviews) return { ok: false, error: interviews };
+  if (json.rounds !== undefined) {
+    const rounds = listCheck(json.rounds, "rounds", roundCheck);
+    if (rounds) return { ok: false, error: rounds };
+  }
   return { ok: true, state: normalize(json as unknown as LearnerState) };
 }

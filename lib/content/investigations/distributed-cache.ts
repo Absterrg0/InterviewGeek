@@ -3,10 +3,10 @@ import { md } from "../md";
 
 export const distributedCache = {
   id: "distributed-cache",
-  title: "A cache in front of everything",
+  title: "A look-aside cache at Facebook's scale",
   searchTitle: "Design a Distributed Cache (Memcache)",
   premise:
-    "Built from Facebook's paper on scaling memcache: a look-aside cache serving billions of reads a second, where speed is the easy part and the real work is stale sets, thundering herds, dead servers and invalidations that have to cross regions.",
+    "Built from Facebook's paper on scaling memcache: a look-aside cache serving billions of reads a second, Reads are fast; the hard parts are stale values, stampedes on popular keys, dead servers and invalidations that have to cross regions.",
   difficulty: "advanced",
   estimatedMinutes: 50,
   scenario: md`
@@ -106,6 +106,61 @@ export const distributedCache = {
       context: md`
         Reads: get from the cache; on a miss, query MySQL and set the result. Writes: update MySQL, then do something about the cached copy.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A **look-aside** (or cache-aside) cache sits next to the database, not in front of it. The application does the work:
+
+            - **Read:** ask the cache. On a hit, done. On a miss, query the database and put the result in the cache.
+            - **Write:** update the database, then deal with the cached copy.
+
+            The cache never talks to the database itself. It's a disposable copy the application manages. See [[caching]].
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "miss-load",
+          prompt: "The cache serves 1,000,000 reads a second with a 99% hit rate. How many reads a second reach the database?",
+          answer: 10000,
+          unit: "per second",
+          working: md`
+            1% of 1,000,000 = **10,000 a second**. The database is provisioned for this miss load, not the total.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "hit-rate-drop",
+          prompt: "The hit rate drops from 99% to 98%. What happens to database load?",
+          options: [
+            {
+              id: "double",
+              label: "It roughly doubles: misses go from 1% to 2%.",
+              correct: true,
+              why: "Database load follows the miss rate, not the hit rate. A one-point drop in hits is a 100% increase in misses.",
+            },
+            {
+              id: "one-percent",
+              label: "It goes up by about 1%.",
+              why: "Total reads are unchanged, but the database only sees misses, and misses doubled.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing much; 98% is still a great hit rate.",
+              why: "For the cache it's still good. For the database provisioned at 1% misses, it's twice the load.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            On write, there are two options for the cached copy: **set** the new value, or **delete** the key and let the next read refill it.
+
+            Deletes are **idempotent** (doing it twice is the same as once) and **order-insensitive** (two deletes in either order leave the same result). Two sets racing can arrive in the wrong order and leave the older value cached.
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -139,6 +194,11 @@ export const distributedCache = {
         ],
       },
       reveal: {
+        takeaways: [
+          "In a look-aside cache, the database is the truth, the cache is a disposable copy, and writes delete.",
+          "Database load equals the miss rate, so small hit-rate drops are large database load increases.",
+          "Deletes are idempotent and order-insensitive; racing sets can leave old values cached.",
+        ],
         reasoning: md`
           The look-aside contract is simple: **the database is the truth, the cache is a disposable copy, writes delete.** The arithmetic is the part people miss: at high hit rates, the database's load is the *miss* rate, so anything that causes a burst of misses (a hot key, a dead server, an empty cluster) is a database incident.
         `,
@@ -159,6 +219,56 @@ export const distributedCache = {
       context: md`
         Two web servers, A and B, touched the same key around the same time. Find the lines that explain why the cache holds the old value indefinitely.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A reader that misses does two things at two different times: it **reads** the database, then later **sets** the cache. Anything can happen in between, including a write and its delete.
+
+            If the write's delete arrives before the reader's set, the delete has nothing to remove, and the set then stores a value read **before** the write.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "how-long",
+          prompt: "The stale value 'Ann' is now in the cache, with no TTL. How long does it stay?",
+          options: [
+            {
+              id: "indefinitely",
+              label: "Until the next write to that key or until it's evicted, which could be days",
+              correct: true,
+              why: "Nothing knows it's stale. The only thing that removes it is another delete or memory pressure.",
+            },
+            {
+              id: "next-read",
+              label: "Until the next read refills it",
+              why: "The next read hits, so it never refills. It just returns 'Ann'.",
+            },
+            {
+              id: "seconds",
+              label: "A few seconds, until replication catches up",
+              why: "This isn't replication lag. The database already has 'Annie'. The cache has no reason to look.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            The fix is a token: on a miss, the cache hands the reader a **lease** token for that key. A delete for the key invalidates outstanding tokens. The reader's set must carry its token, and the cache rejects sets whose token was invalidated.
+
+            The idea is the same as a [[leases-and-fencing|fencing token]]: a write is accepted only if nothing newer has happened since it was authorised.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "ttl-only",
+          prompt: "Would a 1-hour TTL on every key fix the stale set?",
+          answer: md`
+            It bounds the damage to at most an hour of a wrong name, but doesn't prevent the race. Shorter TTLs bound it more tightly, at the cost of more misses for everyone. The lease prevents it outright.
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the lines that are part of the problem.",
@@ -192,6 +302,11 @@ export const distributedCache = {
         },
       },
       reveal: {
+        takeaways: [
+          "A refill read before a write but set after its delete caches the old value with nothing to remove it.",
+          "Leases tie a refill to its miss; a delete invalidates the token and the late set is rejected.",
+          "TTLs bound staleness but don't prevent the race.",
+        ],
         reasoning: md`
           This is a **stale set**: a refill computed from old data lands after the invalidation meant to remove it. Deleting instead of setting on write does not fix it, because the problem is the *reader's* set.
 
@@ -215,6 +330,53 @@ export const distributedCache = {
       context: md`
         The database is provisioned for the normal miss rate. This one key is producing a large share of all misses.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A **thundering herd** (or stampede) happens when many readers miss the same key at the same moment, and all of them go to the database to rebuild it. With a hot key, that moment is every time the key is deleted or expires.
+          `,
+        },
+        {
+          kind: "simulation",
+          simulation: "cache-stampede",
+          body: md`
+            Raise the request rate and the rebuild time and watch how many queries reach the database with each strategy.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "what-scales",
+          prompt: "Without protection, what decides how many queries a hot key's miss sends to the database?",
+          options: [
+            {
+              id: "rate-times-time",
+              label: "Requests per second for the key × how long the rebuild takes",
+              correct: true,
+              why: "Every request that arrives during the rebuild misses. At 5,000 a second and 400 ms, that's 2,000 queries for one key.",
+            },
+            {
+              id: "servers",
+              label: "The number of cache servers",
+              why: "The key lives on one server. What matters is how many readers miss it before it's refilled.",
+            },
+            {
+              id: "ttl",
+              label: "The key's TTL",
+              why: "The TTL decides how often misses happen, not how many queries each miss causes.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            **Request coalescing** lets one caller do the rebuild while the others wait for its result. Done inside the cache, it's a lease that is only granted **once per interval** per key: one reader gets the token, the rest are told to wait a few milliseconds and retry. See [[request-coalescing]].
+
+            For data that tolerates being slightly old, waiting isn't even necessary: serve the previous value while one caller refreshes it.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What do you change?",
@@ -256,6 +418,11 @@ export const distributedCache = {
         },
       },
       reveal: {
+        takeaways: [
+          "A hot key's miss sends (request rate × rebuild time) queries to the database without protection.",
+          "Rate-limited leases let one caller refill while others wait briefly: request coalescing in the cache.",
+          "Serving a slightly stale value removes the wait for data that tolerates it.",
+        ],
         reasoning: md`
           The same lease that prevents stale sets also prevents herds once you **rate-limit how often it is granted**. That is [[request-coalescing]] implemented inside the cache: one caller does the work, everyone else waits on its result.
 
@@ -273,6 +440,52 @@ export const distributedCache = {
       context: md`
         The cache's \`get\` now returns one of three things: a value, a lease token (you should refill), or "wait" (someone else is refilling). \`setWithLease\` returns false if the token was invalidated. Write the web server's read helper.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A lease-aware \`get\` returns one of three results, and the client has a branch for each:
+
+            | Result | Meaning | Client does |
+            | --- | --- | --- |
+            | hit | the value | return it |
+            | lease | you should refill | load from the database, set with the token |
+            | wait | someone else is refilling | sleep briefly, ask again |
+          `,
+        },
+        {
+          kind: "choice",
+          id: "rejected-set",
+          prompt: "The client loads the value and its setWithLease returns false (a delete invalidated the token). What should it return to its caller?",
+          options: [
+            {
+              id: "value",
+              label: "The value it loaded: it was correct when read, it just mustn't be cached.",
+              correct: true,
+              why: "A rejected set only means the cache shouldn't keep this value. Returning it to the current request is fine.",
+            },
+            {
+              id: "error",
+              label: "An error, because the cache rejected the write",
+              why: "That fails a page over something harmless.",
+            },
+            {
+              id: "retry",
+              label: "Nothing yet: start over from get",
+              why: "It already has a valid answer. Starting over only adds latency and load.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "holder-dies",
+          prompt: "The web server holding the lease crashes before refilling. What happens to the clients told to 'wait'?",
+          answer: md`
+            Their retries keep getting "wait" until the lease expires on the server. So the client needs a bound: after a few short, growing, jittered waits, it reads the database directly. The page costs a few milliseconds more instead of failing.
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement cachedRead.",
@@ -325,6 +538,11 @@ export const distributedCache = {
         },
       },
       reveal: {
+        takeaways: [
+          "Handle all three outcomes of a lease-aware get: hit, refill with the token, or wait.",
+          "A rejected set isn't an error; return the loaded value without caching it.",
+          "Bound the waiting with jittered retries, then fall back to the database.",
+        ],
         reasoning: md`
           The client is where the protocol becomes behaviour: what to do with a token, what to do while waiting, and what to do when waiting goes on too long. Each branch has a reason, and each has a bound.
         `,
@@ -346,6 +564,54 @@ export const distributedCache = {
       context: md`
         The database is provisioned for the normal miss rate. Decide what clients do in the minutes before the replacement arrives.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Clients choose a cache server for each key by hashing the key. Two common schemes:
+
+            - **hash mod N:** server = hash(key) % N. Simple, but changing N moves almost every key.
+            - **Consistent hashing:** servers and keys are placed on a ring; each key belongs to the next server clockwise. Adding or removing a server moves only the keys next to it. See [[consistent-hashing]].
+          `,
+        },
+        {
+          kind: "simulation",
+          simulation: "consistent-hashing",
+          body: md`
+            Add a node under each placement and compare how many keys move. Then try the ring with one point per node versus a hundred.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Moving few keys is good for planned changes. A failure raises a different question: the dead server's keys all miss, and their load must go **somewhere**. Rehashing sends them to the neighbouring servers, which are already busy. And keys aren't equal: one hot key can be a fifth of a server's traffic.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "hot-key-move",
+          prompt: "A dead server's hottest key (20% of its traffic) is rehashed onto a healthy server that is already at 85% capacity. What can happen?",
+          options: [
+            {
+              id: "cascade",
+              label: "The healthy server overloads and fails too, and its keys move on again: a cascade.",
+              correct: true,
+              why: "Rehashing assumes the load spreads evenly. Hot keys don't spread; they land somewhere whole.",
+            },
+            {
+              id: "fine",
+              label: "Nothing much; consistent hashing spreads the load.",
+              why: "It spreads keys, not load. One key's traffic still lands on one server.",
+            },
+            {
+              id: "db",
+              label: "The key goes to the database instead.",
+              why: "Only if the client falls back to the database, which brings its own problem: load the database isn't provisioned for.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What should clients do with requests for the failed server's keys?",
@@ -388,6 +654,11 @@ export const distributedCache = {
         },
       },
       reveal: {
+        takeaways: [
+          "A failed cache server's load has to go somewhere; the database is the worst place.",
+          "Rehashing onto busy servers can cascade, because hot keys move whole.",
+          "An idle 'gutter' pool absorbs the misses with short-lived entries until the server is replaced.",
+        ],
         reasoning: md`
           The general lesson: **when part of a cache fails, the load it was absorbing has to go somewhere**, and the database is the worst place. Gutter gives that load a home that is empty, cheap and temporary.
 
@@ -412,6 +683,55 @@ export const distributedCache = {
       context: md`
         Web servers currently delete keys in their own cluster after writing. Deletes must now reach every cluster, reliably, at a very high rate.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            With several clusters, a popular key may be cached in each of them, and a write must reach every copy. Two properties matter for that delivery:
+
+            - **Durable:** a delete must not be lost because the web server that wrote crashed.
+            - **Efficient:** deletes are frequent, so they need batching across cluster boundaries.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "writer-crash",
+          prompt: "A web server commits a write, then crashes before sending deletes to the other clusters. What do those clusters keep serving?",
+          answer: md`
+            The old value, indefinitely: nothing else knows the key changed. The write is durable in the database, but the obligation to invalidate lived only in the crashed process's memory.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            The fix records the invalidation **with** the write: the keys to delete are part of the committed transaction, and daemons that tail the database's commit log send them out. The log is durable and replayable, so a crash or a delivery bug can be recovered from. It's the [[transactional-outbox]] idea applied to caches.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "local-delete",
+          prompt: "Deletes now flow from the commit log. Why does the writing web server still delete the key in its own cluster right away?",
+          options: [
+            {
+              id: "ryw",
+              label: "So the user who wrote sees their change on their next request, without waiting for the log pipeline",
+              correct: true,
+              why: "The log path has some delay. The local delete gives the writer read-your-writes immediately.",
+            },
+            {
+              id: "backup",
+              label: "As a backup in case the log loses the delete",
+              why: "The log is the reliable path. The local delete is about latency for the writer.",
+            },
+            {
+              id: "required",
+              label: "Because the log can't reach the local cluster",
+              why: "It reaches every cluster. The local delete is just faster.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should invalidations reach every cluster?",
@@ -454,6 +774,11 @@ export const distributedCache = {
         },
       },
       reveal: {
+        takeaways: [
+          "Record invalidations with the commit and deliver them from the log: durable, replayable, batched.",
+          "The writer still deletes locally for read-your-writes.",
+          "Most deletes hit nothing, so cheap batched delivery matters more than precise targeting.",
+        ],
         reasoning: md`
           This is the [[transactional-outbox]] idea applied to caches: the side effect (invalidate these keys) is recorded **in the same commit** as the data change, and a separate process reliably delivers it from the log. See also [[event-log]].
 
@@ -478,6 +803,56 @@ export const distributedCache = {
       context: md`
         Replicas can lag behind the master. Caches in the replica region are filled from the local replica.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            With **replication**, writes go to a primary and are copied to replicas some time later: usually under a second, sometimes much longer. A replica that hasn't received a write yet serves the old data. See [[replication]].
+
+            A cache filled from a lagging replica stores that old data.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "delete-before-data",
+          prompt: "The master region writes, then immediately sends a delete to the replica region's cache. The data arrives at the replica 2 seconds later. A read in the replica region happens in between. What gets cached?",
+          answer: md`
+            The read misses (the key was deleted), refills from the replica, which still has the old value, and caches it. The delete has already happened, so nothing removes the old value.
+
+            Deletes need to arrive **after** the data. Tailing each region's own replica log achieves that: the invalidation is applied when the data change is.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            For the user who wrote, a **remote marker** helps: before writing, set a marker key in the local cache saying "recently written". A miss that finds the marker reads from the master region (slower, but current) instead of the local replica.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "marker-evicted",
+          prompt: "Why is evicting a remote marker different from evicting a normal cached value?",
+          options: [
+            {
+              id: "information",
+              label: "The marker is information, not a copy: losing it means a read may go to the stale replica.",
+              correct: true,
+              why: "A normal value can always be rebuilt from the database. A marker's presence is the only record that the replica may be behind.",
+            },
+            {
+              id: "same",
+              label: "It's the same: it just costs a miss.",
+              why: "A miss on a marker doesn't rebuild it. The system just forgets that the key was recently written.",
+            },
+            {
+              id: "worse",
+              label: "It corrupts the database.",
+              why: "The database is unaffected; the risk is a stale read for that user.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -512,6 +887,11 @@ export const distributedCache = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Caches inherit replication lag: invalidate after the data arrives, from each region's own log.",
+          "Remote markers send a writer's reads to the master while their write is in flight.",
+          "A key whose presence carries meaning isn't a disposable cache entry any more.",
+        ],
         reasoning: md`
           Across regions, the cache inherits the database's [[replication]] lag. Two rules follow: **invalidate after the data arrives** (by tailing each region's own log), and **route a writer's reads to the master** while their write is in flight.
 
@@ -534,6 +914,35 @@ export const distributedCache = {
       context: md`
         Other clusters in the region have warm caches with roughly the same data.
       `,
+      lesson: [
+
+        {
+          kind: "estimate",
+          id: "cold-load",
+          prompt: "A cluster serves 2,000,000 reads a second. Warm, its hit rate is 99%. Cold, it's about 5%. About how many database reads a second does it send when cold?",
+          answer: 1900000,
+          unit: "per second",
+          working: md`
+            Warm: 1% of 2,000,000 = 20,000. Cold: 95% = **1,900,000 a second**, 95× what the database is provisioned for.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Other clusters in the region hold roughly the same data, warm. A cold cluster can treat a neighbour's cache as its fallback: on a local miss, fetch from the warm cluster's cache and add it locally, so misses come from memory instead of the database.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "warm-race",
+          prompt: "A key is written and deleted in both clusters, but the cold cluster receives its delete slightly before the warm one. In that gap, a cold-cluster miss fetches the key from the warm cluster. What happens?",
+          answer: md`
+            It gets the old value, because the warm cluster hasn't deleted it yet, and adds it to the cold cluster, after that cluster's delete. The stale value now sits in the cold cluster with nothing to remove it.
+
+            A short hold-off after each delete (Facebook used two seconds) rejects adds to that key, and a rejected add means "go to the database".
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you bring the cold cluster back?",
@@ -569,6 +978,11 @@ export const distributedCache = {
         },
       },
       reveal: {
+        takeaways: [
+          "An empty cache sends nearly its whole read load to the database.",
+          "Warm a cold cluster from a neighbour's cache instead of the database.",
+          "Close the warmup race with a short hold-off that rejects adds after a delete.",
+        ],
         reasoning: md`
           Every mechanism in this investigation answers the same question: **where does the miss load go?** Leases send it to one refiller, gutter sends it to idle servers, warmup sends it to a neighbour's memory. The database only ever sees what it was provisioned for.
 
@@ -586,6 +1000,43 @@ export const distributedCache = {
       context: md`
         Your interviewer: "Your cache can serve stale data in at least four ways. Why not a strongly consistent cache, or write-through updates, and be done with it?"
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            "Eventually consistent" is too vague to defend. A strong answer lists:
+
+            - **Specific guarantees:** for example, a writer sees their own write; a stale value can't be cached after a newer write.
+            - **Specific windows of staleness:** where they come from and what bounds each one.
+            - **What stronger consistency would cost:** usually coordination on the hot path.
+            - **Where you'd choose differently:** data that can't tolerate any staleness.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "strong-cost",
+          prompt: "What would strong consistency for every read cost a cache serving billions of reads a second across regions?",
+          options: [
+            {
+              id: "coordination",
+              label: "Coordination on the hot path: checking with the source or locking every copy, with cross-region round trips and lost availability during failures",
+              correct: true,
+              why: "The cache exists to avoid going to the source. Making every read confirm with it removes most of the benefit.",
+            },
+            {
+              id: "memory",
+              label: "More memory per key",
+              why: "Consistency costs latency and availability, not memory.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing, if you use write-through",
+              why: "Write-through updates still race across clusters, so ordering isn't solved.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Defend the consistency model: what is guaranteed, what is not, and what strong consistency would cost here.",
@@ -609,6 +1060,11 @@ export const distributedCache = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Defend a consistency model with specific guarantees and specific, bounded staleness windows.",
+          "Strong consistency at this scale means coordination on every read, which defeats the cache.",
+          "Route data that can't tolerate staleness to the master or around the cache.",
+        ],
         reasoning: md`
           "Eventually consistent" is not an answer by itself. A strong defence lists the **specific** guarantees, the **specific** windows of staleness and the mechanism that bounds each one. That is what Facebook's paper does, and what an interviewer wants to hear.
         `,

@@ -6,7 +6,7 @@ import type { InteractionOf } from "@/lib/domain/content";
 import { shuffled } from "@/lib/domain/evaluate";
 import type { ResponseOf } from "@/lib/domain/learner";
 import { LETTERS, SubmitRow, WrittenField } from "../fields";
-import { MIN_RATIONALE, type InputProps, type InteractionSlots } from "../types";
+import { type InputProps, type InteractionSlots } from "../types";
 import { useDraft } from "../use-draft";
 
 type Decision = InteractionOf<"decision">;
@@ -28,7 +28,7 @@ export function DecisionInput({ interaction, draftKey, seed, onSubmit }: InputPr
   }));
   const options = shuffled(interaction.options, seed);
   const chosen = options.some((o) => o.id === draft.optionId) ? draft.optionId : null;
-  const ready = chosen !== null && draft.rationale.trim().length >= MIN_RATIONALE;
+  const ready = chosen !== null;
 
   return (
     <form
@@ -81,13 +81,14 @@ export function DecisionInput({ interaction, draftKey, seed, onSubmit }: InputPr
         label={interaction.rationale.prompt}
         value={draft.rationale}
         onChange={(rationale) => setDraft({ ...draft, rationale })}
-        min={MIN_RATIONALE}
+        min={0}
+        optional
         placeholder="Because…"
       />
       <SubmitRow
         ready={ready}
         label="Commit decision"
-        reason={chosen === null ? "Choose an option, then explain why." : undefined}
+        reason={chosen === null ? "Choose an option first." : undefined}
       />
     </form>
   );

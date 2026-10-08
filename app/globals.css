@@ -742,6 +742,178 @@
     color: var(--ink-2);
   }
 
+  /* ---------- Lessons ---------- */
+
+  /* Steps hang off a vertical rail: dots for explanations, numbered marks for checks. */
+  .lesson-step {
+    position: relative;
+    padding-left: 2.5rem;
+    padding-bottom: 2rem;
+  }
+  .lesson-step[hidden] {
+    display: none;
+  }
+  .lesson-rail {
+    position: absolute;
+    left: 0.6875rem;
+    top: 1.75rem;
+    bottom: 0.25rem;
+    width: 1px;
+    background: var(--rule-strong);
+  }
+  .lesson-dot {
+    position: absolute;
+    left: 0.4375rem;
+    top: 0.6rem;
+    width: 0.5625rem;
+    height: 0.5625rem;
+    border-radius: 9999px;
+    background: var(--paper);
+    box-shadow: inset 0 0 0 1.5px var(--ink-3);
+  }
+  .lesson-mark {
+    position: absolute;
+    left: 0;
+    top: 0.75rem;
+    display: grid;
+    place-items: center;
+    width: 1.4375rem;
+    height: 1.4375rem;
+    border-radius: 9999px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent-ink);
+    background: var(--accent-solid);
+  }
+  .lesson-mark-done {
+    color: #fff;
+    background: var(--mark-strong);
+  }
+  .lesson-check {
+    background: var(--raised);
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    padding: 1rem 1.125rem 1.125rem;
+  }
+  @media (min-width: 640px) {
+    .lesson-check {
+      padding: 1.125rem 1.375rem 1.375rem;
+    }
+  }
+  .lesson-answer {
+    border-left: 2px solid var(--mark-strong);
+    padding-left: 1rem;
+  }
+
+  .lesson-option {
+    border-radius: 9px;
+    background: var(--paper);
+    box-shadow: var(--shadow-btn);
+    transition:
+      box-shadow 150ms var(--ease-out),
+      background-color 150ms var(--ease-out);
+  }
+  .lesson-option-idle:hover {
+    background: var(--well);
+  }
+  .lesson-option-right {
+    background: var(--signal-strong-soft);
+    box-shadow: 0 0 0 1.5px var(--mark-strong);
+  }
+  .lesson-option-wrong {
+    background: var(--signal-gap-soft);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mark-gap) 55%, transparent);
+  }
+  .lesson-option-button {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    text-align: left;
+    border-radius: inherit;
+    cursor: pointer;
+  }
+  .lesson-option-button:disabled {
+    cursor: default;
+  }
+  .lesson-option-led {
+    flex-shrink: 0;
+    margin-top: 0.3rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 9999px;
+    box-shadow: inset 0 0 0 1.5px var(--rule-strong);
+  }
+  .lesson-option-right .lesson-option-led {
+    box-shadow: none;
+    background: var(--mark-strong);
+  }
+  .lesson-option-wrong .lesson-option-led {
+    box-shadow: none;
+    background: var(--mark-gap);
+  }
+  .lesson-option-why {
+    padding: 0 0.875rem 0.875rem 2.375rem;
+  }
+
+  /* What to remember from a stage. */
+  /* ---------- Simulations in lessons ---------- */
+
+  .sim {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+  .sim-head {
+    margin-bottom: 0.875rem;
+    max-width: 66ch;
+    line-height: 1.55;
+  }
+  /* Label column, then a track that scales with the width. */
+  .sim-grid {
+    display: grid;
+    grid-template-columns: minmax(7.5rem, 11rem) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 0.375rem;
+  }
+  .sim-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  .sim-track {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .takeaways {
+    counter-reset: takeaway;
+  }
+  .takeaways > li {
+    counter-increment: takeaway;
+    position: relative;
+    padding-left: 2.25rem;
+  }
+  .takeaways > li::before {
+    content: counter(takeaway);
+    position: absolute;
+    left: 0;
+    top: 0.05rem;
+    display: grid;
+    place-items: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--ink-2);
+    background: var(--raised);
+    box-shadow: var(--shadow-btn);
+  }
+
   /* One orchestrated entrance: sections rise in order on first paint.
      Transform only: fading content in from opacity 0 hides it from LCP and
      from anyone reading before the animation ends. */

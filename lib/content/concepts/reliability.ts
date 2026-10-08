@@ -26,6 +26,70 @@ export const reliabilityConcepts: ConceptInput[] = [
       - **Retention.** Keys must outlive the period during which retries can arrive.
       - **Atomicity with the effect.** Recording the key and performing the effect must commit together, or the effect must itself be conditional ([[state-machines]]). When the effect is an external call, pass the same key downstream so the next system deduplicates too.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Networks drop responses, clients retry, queues redeliver, workers restart. Every retry risks doing something twice: charging, emailing, inserting. You can't reliably prevent the duplicate attempt, so you make it **harmless**.
+
+          An operation is **idempotent** if doing it twice has the same effect as once. \`SET status = 'shipped'\` is; \`balance = balance - 10\` isn't.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "which",
+        prompt: "Which of these is naturally idempotent?",
+        options: [
+          {
+            id: "delete",
+            label: "DELETE /items/7",
+            correct: true,
+            why: "After the first delete, item 7 is gone; deleting it again leaves the same state.",
+          },
+          {
+            id: "post",
+            label: "POST /charges",
+            why: "Each call creates a new charge.",
+          },
+          {
+            id: "email",
+            label: "Send a welcome email",
+            why: "Each call sends another email.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          To make a non-idempotent operation safe, give the intent an identity:
+
+          1. The caller attaches an **idempotency key**: a unique ID for this intent, reused on every retry.
+          2. The server **atomically claims** the key: \`INSERT … ON CONFLICT DO NOTHING\`. Whoever inserts first does the work; others find the existing record.
+          3. The server stores the **outcome** under the key and returns it to repeats.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          Where implementations fail:
+
+          - **Scope:** the key identifies the intent, not the request bytes. A retried click reuses it; a new attempt (another card after a decline) gets a new one.
+          - **In-flight duplicates:** a retry can arrive while the first call runs. Return its state (202/409) rather than starting again.
+          - **Payload mismatch:** the same key with different parameters is a bug; reject it.
+          - **Retention:** keys must outlive the window in which retries arrive.
+          - **Atomicity with the effect:** record the key and perform the effect together, and pass the key downstream so external systems deduplicate too.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "new-key",
+        prompt: "A client times out and retries the same charge, but generates a fresh idempotency key for the retry. What happens?",
+        answer: md`
+          The server sees a new intent and charges again. The key only works if every retry of an intent carries the same one.
+        `,
+      },
+    ],
     assumptions: [
       "Callers generate the key once per intent and reuse it across retries.",
       "The store that records keys supports an atomic insert-if-absent.",
@@ -106,6 +170,65 @@ export const reliabilityConcepts: ConceptInput[] = [
 
       Retries multiply through layers: three layers that each retry three times can produce 27 calls to the bottom service. Retry at one layer, usually the one closest to the user intent, and fail fast elsewhere. Pair retries with [[timeouts]] and, under sustained failure, a circuit breaker that stops calling the dependency for a while.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Many failures are transient: a dropped connection, a 503 during a deploy, a lock timeout. Retrying fixes them. Retrying badly creates new failures: synchronized waves, extra load on a struggling dependency, duplicate side effects.
+
+          A sound retry policy answers four questions.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          1. **Is it retryable?** Transient errors (timeouts, 503, resets) yes. Permanent ones (400, validation, "card declined") no. Unknown outcomes only if the operation is [[idempotency|idempotent]].
+          2. **How long to wait?** Exponential backoff (100 ms, 200 ms, 400 ms… up to a cap) gives the dependency room to recover.
+          3. **With jitter.** If a thousand clients all wait exactly 400 ms, they all return together. Randomise the delay, e.g. "full jitter": a random value between 0 and the backoff.
+          4. **How many in total?** Cap attempts per request, and ideally set a **retry budget** (retries at most ~10% of requests).
+        `,
+      },
+      {
+        kind: "estimate",
+        id: "layers",
+        prompt: "Three layers each make up to 3 attempts at the layer below. One user action can cause up to how many calls to the bottom service?",
+        answer: 27,
+        unit: "calls",
+        working: md`
+          3 × 3 × 3 = **27**. Retries multiply through layers. Retry at one layer, usually the one closest to the user's intent, and fail fast elsewhere.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "declined",
+        prompt: "A payment provider responds 'card declined'. Should you retry with backoff?",
+        options: [
+          {
+            id: "no",
+            label: "No: it's a definitive answer and won't change on retry.",
+            correct: true,
+            why: "Retrying permanent errors only wastes time and can look like abuse to the provider.",
+          },
+          {
+            id: "yes",
+            label: "Yes, a few times",
+            why: "Declines aren't transient.",
+          },
+          {
+            id: "once",
+            label: "Once, immediately",
+            why: "Same answer, sooner.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Pair retries with [[timeouts]], and under sustained failure use a **circuit breaker** that stops calling the dependency for a while.
+        `,
+      },
+    ],
     assumptions: [
       "The operation being retried is idempotent or deduplicated.",
       "Failures are often transient and uncorrelated with the retry itself.",
@@ -184,6 +307,59 @@ export const reliabilityConcepts: ConceptInput[] = [
       - **Resolve unknowns from the source of truth.** Look the operation up by its key, wait for a callback ([[webhooks]]), or reconcile later ([[reconciliation]]). Never resolve uncertainty by assuming the convenient answer.
       - **Bound everything.** Connection timeouts, read timeouts and overall deadlines are different; a slow trickle of bytes can defeat a read timeout that resets on each byte.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Without a timeout, a call to a hung dependency waits forever, holding a thread, a connection and the user. With one, you stop waiting, but the request may have reached the other side and succeeded.
+
+          A timeout is a **local** decision to stop waiting. When it fires, the remote operation is in one of three states: **never started**, **still running**, or **completed with the response lost**. You can't tell which.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "timed-out-write",
+        prompt: "A 'create order' request times out. What should the system record?",
+        options: [
+          {
+            id: "unknown",
+            label: "That the outcome is unknown, to be resolved from the source of truth",
+            correct: true,
+            why: "Recording 'failed' invites a duplicate; recording 'succeeded' may be false. Unknown is the honest state.",
+          },
+          {
+            id: "failed",
+            label: "Failed, so the user can try again",
+            why: "If it succeeded, trying again creates a second order.",
+          },
+          {
+            id: "succeeded",
+            label: "Succeeded, because most requests do",
+            why: "A guess that's sometimes wrong turns into wrong data.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Handling them well:
+
+          - **Set timeouts deliberately:** a little above the dependency's p99.9 latency, and shorter than the caller's own deadline. Propagate deadlines so inner calls give up when the outer request has.
+          - **Reads:** retry freely. **Writes:** retry only if idempotent; otherwise record an explicit unknown.
+          - **Resolve unknowns** by looking the operation up by its key, waiting for a callback ([[webhooks]]), or [[reconciliation]].
+          - **Bound everything:** connection timeouts, read timeouts and overall deadlines are different. A slow trickle of bytes can defeat a read timeout that resets on each byte.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "longer-than-caller",
+        prompt: "An API's own deadline is 2 seconds, but its call to a dependency has a 10-second timeout. What's wasted?",
+        answer: md`
+          After 2 seconds nobody is waiting for the answer, yet the API keeps a thread and a connection busy for up to 8 more seconds on work that will be thrown away. Under load, that's capacity spent on abandoned requests.
+        `,
+      },
+    ],
     assumptions: [
       "There is a way to learn the true outcome later: a lookup, a callback, or an idempotent retry.",
       "Callers can represent \"pending\" or \"unknown\" to users.",
@@ -256,6 +432,59 @@ export const reliabilityConcepts: ConceptInput[] = [
       - Some differences cannot be decided automatically: a record the provider has never heard of might be a request still in flight. Wait out the in-flight window before concluding anything, and send what remains to a human queue.
       - **Alert on the output.** The reconciler's findings are bug reports about the rest of the system; a rising count means something upstream is broken.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Your system's view of the world is assembled from messages: API responses, webhooks, queue events. Some get lost, some are duplicated past their dedupe windows, some are misapplied by bugs. Without a way to compare against the truth, those errors are permanent and invisible.
+
+          A **reconciler** periodically asks: does my record match the source of truth?
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          Two common forms:
+
+          - **Targeted sweeps:** find records stuck in non-terminal states too long (\`processing\` for over 10 minutes), look each up at the source, and apply the result through the **same conditional transitions** as every other path, so the reconciler and a late webhook can't conflict.
+          - **Full comparisons:** compare everything in a period against an authoritative report (a settlement file, a bank statement), in both directions.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "same-door",
+        prompt: "Why must the reconciler use the same transitions as webhooks and API responses?",
+        options: [
+          {
+            id: "no-conflict",
+            label: "So whichever learns the truth first moves the state, and the others match zero rows: no conflicting writes.",
+            correct: true,
+            why: "A reconciler with its own write path could overwrite a newer state set by a late webhook.",
+          },
+          {
+            id: "speed",
+            label: "It's faster.",
+            why: "It's about not conflicting, not speed.",
+          },
+          {
+            id: "audit",
+            label: "Only for logging",
+            why: "Logging is a side benefit; correctness is the reason.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Rules that keep reconcilers honest:
+
+          - Reconcile toward the **source of truth** for each fact. For money, that's the provider, not your database.
+          - Some differences can't be decided automatically: a record the provider hasn't heard of might be a request still in flight. Wait out that window, and send what remains to a human.
+          - **Alert on the output.** A rising count of corrections means something upstream is broken.
+        `,
+      },
+    ],
     assumptions: [
       "An authoritative source exists and can be queried by your identifiers.",
       "The reconciler applies changes through the same idempotent, conditional paths as normal processing.",
@@ -329,6 +558,58 @@ export const reliabilityConcepts: ConceptInput[] = [
 
       Ordering: a single relay processing rows in insertion order preserves order per source; parallel relays need ordering per key if consumers care.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          After a state change you often must tell another system: publish an event, enqueue a job, send an email. That's **two writes to two systems**, and no transaction spans both.
+
+          Commit first and crash before publishing: the message is lost. Publish first and the commit fails: you announced something that never happened. This is the **dual-write** problem.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          The outbox makes the second write part of the first:
+
+          1. In the **same transaction** as the state change, \`INSERT\` a row into an \`outbox\` table describing the message.
+          2. Commit. The change and the intent to notify are durable together, or neither exists.
+          3. A **relay** (a polling worker, or change-data-capture on the table) reads unsent rows, delivers them, and marks them sent.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "relay-crash",
+        prompt: "The relay delivers a message, then crashes before marking its row sent. What happens?",
+        options: [
+          {
+            id: "again",
+            label: "The row is delivered again after restart: consumers must be idempotent.",
+            correct: true,
+            why: "Delivery from an outbox is at least once. Include a unique message ID in each row so consumers can deduplicate. See [[idempotency]].",
+          },
+          {
+            id: "lost",
+            label: "The message is lost.",
+            why: "The row is still unsent, so it's retried.",
+          },
+          {
+            id: "once",
+            label: "Nothing; the outbox guarantees exactly once.",
+            why: "It guarantees nothing is lost, not that nothing repeats.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          The same trick works in reverse as an **inbox**: a consumer records incoming message IDs in the same transaction as their effects, deduplicating at-least-once input. Outbox plus inbox gives effectively-once processing between services without distributed transactions.
+
+          Ordering: a single relay processing rows in insertion order preserves order per source; parallel relays need ordering per key.
+        `,
+      },
+    ],
     assumptions: [
       "The state change lives in a database that can also hold the outbox table.",
       "Consumers deduplicate by message ID or are idempotent.",

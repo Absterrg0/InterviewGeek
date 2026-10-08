@@ -3,7 +3,7 @@ import { md } from "../md";
 
 export const realtimeCollaboration = {
   id: "realtime-collaboration",
-  title: "Real-time collaborative editor",
+  title: "A real-time collaborative editor",
   searchTitle: "Design a Collaborative Editor (Google Docs)",
   premise:
     "Many people edit the same document at once over unreliable connections. Every client must converge on the same text, no acknowledged keystroke may be lost, and daily deploys must not kick anyone out.",
@@ -210,6 +210,60 @@ export const realtimeCollaboration = {
       context: md`
         Real-time systems fail in ways that depend on numbers: message rates, fan-out factors, connection counts. Work some out before you choose anything. Useful figures: 20,000 connections at peak, about a tenth of users typing at any moment, 5-10 operations per second per typist, and one document with 30 editors and 200 viewers.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            "Last write wins" on the whole document means: whoever saves second replaces whatever the first person wrote. With two people typing in the same second, someone's sentence disappears.
+
+            Collaborative editing has to merge **operations** (insert "x" at this point, delete these characters), not replace whole documents.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "inbound",
+          prompt: "20,000 people connected, a tenth of them typing at about 7 operations a second. About how many operations a second arrive?",
+          answer: 14000,
+          unit: "ops per second",
+          working: md`
+            20,000 × 0.1 × 7 = **14,000 ops a second**. As 14,000 separate committed transactions that's heavy; batched per document it's modest.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "hot-doc",
+          prompt: "The all-hands doc: 30 editors at about 7 ops a second each, every op delivered to about 230 participants. About how many outbound messages a second?",
+          answer: 46000,
+          unit: "messages per second",
+          working: md`
+            30 × 7 ≈ 210 ops a second; × 230 recipients ≈ **48,000 messages a second** (about 46,000, excluding each sender) for one document. Delivery, not ingestion, is the hot path.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "connections",
+          prompt: "Do 20,000 idle WebSocket connections need a large server fleet?",
+          options: [
+            {
+              id: "no",
+              label: "No: an idle connection costs tens of kilobytes on an event-driven server; what costs is message rate and buffering.",
+              correct: true,
+              why: "20,000 × ~30 KB is well under a gigabyte. A few servers hold the connections; traffic decides the rest.",
+            },
+            {
+              id: "yes",
+              label: "Yes: one thread per connection.",
+              why: "Event-driven servers don't need a thread per connection.",
+            },
+            {
+              id: "depends",
+              label: "It depends on the database.",
+              why: "Connections are held by the collaboration servers, not the database.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -251,6 +305,11 @@ export const realtimeCollaboration = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Concurrent edits are normal: merge operations instead of replacing documents.",
+          "About 14,000 ops a second inbound means writes must be batched.",
+          "One hot document can need tens of thousands of outbound messages a second; connections themselves are cheap.",
+        ],
         reasoning: md`
           Three numbers frame the design:
 
@@ -273,6 +332,53 @@ export const realtimeCollaboration = {
       context: md`
         Each active editor streams 5-10 small operations a second *to* the server and receives everyone else's *from* it, ideally within 200 ms. Order matters: an editor's operations depend on the ones before them.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Transports differ in direction, overhead and ordering:
+
+            | Transport | Direction | Ordering of one client's messages |
+            | --- | --- | --- |
+            | Polling | client asks | each request separate |
+            | Server-Sent Events | server → client | ordered downstream only |
+            | HTTP POST per op | client → server | separate requests can arrive out of order |
+            | WebSocket | both ways, one connection | ordered both ways |
+
+            See [[server-push]] and [[persistent-connections]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "post-order",
+          prompt: "Each keystroke is a separate POST. Op 2 is sent before op 3, but op 3's request arrives first. What must the server do?",
+          options: [
+            {
+              id: "reorder",
+              label: "Reorder by a client sequence number, holding op 3 until op 2 arrives",
+              correct: true,
+              why: "Op 3 was computed assuming op 2 had happened. Separate requests lose ordering, so the server has to rebuild it. One WebSocket preserves it for free.",
+            },
+            {
+              id: "apply",
+              label: "Apply op 3 first; order doesn't matter",
+              why: "Edits depend on the ones before them. Applying them out of order puts text in the wrong place.",
+            },
+            {
+              id: "reject",
+              label: "Reject op 3",
+              why: "That throws away a valid edit that only arrived early.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            A persistent socket comes with commitments: heartbeats to detect dead clients, a protocol to resume after reconnecting, and a plan for deploys that close every socket.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should editor clients talk to the server?",
@@ -326,6 +432,11 @@ export const realtimeCollaboration = {
         },
       },
       reveal: {
+        takeaways: [
+          "High-rate, ordered traffic in both directions fits one persistent WebSocket per document.",
+          "Separate requests lose a client's operation order.",
+          "Sockets bring heartbeats, reconnect protocols and deploy handling as obligations.",
+        ],
         reasoning: md`
           Compare this with the status page in the video pipeline, where polling was the right call. The difference is the traffic: **a few updates over twenty minutes** versus **dozens of messages per second in both directions**. Same question, different constraints, different answer; see [[server-push]].
 
@@ -344,6 +455,53 @@ export const realtimeCollaboration = {
       context: md`
         Five editors of one document may be connected to five different servers. Each op must be ordered relative to every other op for that document, persisted, and delivered to the other four within 200 ms.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Every document needs **one authority** that decides the order of its operations. Clocks can't do it: client clocks disagree by seconds, so ordering by timestamp gives different orders on different machines. See [[ordering]].
+
+            Give each document an **owner** server: it holds the document in memory, assigns each op the next sequence number, persists it and broadcasts it. Ordering becomes a counter in memory.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            That turns ordering into **routing**: every connection for document 42 must reach its current owner. A router can map document IDs to servers with consistent hashing, so that when servers come and go, most documents stay where they are. See [[consistent-hashing]].
+          `,
+        },
+        {
+          kind: "simulation",
+          simulation: "consistent-hashing",
+          body: md`
+            Think of the keys as documents and the nodes as collaboration servers. Every key that moves is a document whose owner changes, and whose editors must reconnect.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "db-sequencer",
+          prompt: "Alternative: any server accepts any client, and each op takes the next sequence number from a row in Postgres. What's the cost?",
+          options: [
+            {
+              id: "round-trip",
+              label: "Every keystroke waits for a round trip to a contended database row before it can be ordered.",
+              correct: true,
+              why: "It works, but the document's counter row becomes a lock every op queues on, and every server must hold a copy of the document.",
+            },
+            {
+              id: "wrong",
+              label: "Operations end up in the wrong order.",
+              why: "The row lock does give a single order. The problem is latency and contention.",
+            },
+            {
+              id: "none",
+              label: "None: databases are fast.",
+              why: "A row updated by every keystroke of 30 editors is a contention point.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should servers coordinate on a document?",
@@ -398,6 +556,11 @@ export const realtimeCollaboration = {
       },
       reveals: { components: ["router", "owner"], flows: ["socket", "route"] },
       reveal: {
+        takeaways: [
+          "Each document needs one ordering authority; client clocks can't provide it.",
+          "A single owner per document makes sequencing a local counter.",
+          "The hard parts move to routing connections to the owner and keeping ownership unique.",
+        ],
         reasoning: md`
           [[partitioning|Partitioning]] by document turns a distributed ordering problem into a **routing problem**. Within one owner, ordering is a counter in memory. The hard parts are now:
 
@@ -430,6 +593,57 @@ export const realtimeCollaboration = {
       context: md`
         Alice and Bob both see "The cat sat." Alice inserts "black " before "cat" at position 4. At the same moment, Bob deletes "sat" at positions 8-10. Each sends an op computed against the text *they* saw. Applied naively in the server's order, Bob's delete removes the wrong characters on Alice's machine. And offline users may send hours of such ops at once.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Alice and Bob both edit "The cat sat." Alice inserts "black " at position 4. Bob deletes positions 8–10 ("sat"). Each op was computed against the text **they** saw.
+
+            Once Alice's insert has happened, everything after position 4 has shifted by 6 characters. Applied as-is, Bob's "delete 8–10" now removes the wrong characters.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "shifted",
+          prompt: "After Alice's insert the text is \"The black cat sat.\" Applied naively, Bob's delete of positions 8–10 (counting from 0) removes which characters?",
+          answer: md`
+            "k c": positions 8–10 of "The black cat sat." are "k", " " and "c". The text becomes "The blacat sat.", and "sat" survives. Bob's delete needed to be shifted right by 6, to positions 14–16.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Two families of algorithms make concurrent edits converge. See [[conflict-resolution]]:
+
+            - **Operational transformation (OT):** a central server transforms each incoming op against the ops it hadn't seen (shift Bob's delete by Alice's insert), then applies it in one agreed order.
+            - **CRDTs:** every character gets a stable identity, so ops say "delete character #a17" instead of "delete position 8". Ops then commute: they give the same result in any order.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "offline",
+          prompt: "A user edits offline for three hours, then reconnects. Which approach handles that more naturally?",
+          options: [
+            {
+              id: "crdt",
+              label: "CRDTs: ops merge in any order, so a long divergence is just more ops to exchange.",
+              correct: true,
+              why: "OT can handle it, but transforming hours of ops against hours of others' ops is expensive and complex. CRDTs pay instead with per-character metadata.",
+            },
+            {
+              id: "ot",
+              label: "OT: the server just transforms everything.",
+              why: "It can, but long divergence is OT's weak spot.",
+            },
+            {
+              id: "lock",
+              label: "Paragraph locks",
+              why: "Locks make offline editing impossible by definition.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should concurrent edits be merged?",
@@ -482,6 +696,11 @@ export const realtimeCollaboration = {
         },
       },
       reveal: {
+        takeaways: [
+          "Concurrent edits computed against different versions must be merged, not chosen between.",
+          "OT transforms ops against unseen ones in one agreed order; CRDTs make ops commute with stable identities.",
+          "Long offline sessions favour CRDTs; both still benefit from server sequence numbers.",
+        ],
         reasoning: md`
           Both OT and CRDTs guarantee **convergence**. They differ in *where* the correctness lives: OT relies on the central sequencer to transform ops in one agreed order, while CRDTs build it into the data structure so that order does not matter; see [[conflict-resolution]].
 
@@ -504,6 +723,48 @@ export const realtimeCollaboration = {
       context: md`
         Alice types a character. Follow the operation from her keyboard to Bob's screen. Getting the order right is what makes "no acknowledged edit is lost" true.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            **Custody**: at every moment, an edit must be held by someone who won't forget it: either the client's pending buffer (saved locally for offline use) or the durable log on the server.
+
+            The **acknowledgement** hands custody over. So the server may only ack once the log has the edit, and the client may only drop the edit from its buffer once it has the ack. See [[durability]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "local-first",
+          prompt: "Why does Alice's client apply her keystroke locally before the server has seen it?",
+          options: [
+            {
+              id: "latency",
+              label: "So typing feels instant; the op stays in her pending buffer until the server acknowledges it.",
+              correct: true,
+              why: "Waiting for a round trip per keystroke would make typing feel sluggish. The pending buffer keeps the op safe meanwhile.",
+            },
+            {
+              id: "trust",
+              label: "Because the client is the authority on order",
+              why: "The owner assigns order. The client applies locally only for responsiveness.",
+            },
+            {
+              id: "save",
+              label: "To save server load",
+              why: "The server still receives and processes every op.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "resend",
+          prompt: "Alice never sees the ack for op a:812 and resends it. How does the owner avoid applying it twice?",
+          answer: md`
+            Each op carries an id (client id + counter). The owner recognises a:812, finds the sequence number it already assigned, and acks with that instead of applying the op again.
+          `,
+        },
+      ],
       interaction: {
         kind: "ordering",
         prompt: "Order the life of a single operation.",
@@ -527,6 +788,11 @@ export const realtimeCollaboration = {
         `,
       },
       reveal: {
+        takeaways: [
+          "An edit is always in someone's custody: the client's pending buffer or the durable log.",
+          "Ack only once the log has the op; the client drops it only after the ack.",
+          "Op ids make resends idempotent.",
+        ],
         reasoning: md`
           The design rule is an invariant about **custody**: an op is always held by someone who will not forget it, either the client's pending buffer (persisted to IndexedDB for offline use) or the durable log. Custody is handed over by the ack, and the ack is only sent once the log has it; see [[durability]].
 
@@ -546,6 +812,44 @@ export const realtimeCollaboration = {
       context: md`
         Avatars show who is in the document; coloured cursors show where they are. Cursors move with every keystroke and every click. When someone closes their laptop, their avatar should disappear within seconds.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Presence (who's here) and cursors (where they are) describe **now**. They're useless a minute later, and they rebuild themselves within seconds when clients reconnect and re-announce. That makes them **soft state**: keep them in memory, refresh them with heartbeats, expire them on a short TTL. See [[soft-state]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "ghost",
+          prompt: "A laptop lid closes without a goodbye message. What removes that user's avatar?",
+          options: [
+            {
+              id: "ttl",
+              label: "Their heartbeats stop, and the presence entry expires on its short TTL.",
+              correct: true,
+              why: "A client that vanishes can't announce leaving. Expiry handles it without anyone needing to notice.",
+            },
+            {
+              id: "close",
+              label: "The socket's close event",
+              why: "A sleeping laptop may not close the socket cleanly for a long time.",
+            },
+            {
+              id: "cleanup",
+              label: "A nightly cleanup job",
+              why: "The avatar should disappear within seconds, not overnight.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Cursors move with every keystroke, but only the **latest** position matters. So cursor updates can be **coalesced** (send only the newest every 50–100 ms), throttled, and sent at most once: a lost cursor update is replaced by the next one.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "Where should presence and cursor positions live?",
@@ -599,6 +903,11 @@ export const realtimeCollaboration = {
         },
       },
       reveal: {
+        takeaways: [
+          "Presence and cursors are soft state: in memory, refreshed by heartbeats, expired by TTL.",
+          "Only the latest cursor matters, so coalesce, throttle and send at most once.",
+          "Keep edits durable and ordered; keep presence cheap and disposable.",
+        ],
         reasoning: md`
           The system now has two kinds of state with opposite needs:
 
@@ -630,6 +939,48 @@ export const realtimeCollaboration = {
       context: md`
         To reduce database load, an engineer changed the owner to buffer ops in memory and flush them to Postgres every two seconds. Find the design decisions that turned a crash into data loss.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            **Group commit** batches many writes into one transaction without weakening any of them: ops for a document accumulate for 10–20 ms, one transaction inserts them all, and **then** each op is acknowledged.
+
+            Throughput is the same as buffering longer; latency rises by a few milliseconds; and an ack still means "durable".
+          `,
+        },
+        {
+          kind: "choice",
+          id: "early-ack",
+          prompt: "The owner acks each op immediately and flushes to Postgres every 2 seconds. The process is killed 1.5 s after the last flush. What's lost?",
+          options: [
+            {
+              id: "acked",
+              label: "Up to 1.5 s of acknowledged ops, which clients already dropped from their buffers",
+              correct: true,
+              why: "The ack handed custody to a server that only had the ops in memory. Clients won't resend what they think is saved.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing: clients resend",
+              why: "Clients only resend unacknowledged ops. These were acknowledged.",
+            },
+            {
+              id: "one",
+              label: "Only the op being processed at the moment of the crash",
+              why: "Everything since the last flush was in memory only.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "client-ahead",
+          prompt: "After the crash, Bob reconnects claiming last_seq = 5131, but the log only reaches 5120. What should the new owner do?",
+          answer: md`
+            Not trust it. Bob has seen ops the log doesn't contain, so his document is ahead of the truth. Force a resync: send him the snapshot and log as they really are. Then he and everyone else converge on the same history.
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the lines where the design is at fault.",
@@ -685,6 +1036,11 @@ export const realtimeCollaboration = {
         },
       },
       reveal: {
+        takeaways: [
+          "Ack only after the op is durable; group commit keeps batching without weakening the ack.",
+          "Broadcast only after durability, so nobody sees ops that are later lost.",
+          "Treat a client's last-seen position as a claim and resync if it's ahead of the log.",
+        ],
         reasoning: md`
           The batching was not the mistake. The **early acknowledgement** was. Group commit keeps both properties: ops for a document accumulate for ~10-20 ms, one transaction inserts them all, and *then* every op in the batch is acked and broadcast. Throughput is the same, the guarantee is intact, and latency rises by a few milliseconds; see [[durability]].
 
@@ -709,6 +1065,48 @@ export const realtimeCollaboration = {
       context: md`
         Implement the client side of reconnection. The client knows its last-seen sequence number and holds its pending ops, each with a unique id. The server can return every op after a given sequence number.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Reconnection uses three things the design already has:
+
+            - A **position**: the client's last-seen sequence number.
+            - A **replay**: the log can return every op after that position, so the server doesn't need to remember the client. See [[event-log]].
+            - **Idempotent resends**: pending ops carry their original ids, so any the server already sequenced are skipped.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "pending-vs-remote",
+          prompt: "Alice has 40 pending ops; the log has 25 ops from Bob she hasn't seen. How do her edits avoid overwriting Bob's?",
+          options: [
+            {
+              id: "merge",
+              label: "Bob's ops are integrated and Alice's pending ops are rebased on top (transformed, or merged as CRDT ops).",
+              correct: true,
+              why: "Alice's ops were computed against an older document. The merge algorithm adjusts them so both sets of edits survive.",
+            },
+            {
+              id: "alice-wins",
+              label: "Alice's ops replace Bob's, since she's reconnecting.",
+              why: "That's last-write-wins, which loses Bob's work.",
+            },
+            {
+              id: "bob-wins",
+              label: "Alice's ops are discarded.",
+              why: "That loses 90 seconds of her typing.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Two more rules: apply remote ops in sequence order and ignore any with \`seq ≤ lastSeq\` (duplicates). And reconnect with exponential backoff plus jitter, so thousands of clients don't reconnect in the same instant. See [[retries-and-backoff]].
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement onReconnect and onServerMessage so that nothing is lost, duplicated or applied out of order.",
@@ -822,6 +1220,11 @@ export const realtimeCollaboration = {
         },
       },
       reveal: {
+        takeaways: [
+          "Resume from the client's last-seen sequence by replaying the log, not server memory.",
+          "Resend pending ops with original ids and rebase them over missed remote ops.",
+          "Apply remote ops in order, ignore duplicates, and back off with jitter.",
+        ],
         reasoning: md`
           Reconnection is where the earlier decisions pay off. Sequence numbers give the client a **position**; the durable log turns that position into a **replay**; op ids make every resend **idempotent**; the merge algorithm turns 40 local ops and 25 remote ones into one document. None of it needs the server to remember anything about Alice personally; see [[event-log]].
         `,
@@ -844,6 +1247,58 @@ export const realtimeCollaboration = {
       context: md`
         Deploys are the most common "failure" this system will ever see, and they happen every day. Evaluate each statement about getting through one.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Load-balancer **draining** waits for in-flight requests to finish before stopping a server. A WebSocket is one request that never finishes, so draining alone just waits out the timeout and cuts it.
+
+            The server has to hand off actively: stop accepting ops, flush pending batches, release ownership, and tell clients to reconnect.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "spread",
+          prompt: "20,000 clients reconnect with a random delay spread evenly over 10 seconds. About how many reconnections a second do the new servers face?",
+          answer: 2000,
+          unit: "per second",
+          working: md`
+            20,000 ÷ 10 = **2,000 a second**, instead of 20,000 handshakes, permission checks and catch-up reads in the same instant. Jitter turns a spike into a ramp.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            During handoff, two servers can briefly both believe they own a document: the old one mid-flush, the new one starting. Ownership is a [[leases-and-fencing|lease]] with an **epoch** number that increases with each new owner.
+
+            Appends to the log are conditioned on the owner's epoch, and \`(doc_id, seq)\` is unique, so a stale owner's write fails and it learns it lost.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "presence-deploy",
+          prompt: "Should presence be saved before a deploy so avatars survive it?",
+          options: [
+            {
+              id: "no",
+              label: "No: clients reconnect and re-announce within seconds; presence rebuilds itself.",
+              correct: true,
+              why: "That's the benefit of treating presence as soft state.",
+            },
+            {
+              id: "yes",
+              label: "Yes, or everyone's avatars disappear.",
+              why: "They disappear for a moment and come back as clients reconnect.",
+            },
+            {
+              id: "redis",
+              label: "Only if it's in Redis.",
+              why: "Where it lives doesn't change that it rebuilds itself.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -886,6 +1341,11 @@ export const realtimeCollaboration = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Draining doesn't end WebSockets: hand off actively and tell clients to reconnect.",
+          "Reconnect with jitter so new servers see a ramp, not a spike.",
+          "Fence ownership with epochs and a unique (doc, seq) so a stale owner can't fork history.",
+        ],
         reasoning: md`
           A graceful handoff for each document:
 
@@ -915,6 +1375,51 @@ export const realtimeCollaboration = {
       context: md`
         The single-owner design made ordering free. Now one document's traffic exceeds what one process can deliver. Sequencing is still cheap (200 ops/s); delivery is not (about 46,000 messages/s).
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Find the part of the work that **must** be serialized and keep only that part serialized. Here:
+
+            - **Sequencing** (assigning order) must be single-writer, and it's cheap: about 200 ops a second.
+            - **Delivery** (sending to 230 sockets) is expensive, and parallel by nature.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "batched",
+          prompt: "Instead of sending each op separately, each recipient gets one frame every 50 ms containing all new ops. With 230 recipients, how many frames a second?",
+          answer: 4600,
+          unit: "frames per second",
+          working: md`
+            20 frames a second × 230 recipients = **4,600 frames a second**, down from about 46,000 individual messages. Same ops, a tenth of the overhead.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "slow-viewer",
+          prompt: "A viewer on a bad connection reads slower than ops arrive. What should the server do with their send buffer?",
+          options: [
+            {
+              id: "bound",
+              label: "Bound it; when it fills, drop the buffered ops and let the client catch up from the log by sequence number",
+              correct: true,
+              why: "An unbounded buffer turns one slow viewer into growing memory on the owner. The log makes dropping safe: the client asks for what it missed.",
+            },
+            {
+              id: "grow",
+              label: "Let it grow until the viewer catches up",
+              why: "Several slow viewers can exhaust the owner's memory.",
+            },
+            {
+              id: "disconnect",
+              label: "Block the document until the viewer catches up",
+              why: "One slow viewer would stall 229 others.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you keep this document healthy?",
@@ -968,6 +1473,11 @@ export const realtimeCollaboration = {
         },
       },
       reveal: {
+        takeaways: [
+          "Keep only the necessary part serialized: sequencing stays single-writer, delivery scales out.",
+          "Batch ops into frames per recipient to cut per-message overhead.",
+          "Bound send buffers; slow clients fall back to catching up from the log.",
+        ],
         reasoning: md`
           The general move is to **find the part of the work that must be serialized, keep only that part serialized, and scale everything else out**. Here the serialized part (assigning sequence numbers) is tiny; the expensive part (delivering bytes to 230 sockets) is parallel by nature.
 
@@ -993,6 +1503,54 @@ export const realtimeCollaboration = {
       context: md`
         The op log is the source of truth, and replaying it from the start is how the owner rebuilds a document. That cost grows forever.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            When the log is the source of truth, loading a document means replaying it, and that cost grows with the document's whole life. A **snapshot** stores the document as it was at a given sequence number. Loading becomes: latest snapshot, then replay only the ops after it. See [[event-log]].
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "replay-after",
+          prompt: "Snapshots are taken every 2,000 ops. At most how many ops does a load replay after the latest snapshot?",
+          answer: 2000,
+          unit: "ops",
+          working: md`
+            At most **2,000**, compared with 2.3 million from the beginning. Load time is now bounded, whatever the document's age.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "snapshot-seq",
+          prompt: "Why must each snapshot record exactly which sequence number it includes?",
+          options: [
+            {
+              id: "resume",
+              label: "So replay starts at the next op, with no gap and no op applied twice",
+              correct: true,
+              why: "A snapshot without its position can't be combined with the log safely.",
+            },
+            {
+              id: "sort",
+              label: "So snapshots can be sorted by date",
+              why: "Sorting is a side benefit. The position is what makes replay correct.",
+            },
+            {
+              id: "size",
+              label: "To estimate its size",
+              why: "Size has nothing to do with it.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Snapshots never change once written, so they suit [[object-storage]]: keyed by \`{doc}/{seq}\`, written once, cached forever.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should documents be loaded and history served?",
@@ -1045,6 +1603,11 @@ export const realtimeCollaboration = {
         },
       },
       reveal: {
+        takeaways: [
+          "A snapshot is a cached fold of the log, keyed by the sequence number it includes.",
+          "Load = latest snapshot + ops after it, so load time stays bounded.",
+          "Keep the log after the latest snapshot for catch-up and correctness.",
+        ],
         reasoning: md`
           Snapshots are a **cache of the log's fold**, with the cache key being the sequence number. Like any cache they can be rebuilt from the source of truth, which is why the log after them must be kept, and why a snapshot without its position is useless; see [[event-log]].
 
@@ -1064,6 +1627,44 @@ export const realtimeCollaboration = {
       context: md`
         In the design review, someone asks: "Walk me through why every client ends up with the same document, and why we never lose an edit someone saw as saved. What failure would break each guarantee?"
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Three ideas carry this design, and the same three appear in jobs and payments:
+
+            - **A single authority per unit of state:** one owner per document, fenced by an epoch.
+            - **Custody transferred only once durable:** ack after commit; clients hold ops until acked.
+            - **Idempotent application of anything repeatable:** op ids, sequence numbers.
+
+            Defending the guarantees means naming the failure that would break each one.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "breaks",
+          prompt: "Which failure would break the 'no acknowledged edit is lost' guarantee?",
+          options: [
+            {
+              id: "early-ack",
+              label: "Acking an op before it's committed to the log",
+              correct: true,
+              why: "The client drops it on the ack. A crash before the commit then loses it with nobody holding a copy.",
+            },
+            {
+              id: "slow",
+              label: "A slow network",
+              why: "Slowness delays acks; the client keeps the op until one arrives.",
+            },
+            {
+              id: "reconnect",
+              label: "Reconnecting to a different server",
+              why: "The log and op ids make that safe.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Explain the convergence and durability guarantees, the mechanism behind each, and what would have to fail to break them.",
@@ -1104,6 +1705,11 @@ export const realtimeCollaboration = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Convergence comes from a convergent merge plus idempotent application by op id.",
+          "Durability comes from acking only after commit and clients holding ops until acked.",
+          "Name what breaks each guarantee: early acks, an unfenced second sequencer, a lost pending buffer.",
+        ],
         reasoning: md`
           The same three ideas from the other investigations carried this system: **a single authority per unit of state** (the document owner, like the job lease and the payment attempt), **custody that is only transferred once durable**, and **idempotent application of anything that can be repeated**. The technologies were different; the reasoning was not.
         `,

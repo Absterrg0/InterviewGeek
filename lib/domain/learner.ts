@@ -8,6 +8,7 @@
  * `learner-state.ts`'s job, and it validates as it parses.
  */
 import type { ArchitectureComponent, ArchitectureFlow, CodeLocation } from "./content";
+import type { DesignRound } from "./design-round";
 import { isSlug, type ClaimVerdict, type Dimension } from "./taxonomy";
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,8 @@ export type ResponseOf<K extends Response["kind"]> = Extract<Response, { kind: K
 
 export type RubricMark = (typeof RUBRIC_MARKS)[number];
 export type SelfAssessment = Record<string, RubricMark>;
+/** For each rubric point marked covered or partly: the passage of the answer that shows it. */
+export type Citations = Record<string, string>;
 
 // ---------------------------------------------------------------------------
 // Evidence
@@ -127,6 +130,8 @@ export type Attempt = {
   response: Response;
   submittedAt: string;
   selfAssessment: SelfAssessment | null;
+  /** Absent on attempts assessed before citations existed. */
+  citations?: Citations;
   /** Null until every part has been checked or self-assessed. */
   evidence: Evidence | null;
 };
@@ -187,4 +192,6 @@ export type LearnerState = {
   attempts: Attempt[];
   projects: Project[];
   interviews: InterviewSession[];
+  /** Blank-page design rounds. Added after the first states were written; filled in as empty when missing. */
+  rounds: DesignRound[];
 };

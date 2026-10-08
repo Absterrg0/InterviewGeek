@@ -37,6 +37,4 @@ export type InputProps<I, R extends Response> = {
   onSubmit: (response: R) => void;
 };
 
-/** Minimum length of written reasoning before it can be submitted. */
-export const MIN_RATIONALE = 30;
 export const MIN_ANSWER = 60;

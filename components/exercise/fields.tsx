@@ -11,6 +11,7 @@ export function WrittenField({
   rows = 5,
   mono = false,
   hint,
+  optional = false,
 }: {
   label: string;
   value: string;
@@ -20,14 +21,17 @@ export function WrittenField({
   rows?: number;
   mono?: boolean;
   hint?: string;
+  /** Can be left empty; a minimum only applies once something is written. */
+  optional?: boolean;
 }) {
   const id = useId();
   const length = value.trim().length;
-  const short = length < min;
+  const short = length < min && !(optional && length === 0);
   return (
     <div>
       <label htmlFor={id} className="block text-[0.875rem] font-medium leading-snug mb-2">
         {label}
+        {optional && <span className="ml-1.5 font-normal text-ink-3">Optional</span>}
       </label>
       <textarea
         id={id}
@@ -41,7 +45,10 @@ export function WrittenField({
       />
       <p id={`${id}-hint`} className="mt-2 text-xs text-ink-3">
         {short ? `Write at least ${min} characters (${length} so far). ` : ""}
-        {hint ?? "Your own words. You will compare them against the reference afterwards."}
+        {hint ??
+          (optional
+            ? "If you write down your reasoning, you can check it against the key points afterwards."
+            : "Your own words. You will compare them against the reference afterwards.")}
       </p>
     </div>
   );

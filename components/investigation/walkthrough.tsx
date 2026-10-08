@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Reveal } from "@/components/exercise/slots";
 import { EventBanner } from "@/components/investigation/event-banner";
+import { LessonStatic } from "@/components/lesson/lesson-static";
 import { DashList } from "@/components/page-header";
 import { Prose } from "@/components/prose";
 import { InlineText } from "@/components/prose-core";
@@ -44,6 +45,20 @@ export function StageWalkthrough({
         <div className="max-w-[66ch]">
           <Prose text={stage.context} />
         </div>
+
+        {stage.lesson && (
+          <details className="group max-w-[66ch]">
+            <summary className="flex w-fit cursor-pointer list-none items-center gap-2 text-[0.875rem] font-medium text-ink-2 select-none hover:text-ink [&::-webkit-details-marker]:hidden">
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" className="transition-transform group-open:rotate-90">
+                <path d="M3.5 2l3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              What you need to know first
+            </summary>
+            <div className="mt-4">
+              <LessonStatic steps={stage.lesson} />
+            </div>
+          </details>
+        )}
 
         <div className="max-w-[70ch]">
           <h4 className="eyebrow mb-2">What the stage asks</h4>

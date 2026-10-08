@@ -3,7 +3,7 @@ import { md } from "../md";
 
 export const notificationSystem = {
   id: "notification-system",
-  title: "Notifications without spam or silence",
+  title: "Notifications across email, push and in-app",
   searchTitle: "Design a Notification System",
   premise:
     "Product events become emails, push notifications and inbox items for millions of users. Respect every preference immediately, never notify twice, survive provider outages, and get the security alert out while a five-million-email announcement is in flight.",
@@ -145,6 +145,68 @@ export const notificationSystem = {
       context: md`
         Start with arithmetic and the provider's contract. Eight million notifications a day, a 500/s email limit, a five-million-user announcement, and a 30-second promise for security alerts.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            When a provider caps your sending rate, that cap is a **shared budget**. Every email of every kind draws from it: security alerts, comment notifications and marketing alike. The first numbers to work out are how long the big jobs occupy that budget, and what is left for everything else meanwhile.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "blast-hours",
+          prompt: "An announcement goes to 5 million users, and the provider allows 500 emails a second. About how many hours does it take?",
+          answer: 2.8,
+          unit: "hours",
+          working: md`
+            5,000,000 ÷ 500 = 10,000 seconds ≈ **2.8 hours**. For that whole time, the account has no spare capacity unless something reserves it.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "peak-rate",
+          prompt: "8 million notifications a day, with work-hour peaks at 10× the average. About how many a second at peak?",
+          answer: 930,
+          unit: "per second",
+          working: md`
+            8,000,000 ÷ 86,400 ≈ 93 a second on average. × 10 ≈ **930 a second** at peak.
+
+            If most of them are emails, the peak alone is nearly twice the provider's 500 a second. Something has to wait, and the design decides what.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            An **idempotency key** is an id you send with a request so the receiver can recognise a retry: "you already did 812, here's the same result". Payment APIs usually accept one. This email provider doesn't.
+
+            Without it, a request that times out is ambiguous: the email may or may not have been sent, and the provider gives you no way to ask.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "timeout-ambiguity",
+          prompt: "A send to the provider times out after 10 seconds. What do you know?",
+          options: [
+            {
+              id: "unknown",
+              label: "Nothing for certain: it may have been sent, or not.",
+              correct: true,
+              why: "The timeout is on your side. The provider may have sent the email and its response got lost, or it may never have received the request. Retrying risks a duplicate; not retrying risks silence.",
+            },
+            {
+              id: "not-sent",
+              label: "It wasn't sent, so it's safe to retry.",
+              why: "A timeout tells you the response didn't arrive in time, not that the work didn't happen.",
+            },
+            {
+              id: "sent",
+              label: "It was sent; the provider is just slow to confirm.",
+              why: "That's one possibility. Equally, the request may never have reached the provider.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -186,6 +248,11 @@ export const notificationSystem = {
         ],
       },
       reveal: {
+        takeaways: [
+          "A provider's rate limit is a shared budget; bulk sends can occupy all of it for hours.",
+          "Size for peaks, not averages, and decide in advance what waits when demand exceeds the limit.",
+          "Without provider idempotency keys, a timed-out send is ambiguous, so exactly-once email is impossible.",
+        ],
         reasoning: md`
           The provider's limit makes email capacity a **shared, scarce resource**, and the announcement can consume all of it for hours. Most of the design is about who gets that capacity and when.
 
@@ -203,6 +270,58 @@ export const notificationSystem = {
       context: md`
         Someone comments on an issue. Three followers should be notified. The comment must save quickly and reliably whatever the email provider is doing.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            When a request does two things, the slower and less reliable one sets the pace for both. If saving a comment also sends emails, the comment is as slow as the email provider and fails whenever the provider fails.
+
+            The fix is to make the comment record that notifications are **owed**, and let something else do the sending later.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "background-task",
+          prompt: "After saving the comment, the server starts an in-memory background task to send the emails, then responds. A deploy restarts the server 50 ms later. What happens?",
+          answer: md`
+            The task dies with the process, and the emails are never sent. Nothing records that they were owed, so nothing retries them, and nobody notices.
+
+            The intent to notify has to be stored somewhere durable before the request returns.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            A **dual write** updates two systems separately, say the database and then a queue. A crash between the two leaves them disagreeing: a comment with no notification, or a notification for a comment that was rolled back.
+
+            The **transactional outbox** avoids it: write the comment and an event row ("comment 991 created") in the **same database transaction**. Either both exist or neither does. A relay later reads new outbox rows and publishes them. See [[transactional-outbox]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "outbox-guarantee",
+          prompt: "With an outbox, the comment and its event commit together. The relay crashes before publishing the event. What happens?",
+          options: [
+            {
+              id: "later",
+              label: "The event is still in the outbox table, and the relay publishes it when it restarts.",
+              correct: true,
+              why: "The event is durable from the moment the comment committed. Publishing can be late, but it can't be lost.",
+            },
+            {
+              id: "lost",
+              label: "The event is lost, because it was never published.",
+              why: "It's a row in the same database as the comment. Until it's marked published, the relay will keep finding it.",
+            },
+            {
+              id: "rollback",
+              label: "The comment is rolled back, because its notification failed.",
+              why: "The transaction already committed. The point of the outbox is that publishing happens afterwards, independently.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should a comment lead to notifications?",
@@ -244,6 +363,11 @@ export const notificationSystem = {
         },
       },
       reveal: {
+        takeaways: [
+          "The product action must not depend on notification delivery for its latency or success.",
+          "Record the intent to notify atomically with the action (an outbox event), then deliver asynchronously.",
+          "Product services emit facts; the notification system owns channels, preferences and providers.",
+        ],
         reasoning: md`
           This is the [[transactional-outbox]] used as an **architectural boundary**. Product services emit facts ("comment 991 was created"); the notification system decides what those facts mean for whom. Adding a channel, changing a template or switching providers then touches one system, not twenty.
 
@@ -261,6 +385,64 @@ export const notificationSystem = {
       context: md`
         The event stream redelivers events after consumer restarts. Two planner instances can process the same event concurrently. Each must produce the same notifications, once.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Event streams deliver **at least once**. A consumer that processes an event and crashes before recording its progress will see that event again after restarting. Two consumer instances can also briefly process the same event during a rebalance.
+
+            So the planner must produce the same result however many times it sees an event.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            The most robust way is to give each notification an **identity derived from its cause**: (recipient, event id, channel). Store it under a unique constraint and insert with "ignore on conflict":
+
+            \`\`\`sql
+            INSERT INTO notifications (dedupe_key, user_id, …)
+            VALUES ('u88:evt991:email', 88, …)
+            ON CONFLICT (dedupe_key) DO NOTHING;
+            \`\`\`
+
+            The first insert creates the row. Every replay hits the constraint and does nothing.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "check-then-insert",
+          prompt: "Instead of a unique constraint, the planner first checks a Redis set of processed event ids, then inserts. Two planners get the same event at once. What can happen?",
+          options: [
+            {
+              id: "both",
+              label: "Both check, both see it's new, and both insert notifications.",
+              correct: true,
+              why: "The check and the insert are separate steps. Between them, the other planner can do the same check. Only an atomic operation, like the database's unique constraint, closes that gap.",
+            },
+            {
+              id: "one",
+              label: "Redis serialises the checks, so only one inserts.",
+              why: "Redis serialises each command, but 'check' and 'insert into Postgres' are two operations on two systems. Nothing stops both planners passing the check before either inserts.",
+            },
+            {
+              id: "error",
+              label: "The second planner gets an error from Redis.",
+              why: "Reading a set doesn't fail just because someone else is reading it too.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "identical-text",
+          prompt: "Why not deduplicate by skipping notifications whose text matches one sent to the same user in the last 5 minutes?",
+          answer: md`
+            Text isn't identity. Two different people commenting "+1" produce identical text and are genuinely two notifications, so one gets wrongly suppressed. And a replay that arrives six minutes later has a different time window, so it gets through.
+
+            Identity has to come from the cause (the event id), not from how the result looks.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should the planner avoid creating duplicate notifications?",
@@ -303,6 +485,11 @@ export const notificationSystem = {
         },
       },
       reveal: {
+        takeaways: [
+          "Derive each notification's identity from its cause: recipient, event id and channel.",
+          "Enforce uniqueness atomically with a unique constraint; a separate check-then-insert races.",
+          "This deduplicates notifications, not sends; a sender can still duplicate later.",
+        ],
         reasoning: md`
           A **derived key** is the most robust form of [[idempotency]]: nobody has to remember an id, because the id *is* the cause. \`INSERT … ON CONFLICT (dedupe_key) DO NOTHING\` makes replays free.
 
@@ -321,6 +508,58 @@ export const notificationSystem = {
       context: md`
         A user turns off comment emails. Notifications already planned for them are sitting in a queue behind an announcement and may not be sent for an hour. The requirement says preference changes take effect immediately.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A notification is **planned** at one moment and **sent** at another. Normally the gap is seconds. Behind a large announcement, or during a provider outage, it can be an hour.
+
+            Anything decided at planning time can be out of date by sending time. The question is which decisions must be checked again just before the irreversible step.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "unsubscribe-gap",
+          prompt: "A user turns off comment emails at 10:00. Three comment emails for them were planned at 09:55 and are queued behind an announcement until 10:40. If preferences are checked only at planning time, what happens?",
+          answer: md`
+            All three are sent at 10:40, forty minutes after the user said no. From their point of view, the setting didn't work.
+
+            Checking preferences again right before sending would have suppressed all three.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            There are good reasons to check at planning time as well. At fan-out scale, not creating unwanted deliveries saves work in every queue and sender.
+
+            When a send-time check cancels a delivery, record it as **suppressed** rather than deleting it. Support can then answer "why didn't I get this?" from the record.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "cache-ttl",
+          prompt: "Senders read preferences on every send. To save database load, should they cache them for an hour?",
+          options: [
+            {
+              id: "short",
+              label: "No: an hour-old cache means an unsubscribe can be ignored for an hour. Cache for seconds, or invalidate on change.",
+              correct: true,
+              why: "The requirement is that changes take effect immediately. A short TTL or explicit invalidation keeps reads cheap without making preferences stale.",
+            },
+            {
+              id: "hour",
+              label: "Yes: preferences rarely change, so an hour is fine.",
+              why: "Rare changes still need to take effect. An unsubscribe that's ignored for an hour can be a legal problem for marketing email.",
+            },
+            {
+              id: "never",
+              label: "No caching at all is ever acceptable.",
+              why: "Caching is fine if staleness is bounded to something the requirement tolerates, like a few seconds.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "Where should preferences be enforced?",
@@ -364,6 +603,11 @@ export const notificationSystem = {
         },
       },
       reveal: {
+        takeaways: [
+          "Decisions made at planning time can be stale at sending time; re-check right before the irreversible step.",
+          "Filter at planning too, to avoid creating unwanted work at fan-out scale.",
+          "Record suppressed deliveries so the history explains what happened.",
+        ],
         reasoning: md`
           Any decision made at one time and acted on later can be stale by the time it is acted on. The fix is to **re-validate at the point of action**, the same move as checking a lease token at completion.
 
@@ -381,6 +625,56 @@ export const notificationSystem = {
       context: md`
         Alice mentions Bob in a comment. Put the steps from her click to the push notification on Bob's phone in order.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A pipeline that crosses several services stays reliable when every hop follows the same rhythm: **record durably, act, record the outcome**. Each record lets the next step be retried without redoing or losing work.
+
+            When tracing a request, look for where the user's part ends. Everything after that can be slow or retried without them seeing it.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "where-request-ends",
+          prompt: "When can Alice's comment request return?",
+          options: [
+            {
+              id: "commit",
+              label: "As soon as the comment and its event have committed",
+              correct: true,
+              why: "From then on the notification is owed and durable. Planning, queueing and sending happen afterwards and don't affect her request.",
+            },
+            {
+              id: "planned",
+              label: "Once the planner has created Bob's notifications",
+              why: "That would make the comment wait for the notification system, which is the coupling the outbox removes.",
+            },
+            {
+              id: "sent",
+              label: "Once the push has reached Bob's phone",
+              why: "Then Alice's request would depend on APNs, the network and Bob's phone.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Push providers (APNs, FCM) report a device token as invalid when the app has been uninstalled or the token has rotated. Sending to it again will fail every time.
+
+            A sender that removes tokens as soon as a provider rejects them keeps each user's device list accurate without a separate cleanup job.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "inbox-first",
+          prompt: "Bob's inbox shows the mention even though the push to his phone failed. Why is that possible?",
+          answer: md`
+            The notification row is created by the planner **before** any delivery is attempted, and the inbox reads those rows. Push is one delivery of the notification, not the notification itself, so a failed push doesn't affect the inbox.
+          `,
+        },
+      ],
       interaction: {
         kind: "ordering",
         prompt: "Order the life of a mention notification.",
@@ -403,6 +697,11 @@ export const notificationSystem = {
         `,
       },
       reveal: {
+        takeaways: [
+          "The user's request ends when the action and its event commit; everything after is asynchronous.",
+          "At every hop: record durably, act, record the outcome, so each step can be retried safely.",
+          "Notifications exist before delivery, so the inbox doesn't depend on push or email succeeding.",
+        ],
         reasoning: md`
           Notice the pattern repeated at every hop: **record durably, then act, then record the outcome**. The comment records the event; the planner records notifications; the sender records the delivery state. Each record lets the next step be retried safely, and lets the inbox and support tools answer "what happened to this notification?"
         `,
@@ -427,6 +726,63 @@ export const notificationSystem = {
       context: md`
         The notification row is unique. The duplicate happened later, in sending. Find the design decisions that produced it.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A queue's **visibility timeout** is a lease: once a sender receives a message, the queue hides it for that long. If the sender doesn't acknowledge in time, the message reappears and another sender can receive it.
+
+            So the visibility timeout has to be longer than the slowest the work can take, or the sender has to extend it while it works.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "lease-vs-call",
+          prompt: "The visibility timeout is 5 s. The provider call's own timeout is 30 s. What can happen?",
+          options: [
+            {
+              id: "second",
+              label: "A slow call is still running when the message reappears, and a second sender sends the same email.",
+              correct: true,
+              why: "The queue gives up on the first sender after 5 s, while that sender is willing to wait 30 s. For 25 s both can be working on the same delivery.",
+            },
+            {
+              id: "cancel",
+              label: "The queue cancels the first sender's call after 5 s.",
+              why: "The queue can't reach into the sender's process. It just makes the message visible again.",
+            },
+            {
+              id: "fine",
+              label: "Nothing, as long as the provider usually answers in 50 ms.",
+              why: "Usually isn't always. The slow tail is exactly when duplicates appear.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            A second safeguard: record **state before the side effect**. Before calling the provider, the sender changes the delivery from \`queued\` to \`sending\` with a fresh **attempt token**, in one conditional update:
+
+            \`\`\`sql
+            UPDATE deliveries SET status = 'sending', attempt_token = $2
+            WHERE id = $1 AND status = 'queued'
+            \`\`\`
+
+            If another sender already claimed it, zero rows change and this one skips the delivery.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "still-possible",
+          prompt: "With a long enough lease and the claim, can a duplicate email still happen?",
+          answer: md`
+            Yes, rarely. If the provider call times out, the sender doesn't know whether the email went out. Retrying may send it twice. Not retrying may mean it was never sent.
+
+            The claim prevents two senders working at once. It can't remove the uncertainty of an unconfirmed send without the provider's help.
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the lines where the design is at fault.",
@@ -465,6 +821,11 @@ export const notificationSystem = {
         },
       },
       reveal: {
+        takeaways: [
+          "A queue lease shorter than the work lets a second worker take the same message mid-flight.",
+          "Record 'sending' with an attempt token before the side effect, so concurrent senders skip in-flight work.",
+          "Without provider idempotency, unknown outcomes can still duplicate; make that rare and choose deliberately.",
+        ],
         reasoning: md`
           Two separate ideas apply. **Leases** must outlive the work they protect, or be extended by heartbeats; this is the video pipeline's lesson again. **State before side effect**: mark the delivery \`sending\` with an attempt token, and treat an existing \`sending\` that is recent as "someone else has it".
 
@@ -487,6 +848,62 @@ export const notificationSystem = {
       context: md`
         The requirement: outages delay notifications but never lose them. Nothing about the outage is under your control except how you respond to it.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Per-message retries with backoff assume failures are **independent**: this message failed, the next one might not. A provider outage breaks that assumption. Every message fails for the same reason at the same time.
+
+            A **circuit breaker** watches failures across all calls to a dependency. When the failure rate crosses a threshold it "opens": calls stop for a while. Then it lets a few probe calls through, and closes again once they succeed.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "backlog-growth",
+          prompt: "The email queue grows by 400 messages a second during a 25-minute outage. About how many messages are waiting when it ends?",
+          answer: 600000,
+          unit: "messages",
+          working: md`
+            400 × 25 × 60 = **600,000 messages**. At the 500-a-second limit, draining them takes 1,200 s, about 20 minutes, on top of normal traffic. That's why the recovery drain needs the same rate limiting and priorities as normal sending.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "attempts-burn",
+          prompt: "Each message retries with exponential backoff and is marked failed after 5 attempts over about 2 minutes. The outage lasts 25 minutes. What happens?",
+          options: [
+            {
+              id: "lost",
+              label: "Messages exhaust their attempts during the outage and are marked failed: notifications are lost.",
+              correct: true,
+              why: "The retry budget is shorter than the outage. Per-message policies can't tell 'this message is bad' from 'the provider is down'.",
+            },
+            {
+              id: "fine",
+              label: "Backoff spaces the attempts out, so they succeed after the outage.",
+              why: "Only if the backoff schedule outlasts the outage. Five attempts over two minutes don't survive 25.",
+            },
+            {
+              id: "duplicate",
+              label: "Every message is sent five times.",
+              why: "Failed attempts mostly don't send anything. The risk here is loss, not duplication.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Failures also differ in kind, and each kind deserves a different response:
+
+            | Response | Kind | What to do |
+            | --- | --- | --- |
+            | 429, 503 | transient | retry later, with backoff |
+            | invalid address, unsubscribed | permanent | stop; mark failed |
+            | timeout | unknown | a policy choice: retry and risk a duplicate, or don't |
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should senders behave during the outage?",
@@ -530,6 +947,11 @@ export const notificationSystem = {
         },
       },
       reveal: {
+        takeaways: [
+          "Provider-wide outages need a channel-level response: pause, probe, then resume.",
+          "Keep deliveries durably queued during the outage; per-message retry budgets would otherwise lose them.",
+          "Classify failures as transient, permanent or unknown, and drain the backlog within the rate limit.",
+        ],
         reasoning: md`
           Per-message retry policies assume failures are independent. Provider outages are the opposite: **every message fails for the same reason at the same time**. The right unit of response is the channel. Stop, wait, probe, then drain at a controlled rate; see [[retries-and-backoff]] and [[backpressure]].
 
@@ -552,6 +974,61 @@ export const notificationSystem = {
       context: md`
         Same provider, same account, same 500/s.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Two different problems hide behind "urgent messages wait":
+
+            - **Order:** urgent work is behind other work in the same queue. Priorities or separate queues fix this.
+            - **Capacity:** even at the front of the queue, there is no capacity left to serve it. Only reserving capacity fixes this.
+
+            Here the capacity is the provider's 500 emails a second for the whole account.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "priority-capacity",
+          prompt: "Alerts get the highest priority in a shared queue, but bulk senders have already used this second's 500 sends. When does the alert go out?",
+          options: [
+            {
+              id: "next-second",
+              label: "When quota frees up, competing with bulk senders that are already waiting for the same quota",
+              correct: true,
+              why: "Priority decides which message a sender picks up, but every sender is waiting for the same exhausted quota. The alert has no capacity of its own.",
+            },
+            {
+              id: "immediately",
+              label: "Immediately, because it has top priority",
+              why: "Priority doesn't create sending capacity. The provider rejects anything over 500 a second whatever its priority.",
+            },
+            {
+              id: "after",
+              label: "After the whole announcement",
+              why: "Priority does help: it won't wait for millions of messages. But it can still wait on quota, which is unpredictable under load.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            **Reserving** capacity means giving each class its own token bucket that draws from the account limit, for example critical 50/s, transactional 150/s, bulk 300/s. Bulk can't take what's reserved for critical, so a critical alert waits only for other critical alerts.
+
+            Unused reserved tokens can be lent to bulk each second, so reservation costs little when there are no alerts.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "blast-slower",
+          prompt: "With 300 of the 500 sends a second reserved for bulk, about how many hours does the 5-million-user announcement take?",
+          answer: 4.6,
+          unit: "hours",
+          working: md`
+            5,000,000 ÷ 300 ≈ 16,700 s ≈ **4.6 hours**, compared with 2.8 hours at the full 500. That is the cost of guaranteeing the alerts, and less in practice when reserved capacity is lent to bulk while idle.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you keep security alerts fast during the announcement?",
@@ -594,6 +1071,11 @@ export const notificationSystem = {
         },
       },
       reveal: {
+        takeaways: [
+          "A latency guarantee under saturation needs reserved capacity, not just priority.",
+          "Give each class its own token bucket drawing from the shared provider limit, and lend unused capacity to bulk.",
+          "Separate accounts or domains isolate sender reputation as well as quota.",
+        ],
         reasoning: md`
           This is the fast-lane problem from the video pipeline in a different system: **a latency guarantee under saturation needs reserved capacity**. Here the capacity is a provider's rate limit rather than workers, and the mechanism is a [[rate-limiting|token bucket]] per class drawing from the account's 500/s.
 
@@ -617,6 +1099,57 @@ export const notificationSystem = {
       context: md`
         Batching changes notifications from "send when it happens" to "send what accumulated". Evaluate these statements about the new behaviour.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A digest replaces "send when it happens" with "periodically, send what accumulated". Two new things need care:
+
+            - The **digest itself** is a notification, sent by a scheduled job that can run twice, so it needs an identity too, such as (user, issue, hour window).
+            - **Membership**: which notifications went into which digest. If that isn't recorded atomically with the digest, a crash can put one notification in two digests, or in none.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "membership-crash",
+          prompt: "A digest job creates the digest record, crashes, and never marks the included notifications as 'in a digest'. The next run starts. What happens?",
+          answer: md`
+            Those notifications still look un-digested, so the next run includes them again. If the first digest was sent, the user gets them twice; if it wasn't, the first digest is an orphan record.
+
+            Creating the digest and marking its members in one transaction removes both outcomes.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            "Quiet hours from 22:00 to 07:00" means the **user's** 22:00. A server running in UTC has to convert using the user's time zone, including daylight-saving changes, which shift the offset twice a year in many regions.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "timezone",
+          prompt: "A user in Tokyo (UTC+9) set quiet hours 22:00–07:00. The server evaluates them in UTC. At 23:00 Tokyo time, is a notification held?",
+          options: [
+            {
+              id: "no",
+              label: "No: 23:00 in Tokyo is 14:00 UTC, outside 22:00–07:00 UTC, so it's sent in the middle of their night.",
+              correct: true,
+              why: "Evaluating in server time shifts quiet hours by the user's offset. They need to be checked in the user's own time zone.",
+            },
+            {
+              id: "yes",
+              label: "Yes: 23:00 is inside 22:00–07:00.",
+              why: "Only in Tokyo time. The server is comparing UTC, where it's 14:00.",
+            },
+            {
+              id: "depends",
+              label: "Only during daylight saving time.",
+              why: "Japan doesn't use daylight saving. The 9-hour offset alone breaks it.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -657,6 +1190,11 @@ export const notificationSystem = {
         ],
       },
       reveal: {
+        takeaways: [
+          "A digest is a notification too: give it a derived identity so a re-run can't send it twice.",
+          "Record digest membership in the same transaction that creates the digest.",
+          "Quiet hours are the user's local time; critical types bypass them by explicit policy.",
+        ],
         reasoning: md`
           Digests introduce **aggregation**, and aggregation needs the same care as everything else: a derived identity for the aggregate, atomic membership, and the side effect only after the record. The time-related claims are reminders that "when" is a user-facing concept: quiet hours and digest windows live in each user's local time.
         `,
@@ -672,6 +1210,66 @@ export const notificationSystem = {
       context: md`
         Write the core loop of an email sender: claim a delivery, check it is still wanted, respect the class's quota, send, and record the outcome. Handle transient, permanent and unknown outcomes differently.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A delivery moves through a small set of states. Each move is a **conditional update**: it only happens if the row is in the expected state, so concurrent senders can't both make it.
+
+            | From | To | When |
+            | --- | --- | --- |
+            | queued | sending | a sender claims it (with a fresh attempt token) |
+            | sending | sent | the provider accepted it |
+            | sending | suppressed | preferences no longer allow it |
+            | sending | failed | a permanent error, or a deliberate give-up |
+            | sending | queued | a transient error; try later |
+          `,
+        },
+        {
+          kind: "choice",
+          id: "token-why",
+          prompt: "Why condition the final update on the attempt token, not just the delivery id?",
+          options: [
+            {
+              id: "stale",
+              label: "So a slow, stale attempt can't overwrite the outcome recorded by a newer attempt",
+              correct: true,
+              why: "If an attempt was presumed dead and the delivery was re-queued and claimed again, the first attempt may still finish later. Its token no longer matches, so its update changes nothing.",
+            },
+            {
+              id: "speed",
+              label: "It makes the update faster",
+              why: "It's about correctness, not speed. The token identifies which attempt the update belongs to.",
+            },
+            {
+              id: "security",
+              label: "To stop users tampering with deliveries",
+              why: "Users never touch this table. The token protects against the system's own concurrent attempts.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            The order of steps inside one attempt matters:
+
+            1. Claim (\`queued → sending\`).
+            2. Re-check preferences: the last chance to cancel before something irreversible.
+            3. Take a token from the class's rate limit.
+            4. Call the provider.
+            5. Record the outcome, conditioned on the attempt token.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "stuck-sending",
+          prompt: "A sender claims a delivery and the machine dies mid-call. The delivery stays in 'sending' forever. What needs to exist?",
+          answer: md`
+            A **reaper**: a periodic job that finds deliveries in \`sending\` for far longer than any send could take (say 10 minutes), and moves them back to \`queued\` for another attempt. Without it, a crashed sender silently loses work.
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement processDelivery for the email channel.",
@@ -742,6 +1340,11 @@ export const notificationSystem = {
         },
       },
       reveal: {
+        takeaways: [
+          "Model each delivery as a state machine and make every transition a conditional update.",
+          "Re-check preferences and take quota immediately before the irreversible provider call.",
+          "Treat transient, permanent and unknown failures differently, and reap deliveries stuck in 'sending'.",
+        ],
         reasoning: md`
           The sender is a small [[state-machines|state machine]] with a policy at each transition: whether a send is still wanted, whether quota is available, and what kind of failure occurred. Most of the sender's correctness lives in the **WHERE clauses**, which is where it lives in every system in this course.
         `,
@@ -757,6 +1360,44 @@ export const notificationSystem = {
       context: md`
         The product manager asks for a simple promise in the help centre: "We never send the same notification twice." Explain what you can promise, what you cannot, and why.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Explaining a guarantee to a non-engineer comes down to three plain statements:
+
+            - **What we guarantee**, in terms of what the person sees.
+            - **What we can't**, and the one concrete situation where it happens.
+            - **What we chose** in that situation, and why it's the better failure for them.
+
+            Avoid words like "idempotent" or "at least once". Describe the outcome.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "honest-promise",
+          prompt: "Which public promise stays true during incidents?",
+          options: [
+            {
+              id: "rare",
+              label: "\"Duplicates are rare and can only happen when an email provider fails mid-send. Security alerts are always retried.\"",
+              correct: true,
+              why: "It names the exact residual case and the deliberate choice. It is true on the worst day, not just the average one.",
+            },
+            {
+              id: "never",
+              label: "\"We never send the same notification twice.\"",
+              why: "That's false whenever a provider times out after sending. A promise that breaks during incidents erodes trust exactly when it matters.",
+            },
+            {
+              id: "nothing",
+              label: "\"Notifications are delivered on a best-effort basis.\"",
+              why: "True but vague. It hides the real guarantees the system does make, like one notification per event per channel.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Explain to a non-engineer what the system guarantees about duplicates and missed notifications, and why a stronger promise is not possible.",
@@ -778,6 +1419,11 @@ export const notificationSystem = {
         `,
       },
       reveal: {
+        takeaways: [
+          "'Never' is a claim about every failure mode, including ones in systems you don't control.",
+          "Explain guarantees as outcomes: what's guaranteed, the one case that isn't, and the choice made there.",
+          "Prefer a slightly weaker promise that stays true during incidents.",
+        ],
         reasoning: md`
           The point is that **"never" is a claim about every failure mode**, including ones in systems you do not control. Engineers earn trust by making promises they can keep and explaining the trade they chose in terms the business can weigh. That is the same skill as defending a design in an interview, aimed at a different audience.
         `,

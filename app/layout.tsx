@@ -114,7 +114,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   name: SITE_NAME,
                   url: SITE_URL,
                   logo: `${SITE_URL}/apple-icon`,
-                  sameAs: ["https://github.com/Absterrg0/InterviewGeek"],
                 },
               ],
             }),

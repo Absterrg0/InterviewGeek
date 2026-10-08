@@ -22,6 +22,67 @@ export const storageConcepts: ConceptInput[] = [
       - **Consistency.** Major stores now give read-after-write consistency for new objects and overwrites, but LIST is slow and costly at scale, so do not use it as an index. Keep the index of what exists in your database.
       - **Immutability as a feature.** Because keys you never overwrite never change, they can be cached forever. Content-addressed or versioned keys (\`renditions/812/attempt-3/…\`) make CDN [[caching]] trivial and safe.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Videos, images, backups and exports are large and written once. In a relational database they bloat backups, replication and memory. On a server's local disk they're tied to a machine that will eventually be replaced.
+
+          **Object storage** keeps **objects** (a byte blob plus metadata) under a **key** in a **bucket**. The interface is deliberately small: \`PUT\` a whole object, \`GET\` it (or a byte range), \`DELETE\` it, \`LIST\` keys by prefix. There are no in-place edits; changing an object means writing a new one.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "append",
+        prompt: "Can you append log lines to an existing object?",
+        options: [
+          {
+            id: "no",
+            label: "No: you write a new object (or a new version) each time.",
+            correct: true,
+            why: "Objects are immutable. Logs are usually written as many small objects, or batched before upload.",
+          },
+          {
+            id: "yes",
+            label: "Yes, with PUT",
+            why: "PUT replaces the whole object.",
+          },
+          {
+            id: "range",
+            label: "Yes, with a byte-range write",
+            why: "Byte ranges apply to GET, not to writes.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Properties that shape designs:
+
+          - **Durability:** each object is stored redundantly across devices and facilities before the PUT succeeds; see [[durability]].
+          - **Multipart upload:** large objects upload in parts (5 MB to 5 GB each), in parallel, retried individually, then assembled by a "complete" call. Until then the object doesn't exist.
+          - **Presigned URLs:** your server signs a URL allowing one operation on one key until an expiry, so clients can upload or download directly, keeping bytes off your servers.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          Two more:
+
+          - **LIST is slow and costly at scale.** Don't use it as an index. Keep the index of what exists in your database.
+          - **Immutability is a feature.** A key you never overwrite never changes, so it can be cached forever. Versioned keys (\`renditions/812/attempt-3/…\`) make CDN [[caching]] trivial.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "two-stores",
+        prompt: "A video's bytes are in object storage and its metadata in Postgres, with no shared transaction. In what order should you delete them, and why?",
+        answer: md`
+          Database first (mark it deleted), then the objects. A crash in between leaves unreferenced files: garbage that costs money but breaks nothing. The reverse order leaves a database row pointing at missing files, which users see as a broken video.
+        `,
+      },
+    ],
     assumptions: [
       "Objects are written whole and rarely modified; access is by key rather than by query.",
       "Your database holds the metadata (which objects exist, who owns them, what state they are in).",
@@ -104,6 +165,64 @@ export const storageConcepts: ConceptInput[] = [
 
       A transaction covers **one database**. It cannot include an HTTP call to a payment provider, a message broker, or an email. Coordinating across systems needs other tools: the [[transactional-outbox]], [[idempotency]], and [[reconciliation]].
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Many operations are really several writes: debit one account and credit another; mark an order paid and record a fulfilment task. If the process crashes between them, or another request interleaves, the data ends up in a state no operation intended.
+
+          A **transaction** brackets writes with \`BEGIN\` and \`COMMIT\` so they take effect together or not at all.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          - **Atomicity:** changes go to a write-ahead log; on recovery, uncommitted transactions are rolled back, so all the writes are visible or none are.
+          - **Durability:** \`COMMIT\` returns only after the log record is flushed to stable storage (and, if configured, replicas). See [[durability]].
+          - **Isolation:** concurrent transactions are kept from seeing each other's partial work, **to a configurable degree**.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "read-committed",
+        prompt: "Under Postgres's default isolation (read committed), two transactions each run SELECT balance (100), check it's at least 80, then UPDATE balance = balance - 80. Both commit. What's the balance?",
+        answer: md`
+          −60. Both read 100 before either wrote, both passed the check, and both debited. Read committed prevents reading uncommitted data, not this check-then-act race.
+
+          Fixes: a conditional update (\`… WHERE balance >= 80\`), a row lock (\`SELECT … FOR UPDATE\`), or serializable isolation, which aborts one and requires a retry. See [[concurrency-control]].
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          A transaction covers **one database**. It can't include an HTTP call to a payment provider, a message broker, or an email. Coordinating across systems needs other tools: the [[transactional-outbox]], [[idempotency]], and [[reconciliation]].
+        `,
+      },
+      {
+        kind: "choice",
+        id: "api-in-tx",
+        prompt: "Code calls a payment API inside BEGIN … COMMIT. The API charges the card, then the COMMIT fails. What state are you in?",
+        options: [
+          {
+            id: "charged",
+            label: "The card is charged, and your database has no record of it.",
+            correct: true,
+            why: "The rollback undoes your database writes, not the provider's charge. The API call was never part of the transaction.",
+          },
+          {
+            id: "rolled-back",
+            label: "Both are rolled back.",
+            why: "The database can't roll back another company's system.",
+          },
+          {
+            id: "fine",
+            label: "Fine: the retry will fix it.",
+            why: "A retry without an idempotency key charges again.",
+          },
+        ],
+      },
+    ],
     assumptions: [
       "All the state that must change together lives in the same database.",
       "Transactions are short. Holding one open across slow network calls holds locks and connections.",
@@ -182,6 +301,68 @@ export const storageConcepts: ConceptInput[] = [
       - **Ordering requires a single sequencer per log**, or a partition per key; see [[ordering]].
       - **Corrections are new entries.** You cannot edit history; a refund is a new event, not a deletion of the charge.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          A row updated in place answers "what's the state now?" but not "how did it get here?", "what was it at 3 p.m.?" or "what changed since I last looked?".
+
+          An **append-only log** records each change as an entry with a position: \`(document 42, seq 5131, op …)\`. Entries are never modified. Current state is a **fold** over the log: start empty and apply entries in order.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          What a log buys:
+
+          - **History and audit:** every change, when, and what caused it.
+          - **Catch-up by position:** a client or replica that has seen up to position *n* asks for everything after *n*. No per-client buffers. Database replication, Kafka consumers and collaborative editors all resume this way.
+          - **Idempotent consumers:** a consumer that remembers its position can safely re-read.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "catch-up",
+        prompt: "A client was offline and last saw position 900. The log is at 1,250. What does it need from the server?",
+        options: [
+          {
+            id: "after",
+            label: "Entries 901 to 1,250",
+            correct: true,
+            why: "Its position is all the server needs. The server keeps no per-client state.",
+          },
+          {
+            id: "all",
+            label: "The whole log",
+            why: "It already has everything up to 900.",
+          },
+          {
+            id: "buffer",
+            label: "Whatever the server buffered for it while it was offline",
+            why: "With a log, there's no per-client buffer to keep.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          What a log costs:
+
+          - **Replay time grows forever.** Periodic **snapshots** store the folded state as of an exact position; loading is "latest snapshot, plus entries after it".
+          - **Ordering needs a single sequencer per log**, or a partition per key; see [[ordering]].
+          - **Corrections are new entries.** A refund is a new event, not a deletion of the charge.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "snapshot-position",
+        prompt: "A snapshot was taken 'around position 5,000' but the exact position wasn't recorded. What goes wrong on load?",
+        answer: md`
+          Replay doesn't know where to start. Start too early and some entries are applied twice; too late and some are skipped. A snapshot is only usable with the exact position it reflects.
+        `,
+      },
+    ],
     assumptions: [
       "There is a single authority assigning positions within each log (or partition).",
       "Entries are deterministic to apply, so replaying the same log yields the same state.",
@@ -252,6 +433,69 @@ export const storageConcepts: ConceptInput[] = [
 
       The design rule: **an acknowledgement is a promise, and it must not be sent before the promise is true.** A server that acks an edit and then batches it to disk a second later has promised durability it does not have; a crash in that second loses acknowledged work. Batching is fine as long as acknowledgements wait for the batch. That is *group commit*: the same throughput, at a few milliseconds of latency.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          A system acknowledges a write, then the process crashes, the machine loses power, or a disk dies. Was the write saved? It depends entirely on what happened **before** the acknowledgement, and acknowledging earlier is always faster, which is why systems are tempted to.
+
+          Durability is defined relative to a failure: "survives a process crash", "survives power loss", "survives losing the machine".
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          | Survives | Must have happened before the ack |
+          | --- | --- |
+          | process crash | data left the process (written to the OS) |
+          | power loss | data on stable storage: \`fsync\`, not just \`write()\` |
+          | machine or disk loss | data on another machine: synchronous replication |
+          | region loss | data in another region, with cross-region latency |
+
+          \`write()\` only puts data in the OS page cache. Databases commit by fsyncing a write-ahead log.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "async-replica",
+        prompt: "A primary acknowledges commits before its asynchronous replica confirms them. The primary's disk fails and the replica is promoted. What can be lost?",
+        options: [
+          {
+            id: "last",
+            label: "The last few committed transactions the replica hadn't received yet",
+            correct: true,
+            why: "Asynchronous replication doesn't wait for the replica, so the newest commits may exist only on the failed primary.",
+          },
+          {
+            id: "nothing",
+            label: "Nothing; replication makes it durable",
+            why: "Only synchronous replication guarantees the replica has every acknowledged commit.",
+          },
+          {
+            id: "everything",
+            label: "Everything since the last backup",
+            why: "The replica has nearly everything, just not the most recent commits.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          The rule: **an acknowledgement is a promise, and it must not be sent before the promise is true.**
+
+          Batching is fine if acknowledgements wait for the batch: that's **group commit**. Writes accumulate for a few milliseconds, one flush covers them all, then each is acknowledged. Same throughput; a few milliseconds more latency; the promise intact.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "early-ack",
+        prompt: "A server acknowledges each edit immediately and flushes to disk once a second. What does a crash cost?",
+        answer: md`
+          Up to a second of acknowledged edits. Clients were told they were saved and won't resend them. Acknowledging after the flush (group commit) removes the loss at almost no cost.
+        `,
+      },
+    ],
     assumptions: [
       "Storage hardware honours flushes (some consumer disks and virtualized layers do not).",
       "The failure model is explicit: which failures must not lose data, and which are acceptable.",
@@ -328,6 +572,72 @@ export const storageConcepts: ConceptInput[] = [
       - **Side effects attach to transitions,** and run only for the actor whose conditional update succeeded, ideally through a [[transactional-outbox]].
       - **Record why.** Store which event or actor caused each transition: an append-only history makes "how did this get here?" answerable.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          An order, a payment or a job is touched by many actors: the API, workers, webhooks, reconcilers, admins. Each sets a status. Without rules, a late or duplicate actor can move a \`paid\` order back to \`pending\`, resurrect a deleted video, or ship something twice.
+
+          A state machine defines the states and the **allowed transitions**: \`created → processing → succeeded | failed\`, \`succeeded → refunded\`.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          Enforce each transition where the data lives, with a **conditional update**:
+
+          \`\`\`sql
+          UPDATE payments SET status = 'succeeded', succeeded_at = now()
+          WHERE id = $1 AND status = 'processing';
+          \`\`\`
+
+          The \`WHERE status = 'processing'\` makes the database the arbiter. If two actors race, exactly one update matches; the other changes zero rows.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "app-check",
+        prompt: "Why not read the status in application code, check the transition is allowed, then write the new status?",
+        options: [
+          {
+            id: "race",
+            label: "Another actor can change the status between the read and the write; only the conditional update decides atomically.",
+            correct: true,
+            why: "Check-then-act in application code is the race. Putting the condition in the UPDATE makes check and act one step.",
+          },
+          {
+            id: "slow",
+            label: "It's slower.",
+            why: "It's about correctness, not speed.",
+          },
+          {
+            id: "same",
+            label: "It's equally safe.",
+            why: "Two actors can both read 'processing' and both write.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Design notes:
+
+          - **Make uncertainty a state.** "We sent the request and don't know the result" needs its own state with a defined way out ([[reconciliation]]). Guessing turns uncertainty into wrong data.
+          - **Terminal states are terminal.** Refunds and reversals are new transitions, not overwrites.
+          - **Side effects attach to transitions,** and run only for the actor whose update succeeded, ideally via a [[transactional-outbox]].
+          - **Record why:** which event or actor caused each transition.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "zero-rows",
+        prompt: "A worker's conditional update to 'succeeded' changes zero rows. What does that mean, and what should it do?",
+        answer: md`
+          Someone else already moved the entity (or it's in a state this transition doesn't start from). It's information, not an error: the worker should stop, not retry, and not run the transition's side effects.
+        `,
+      },
+    ],
     assumptions: [
       "Every actor that changes the state goes through the same conditional transitions.",
       "The state lives in one place that supports atomic conditional updates.",
@@ -401,6 +711,59 @@ export const storageConcepts: ConceptInput[] = [
 
       The order matters: until step 5, the old store is authoritative and every step can be undone.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Data outgrows its home: a table needs a new shape, a database needs sharding, a store needs replacing. The system can't stop while billions of rows move, and rows keep changing during the copy. "Copy, then switch" loses every write made during the copy, and a big-bang cutover has no way back.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          The safe pattern moves in reversible steps:
+
+          1. **Dual write:** every new write goes to the old store (still authoritative) and the new one, via application code or, more reliably, a change log.
+          2. **Backfill** history, without overwriting newer values, throttled so production isn't starved.
+          3. **Verify:** sample rows, compare counts by range, and run **dark reads** that query both and alert on mismatches.
+          4. **Switch reads** gradually, keeping dual writes.
+          5. **Switch writes** so the new store becomes the source of truth.
+          6. **Clean up** once nothing reads the old store.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "why-reads-first",
+        prompt: "Why switch reads before writes?",
+        options: [
+          {
+            id: "rollback",
+            label: "While writes still go to the old store, it stays authoritative, so you can switch reads back if the new one is wrong.",
+            correct: true,
+            why: "Every step before the write switch can be undone. That's what makes the migration safe.",
+          },
+          {
+            id: "faster",
+            label: "Reads are easier to move.",
+            why: "Ease isn't the point. Reversibility is.",
+          },
+          {
+            id: "order",
+            label: "The order doesn't matter.",
+            why: "Switching writes first removes the old store's authority before you've proved the new one.",
+          },
+        ],
+      },
+      {
+        kind: "predict",
+        id: "blind-upsert",
+        prompt: "The backfill upserts every historical row unconditionally while dual writes are running. What goes wrong?",
+        answer: md`
+          A row scanned before a recent write can overwrite the newer dual-written version with an older one. Backfill writes must be conditional: insert if absent, or only if the stored version is older.
+        `,
+      },
+    ],
     assumptions: [
       "Writes can be captured completely (in code or from a log).",
       "Rows have a version or timestamp so the backfill can avoid clobbering newer data.",
@@ -473,6 +836,65 @@ export const storageConcepts: ConceptInput[] = [
 
       The engine trades read work and background compaction for cheap writes. Designs on top of it should keep partitions bounded and avoid read patterns that scan many deleted rows.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Updating data in place, as B-tree databases do, means random disk writes, the slowest thing a disk does. Write-heavy systems (chat history, metrics, event logs) want writes as cheap as an append.
+
+          An LSM (log-structured merge) tree never updates in place.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          1. A write is appended to a **commit log** (for durability) and inserted into an in-memory sorted table, the **memtable**. Nothing on disk is modified.
+          2. When the memtable fills, it's flushed to disk as an immutable sorted file, an **SSTable**.
+          3. A read checks the memtable, then possibly **several SSTables**, newest first. Bloom filters skip files that can't contain the key, but reads still cost more than writes.
+          4. **Compaction** merges SSTables in the background, discarding overwritten values, using disk and CPU that traffic also needs.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "cheaper",
+        prompt: "In an LSM store, which is usually cheaper: a write or a read?",
+        options: [
+          {
+            id: "write",
+            label: "A write: it's an append to a log and a memory insert.",
+            correct: true,
+            why: "Reads may have to consult several files. LSM trees trade read work and background compaction for cheap writes.",
+          },
+          {
+            id: "read",
+            label: "A read: data is sorted.",
+            why: "Sorted within each file, but a key may be in any of several files.",
+          },
+          {
+            id: "same",
+            label: "They cost the same.",
+            why: "The whole design is an asymmetry in favour of writes.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          5. A delete can't erase a value from an immutable file, so it writes a **tombstone**. Tombstones stay until compaction can remove them safely (after a grace period, so replicas that missed the delete don't resurrect the value). A read across many tombstones must scan them all.
+
+          So designs on LSM stores keep partitions bounded and avoid reading through lots of deleted rows.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "delete-space",
+        prompt: "You delete a million rows from an LSM store. Does disk usage go down right away?",
+        answer: md`
+          No, it goes **up**: each delete writes a tombstone. Space is reclaimed only when compaction merges the tombstones with the old values, after the grace period.
+        `,
+      },
+    ],
     assumptions: [
       "The workload is write-heavy or append-mostly.",
       "Reads mostly fetch recent data or single partitions.",
@@ -544,6 +966,59 @@ export const storageConcepts: ConceptInput[] = [
 
       Execution works on blocks of column values at a time, which uses the CPU efficiently. The result: scans and aggregates over billions of rows in seconds, and point lookups and updates that are slow by comparison.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          An analytics query like "signups per day from Germany this quarter" touches millions of rows but only two or three columns. A **row store** keeps each row's columns together, so it reads every column of every matching row and throws most of it away.
+
+          A **column store** lays data out one column at a time, so a query reads only the columns it names.
+        `,
+      },
+      {
+        kind: "estimate",
+        id: "saving",
+        prompt: "Rows are 1 KB with 50 columns of about 20 bytes. A query uses 3 columns of 10 million rows. Reading only those columns, about how many megabytes are read (before compression)?",
+        answer: 600,
+        unit: "MB",
+        working: md`
+          3 columns × 20 bytes × 10,000,000 rows = **600 MB**, against 10 GB for whole rows. And columns compress well, so the real figure is smaller still.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          - Values in one column look alike, so they **compress** very well, often 10× or more.
+          - Data is kept in a **sort order**, which acts as a coarse index: blocks whose min and max rule them out are skipped.
+          - Data arrives in **batches** that become immutable parts merged in the background. One row at a time makes too many tiny parts.
+          - **Updating or deleting** a row rewrites the parts containing it: fine occasionally, ruinous as a regular workload.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "bad-at",
+        prompt: "Which workload suits a column store worst?",
+        options: [
+          {
+            id: "point",
+            label: "Fetching and updating single rows by ID, thousands of times a second",
+            correct: true,
+            why: "A single row is spread across every column's files, and updates rewrite whole parts. That's row-store territory.",
+          },
+          {
+            id: "aggregate",
+            label: "Counting events per day over a year",
+            why: "That's exactly what column stores excel at.",
+          },
+          {
+            id: "filter",
+            label: "Filtering by a sorted column",
+            why: "The sort order lets it skip most blocks.",
+          },
+        ],
+      },
+    ],
     assumptions: [
       "Queries aggregate many rows but read few columns.",
       "Data is mostly appended in batches and rarely updated.",

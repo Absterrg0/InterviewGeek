@@ -11,7 +11,8 @@ import { Brand, DesktopNav, MobileNav } from "@/components/site-nav";
  */
 export function SiteHeader({ investigations }: { investigations: StageBarInvestigation[] }) {
   const pathname = usePathname();
-  const match = pathname.match(/^\/investigations\/([^/]+)\/([^/]+)/);
+  // The design round is a blank page on purpose: no stage navigation under the bar.
+  const match = pathname.match(/^\/investigations\/([^/]+)\/(?!design(?:\/|$))([^/]+)/);
   const investigation = match ? investigations.find((inv) => inv.id === match[1]) : undefined;
   const [open, setOpen] = useState(false);
   const [openedAt, setOpenedAt] = useState(pathname);

@@ -3,7 +3,7 @@ import { md } from "../md";
 
 export const videoPipeline = {
   id: "video-processing-pipeline",
-  title: "Reliable video processing pipeline",
+  title: "A reliable video processing pipeline",
   searchTitle: "Design a Video Processing Pipeline",
   premise:
     "Instructors upload multi-gigabyte lectures that take minutes to transcode. Workers crash, deploys interrupt jobs, and the same job can run twice. Every accepted upload must end in exactly one correct, visible outcome.",
@@ -207,6 +207,74 @@ export const videoPipeline = {
 
         Decide whether each statement holds, fails, or depends on something the brief has not settled.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Network speeds are quoted in **bits** per second; file sizes in **bytes**. One byte is 8 bits, so 1 GB is 8 gigabits. To get a transfer time, convert the file to bits and divide by the link speed.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "upload-minutes",
+          prompt: "A 4 GB file uploads over a 20 Mbps home connection. About how many minutes does it take?",
+          answer: 27,
+          unit: "minutes",
+          working: md`
+            4 GB × 8 = 32 gigabits = 32,000 megabits. 32,000 ÷ 20 = 1,600 seconds ≈ **27 minutes**.
+
+            Any server on the path of those bytes has to keep a connection alive for half an hour, through its own timeouts and deploys.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            **Little's law:** the average number of jobs in a system equals the arrival rate times the time each job spends there.
+
+            \`\`\`
+            L = λ × W
+            \`\`\`
+
+            It holds for any stable system, whatever the pattern of arrivals. It turns "how many per second" and "how long each" into "how many at once", which is the number that sizes a worker fleet.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "peak-concurrency",
+          prompt: "Sunday peak: about 0.12 uploads arrive per second, and each transcode takes 750 seconds. How many transcodes are in flight at once if nothing waits?",
+          answer: 90,
+          unit: "transcodes",
+          working: md`
+            L = 0.12 × 750 = **90** transcodes in flight.
+
+            With 20 workers, the other 70 wait in a queue, and the queue grows for as long as the peak lasts.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "crash-means",
+          prompt: "A worker dies 14 minutes into a 20-minute transcode. The requirement says accepted uploads are never lost. What does that force?",
+          options: [
+            {
+              id: "rerun",
+              label: "The job must be able to run again, so running twice must be harmless.",
+              correct: true,
+              why: "The only alternative to re-running is never finishing, which breaks the requirement. And since a slow worker looks like a dead one, sometimes both will run.",
+            },
+            {
+              id: "resume",
+              label: "The new worker must resume from minute 14.",
+              why: "Checkpointing could save time, but it's an optimization. The requirement only forces that the work happens again somewhere.",
+            },
+            {
+              id: "prevent",
+              label: "The system must guarantee each job runs exactly once.",
+              why: "Nothing can promise that when workers can stall or crash. The realistic goal is that a second run causes no harm.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which of these follow from the requirements and constraints?",
@@ -253,6 +321,11 @@ export const videoPipeline = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Convert sizes to bits and divide by link speed: a 4 GB upload over home broadband takes about half an hour.",
+          "Little's law (L = λW) turns arrival rate and job time into concurrent jobs, which sizes the fleet.",
+          "When workers can crash, jobs must be safe to run twice.",
+        ],
         reasoning: md`
           The two numbers to keep are **~30 minutes** for an upload and **~90 concurrent transcodes** at peak. Together they rule out most of the prototype.
 
@@ -289,6 +362,62 @@ export const videoPipeline = {
 
         Choose where the file's bytes travel and where they come to rest.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A system has two kinds of traffic:
+
+            - The **control plane**: small, important decisions. Who may upload, which video this is, what state it's in. It needs authorization and belongs in your API and database.
+            - The **data plane**: the bytes themselves. Here, gigabytes of video. It should take the shortest path to storage built for large blobs.
+
+            Mixing them makes the API tier carry traffic it's bad at.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            **Object storage** (S3 and similar) stores files ("objects") by key, durably, at a low price per gigabyte. Two features matter here:
+
+            - A **presigned URL** is a link your server signs that lets whoever holds it do one specific thing, such as upload part 3 of one object, until it expires. The client never sees storage credentials.
+            - **Multipart upload** splits a file into parts uploaded separately, even in parallel. If one part fails, only that part is retried. See [[object-storage]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "deploy-kills",
+          prompt: "Uploads stream through the API servers into storage. The API is redeployed 4 times a day. What happens to a 27-minute upload that's in progress during a deploy?",
+          options: [
+            {
+              id: "killed",
+              label: "Its connection is cut when its server is replaced, and the upload starts over.",
+              correct: true,
+              why: "A redeploy replaces the process holding the connection. Whatever the timeout settings, an upload running through that tier can't outlive the process.",
+            },
+            {
+              id: "drained",
+              label: "The load balancer moves it to a new server without interruption.",
+              why: "Load balancers move new requests, not a single in-flight HTTP request's stream.",
+            },
+            {
+              id: "fine",
+              label: "Nothing, as long as the timeout is raised to an hour.",
+              why: "Raising the timeout helps with the 60-second cut, but not with the process being replaced.",
+            },
+          ],
+        },
+        {
+          kind: "estimate",
+          id: "resume-saves",
+          prompt: "A 4 GB file is uploaded in 100 MB parts, and the connection drops during part 31. With multipart upload, about how many megabytes have to be sent again?",
+          answer: 100,
+          unit: "MB",
+          working: md`
+            Only part 31: **100 MB**. Parts 1 to 30 are already stored. Without multipart, the whole 4 GB would start over.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should the file get from the browser to durable storage?",
@@ -353,6 +482,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "Separate the control plane (authorization, state) from the data plane (bytes).",
+          "Send large uploads directly to object storage with presigned, scoped, expiring URLs.",
+          "Multipart upload makes a dropped connection cost one part, not the whole file.",
+        ],
         reasoning: md`
           The underlying move is separating the **control plane** from the **data plane**. The control plane (who may upload, which video this is, what state it is in) is small, needs authorization and belongs to your API and database. The data plane (gigabytes of bytes) should travel the shortest path to storage built for it. See [[object-storage]].
 
@@ -385,6 +519,66 @@ export const videoPipeline = {
 
         The browser is the first to know the parts are uploaded, but it is also the least reliable participant: tabs close, laptops sleep, and clients can be buggy or malicious.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Video status is a **state machine**: a fixed set of states and the allowed moves between them.
+
+            \`\`\`
+            uploading → queued → processing → ready
+                                            ↘ failed
+            \`\`\`
+
+            Each move should happen because of a fact the system has checked, not because a participant said so.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "trust",
+          prompt: "The browser says \"all parts uploaded\". Why not move the video to queued on that alone?",
+          options: [
+            {
+              id: "unverified",
+              label: "The claim may be wrong (a failed last part, a bug), and the error would surface much later as a confusing processing failure.",
+              correct: true,
+              why: "If the API completes the multipart upload itself, storage tells it whether the object exists and how big it is. Moving on a verified fact keeps the status honest.",
+            },
+            {
+              id: "slow",
+              label: "It's slower than waiting for a storage event.",
+              why: "The client's call is usually the fastest signal. The problem is trusting it without checking.",
+            },
+            {
+              id: "security-only",
+              label: "Only because a malicious client could lie.",
+              why: "Malice is one reason, but honest bugs and failed parts are more common. Verification protects against both.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Triggers fire more than once: a client retries its request, a storage event is delivered twice. Each trigger tries the same transition, so the transition must be safe to attempt twice. A **conditional update** does that:
+
+            \`\`\`sql
+            UPDATE videos SET status = 'queued'
+            WHERE id = $1 AND status = 'uploading';
+            \`\`\`
+
+            The first attempt changes one row. Every later attempt changes zero.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "tab-closes",
+          prompt: "An instructor's upload finishes, and they close the laptop before the browser reports completion. What does the design need so this video doesn't stay 'uploading' forever?",
+          answer: md`
+            A backstop that doesn't depend on the client: a periodic sweep (a **reconciler**) that checks old \`uploading\` videos against storage, completing those whose objects exist and failing the rest as abandoned. Storage events can play the same role.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What should trigger the transition from uploading to queued?",
@@ -441,6 +635,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "Advance state on facts verified against storage, not on a client's claim.",
+          "Make each transition a conditional update so duplicate triggers are harmless.",
+          "Anything that relies on a client calling back needs a reconciler for clients that don't.",
+        ],
         reasoning: md`
           Treat video status as a [[state-machines|state machine]] whose transitions are **conditional updates**:
 
@@ -478,6 +677,57 @@ export const videoPipeline = {
 
         You have Postgres. A managed message queue (at-least-once delivery, visibility timeouts) is also available if you want one.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Work that outlives a request has to become a **durable record** somewhere: a row, or a message in a queue. A job that exists only in a process's memory dies with that process, and nothing remembers it was owed.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            When one action changes two systems, say "mark the video queued" in Postgres and "publish a job" to a message queue, a crash between the two leaves them disagreeing. That's the **dual write** problem.
+
+            If both changes live in the same database, a single [[transactions|transaction]] makes them happen together or not at all.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "dual-write",
+          prompt: "The API updates the video to 'queued' in Postgres, then publishes a message to the queue. The process crashes between the two. What state is the system in?",
+          answer: md`
+            The video says \`queued\`, but no job message exists. No worker will ever pick it up, and nothing notices. The video stays queued forever.
+
+            Writing the job as a row in the same transaction (or writing an outbox row that a relay publishes) removes that window.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Postgres can act as a queue at modest volume. Workers claim jobs with:
+
+            \`\`\`sql
+            SELECT id FROM jobs WHERE status = 'queued'
+            ORDER BY created_at
+            FOR UPDATE SKIP LOCKED LIMIT 1
+            \`\`\`
+
+            \`FOR UPDATE\` locks the chosen row; \`SKIP LOCKED\` makes other workers skip rows that are locked instead of waiting for them.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "jobs-per-second",
+          prompt: "20,000 jobs a day (10× launch volume). About how many jobs per second is that on average?",
+          answer: 0.23,
+          unit: "per second",
+          working: md`
+            20,000 ÷ 86,400 ≈ **0.23 a second**, or one every four seconds. A database handles thousands of small writes a second, so job traffic is a rounding error. A separate queue system would solve a problem this volume doesn't have.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should a queued video become work that a worker picks up?",
@@ -533,6 +783,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "Record jobs durably; a job that lives only in memory dies with its process.",
+          "Write the status change and the job in one transaction to avoid a dual write.",
+          "At a few jobs a minute, a Postgres table with SKIP LOCKED is a respectable queue.",
+        ],
         reasoning: md`
           The deciding question is not "which tool is built for queues" but "**which design leaves no window where state and work disagree?**". With a jobs table, confirming the upload is one transaction:
 
@@ -575,6 +830,56 @@ export const videoPipeline = {
       context: md`
         You have made the structural decisions. Before you start breaking things, trace one video all the way through. Getting the order right matters: several of the system's guarantees depend on which step happens before which.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            When several writes together make something visible, their **order** decides what a reader can see in between. A safe rule: write the things being pointed to before the thing that points to them.
+
+            For a video: segments are pointed to by the manifest, and the manifest is pointed to by the video's status. So segments first, then manifest, then status.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "wrong-order",
+          prompt: "Suppose a worker flipped the status to 'ready' first, then wrote the manifest and segments. What could a student see?",
+          answer: md`
+            A video marked ready whose manifest or segments don't exist yet: a player error, or a stream that stops part-way. If the worker crashed before finishing, the broken state would be permanent.
+
+            Writing in pointer order means a reader that sees "ready" can always find everything it points to.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            A habit that catches most ordering bugs: for every write, ask **"what does a reader see if the process dies right after this?"** Acceptable answers are "garbage nobody references" or "unfinished work that a retry will finish". Unacceptable answers involve a reader following a reference to something that isn't there.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "after-manifest",
+          prompt: "A worker dies after writing the manifest but before flipping the status. What's the state?",
+          options: [
+            {
+              id: "unpublished",
+              label: "A complete but unpublished attempt; a retry redoes it, wasting compute but breaking nothing.",
+              correct: true,
+              why: "Nothing points to this attempt's output yet, so no reader sees it. The lease expires, another worker reruns the job, and its own publish is what students see.",
+            },
+            {
+              id: "broken",
+              label: "A broken video visible to students.",
+              why: "Students only see a video once its status says ready, and that hasn't happened.",
+            },
+            {
+              id: "lost",
+              label: "The upload is lost.",
+              why: "The raw upload is untouched in storage. Only the transcode needs repeating.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "ordering",
         prompt: "Put the steps of a successful upload in the order they happen.",
@@ -599,6 +904,11 @@ export const videoPipeline = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Write what's pointed to before what points to it: segments, then manifest, then status.",
+          "The status flip is the single atomic publish step.",
+          "For every write, ask what a reader sees if the process dies right after it.",
+        ],
         reasoning: md`
           A useful habit: for every write, ask what a reader sees if the process dies right after it.
 
@@ -622,6 +932,56 @@ export const videoPipeline = {
       context: md`
         An instructor watches the video page after uploading. Status changes perhaps four times over 20 minutes: queued, processing, ready or failed. The status lives in Postgres and is changed by workers, which are separate processes from the API servers the browser talks to.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            There are three common ways for a page to learn about changes:
+
+            | Method | How | Good for |
+            | --- | --- | --- |
+            | Polling | the client asks every few seconds | rare changes, delays of seconds acceptable |
+            | Server-Sent Events | the server keeps a one-way stream open | frequent server-to-client updates |
+            | WebSockets | a two-way connection | both sides sending often (chat, collaboration) |
+
+            See [[server-push]].
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "poll-load",
+          prompt: "200 instructors have the upload page open, and each page polls every 5 seconds. About how many requests a second does that add?",
+          answer: 40,
+          unit: "requests per second",
+          working: md`
+            200 ÷ 5 = **40 requests a second**, each a primary-key read. That is a negligible load for an API and database.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "who-knows",
+          prompt: "With SSE, the browser is connected to an API server, but the status is changed by a worker writing to Postgres. How does the API server find out?",
+          options: [
+            {
+              id: "pubsub",
+              label: "It needs a channel from workers to API servers (pub/sub), or it polls the database itself.",
+              correct: true,
+              why: "The process that changes the state isn't the one holding the connection. Push needs something to carry the news between them, or the server polls on the client's behalf.",
+            },
+            {
+              id: "automatic",
+              label: "SSE notifies it automatically when the row changes.",
+              why: "SSE is just a response stream from server to browser. It knows nothing about database changes.",
+            },
+            {
+              id: "worker",
+              label: "The worker sends the event straight to the browser.",
+              why: "Workers don't hold browser connections and don't know which browsers care.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should the page learn about status changes?",
@@ -676,6 +1036,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "Pick push or pull from update frequency, latency tolerance and who knows about the change.",
+          "Polling a few rare transitions every few seconds costs little and survives deploys.",
+          "Push needs a path from the process that changes state to the one holding the connection.",
+        ],
         reasoning: md`
           Push and pull are not a matter of modern versus old-fashioned. The deciding factors are **update frequency, latency tolerance, and who knows about the change**; see [[server-push]].
 
@@ -716,6 +1081,58 @@ export const videoPipeline = {
       context: md`
         Job 812 is marked \`running\` with the dead worker as its owner. Nothing will ever touch it again unless the design makes something do so. The requirements say a crashed or redeployed worker must not strand a job.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A process that crashes can't report that it crashed. Out-of-memory kills, hardware failures and hard kills after a shutdown grace period never run cleanup code.
+
+            So recovery from a crashed worker can't depend on the worker doing anything.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            A **lease** is ownership with an expiry: the worker owns the job until \`leased_until\`. While it works, it **heartbeats**, pushing \`leased_until\` forward every so often. If it dies, the heartbeats stop, the lease runs out, and the job becomes claimable again.
+
+            Use the database's clock (\`now()\`) for expiry, so machines with skewed clocks agree on when a lease ends. See [[leases-and-fencing]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "lease-length",
+          prompt: "Jobs take up to 20 minutes. Why use a 2-minute lease with 30-second heartbeats instead of a 25-minute lease?",
+          options: [
+            {
+              id: "recovery",
+              label: "A dead worker's job is picked up within about 2 minutes instead of 25.",
+              correct: true,
+              why: "Heartbeats keep a short lease alive for as long as the worker is working, so lease length no longer has to cover the whole job. It only sets how quickly a death is noticed.",
+            },
+            {
+              id: "load",
+              label: "Shorter leases put less load on the database.",
+              why: "Heartbeats add a small write every 30 seconds per worker. The benefit is faster recovery, not less load.",
+            },
+            {
+              id: "correctness",
+              label: "A long lease would let two workers run the job at once.",
+              why: "A long lease makes overlap less likely, not more. Its problem is slow recovery.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "stalled",
+          prompt: "A worker is alive but its process pauses for 3 minutes (a long garbage-collection pause). Its lease is 2 minutes. What happens?",
+          answer: md`
+            Its lease expires during the pause and another worker claims the job. When the first worker resumes, it carries on, unaware. Now two workers are running the same job.
+
+            Lease expiry means "probably dead", never "certainly dead". The next stage is about making that overlap harmless.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What mechanism should get job 812 finished?",
@@ -771,6 +1188,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "A crashed process can't report itself, so ownership must expire unless it's renewed.",
+          "Short leases with heartbeats give fast recovery without limiting job length.",
+          "Lease expiry means 'probably dead': a paused worker can lose its lease while still working.",
+        ],
         reasoning: md`
           A [[leases-and-fencing|lease]] is ownership with a deadline. The worker claims the job with \`leased_until = now() + 2 minutes\` and heartbeats every 30 seconds to push the deadline forward. Jobs can run for 20 minutes because heartbeats keep extending a short lease; the lease does not have to cover the whole job.
 
@@ -804,6 +1226,60 @@ export const videoPipeline = {
       context: md`
         Leases recover crashed workers. But this worker did not crash. It only lost contact with the database for a while. Read the timeline and select the lines where the design (not the network) is at fault.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A lease can expire while its holder is still running. The holder may not know: it may be paused, or unable to reach the database. You can't prevent this, because from the outside a paused process looks exactly like a dead one.
+
+            What you can do is make the old holder's **writes** harmless.
+          `,
+        },
+        {
+          kind: "simulation",
+          simulation: "lease-fencing",
+          body: md`
+            Freeze worker A for longer than its lease, then switch on **fencing**. Each new lease comes with a higher token number, and storage remembers the highest token it has accepted.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "fencing",
+          prompt: "With fencing on, worker A resumes and writes with token 33 after worker B has written with token 34. What happens to A's write?",
+          options: [
+            {
+              id: "rejected",
+              label: "It's rejected, because storage has already seen a newer token.",
+              correct: true,
+              why: "The token proves which lease a write belongs to. A stale owner's write carries an old token and is refused, so it can do no damage.",
+            },
+            {
+              id: "accepted",
+              label: "It's accepted, because A did hold a lease.",
+              why: "A held a lease, but not the current one. Fencing exists precisely to reject writes from owners that have been replaced.",
+            },
+            {
+              id: "merged",
+              label: "Storage merges both results.",
+              why: "Storage doesn't merge; it accepts the current owner's write and rejects older ones.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            In a database, fencing is a condition on the write:
+
+            \`\`\`sql
+            UPDATE jobs SET status = 'succeeded'
+            WHERE id = 812 AND lease_token = :mine;
+            \`\`\`
+
+            A stale worker's update matches zero rows. For files, which can't check tokens, give each attempt its **own output location** (for example \`renditions/812/attempt-2/\`) so two attempts never write over each other.
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the lines that reveal a design flaw.",
@@ -859,6 +1335,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "Lease expiry doesn't stop the old holder; reject its effects instead of assuming it stopped.",
+          "Condition every completion on the current lease token (fencing).",
+          "Give each attempt its own output location and publish one attempt by pointer.",
+        ],
         reasoning: md`
           This is the classic failure of lease-based systems: **the lease expired, but the leaseholder did not know**. You cannot prevent it, because you cannot tell a paused process from a dead one. You can make it harmless.
 
@@ -888,6 +1369,54 @@ export const videoPipeline = {
       context: md`
         Turn the last two stages into code. You need two operations: one that atomically claims the next available job, and one that completes a job only if the caller still owns it. SQL, an ORM, or pseudo-code are all fine. What matters is which conditions are checked, and where.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A claim has to be **atomic**: choosing a job and marking it taken must be one step, or two workers can choose the same job. In Postgres, one \`UPDATE … WHERE id = (SELECT … FOR UPDATE SKIP LOCKED LIMIT 1)\` statement does both.
+
+            The row lock lasts only for that statement. The **lease** is what holds ownership for the 20 minutes the transcode takes.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "count-where",
+          prompt: "Where should the attempt counter be incremented?",
+          options: [
+            {
+              id: "claim",
+              label: "When the job is claimed",
+              correct: true,
+              why: "A worker killed outright (a crash, an out-of-memory kill) never reaches an error handler. Counting at claim time means even those attempts count, so a job that crashes every worker eventually stops being claimed.",
+            },
+            {
+              id: "catch",
+              label: "In the error handler, when the job fails",
+              why: "A crash never reaches the handler. A job that kills its worker would then be retried forever, with the counter never moving.",
+            },
+            {
+              id: "complete",
+              label: "When the job completes",
+              why: "Successful jobs don't need counting. The counter's purpose is to stop jobs that never succeed.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Completion makes two changes that must happen together: the job becomes \`succeeded\`, and the video becomes \`ready\` with its manifest pointer. Both go in one transaction, and the job update carries the lease token. If the token no longer matches, the whole completion is abandoned and this attempt's output is left unpublished.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "heartbeat-false",
+          prompt: "A worker's heartbeat update changes zero rows. What should the worker do?",
+          answer: md`
+            Stop working on the job and discard its output. Zero rows means the lease token no longer matches: another worker owns the job now. Continuing only wastes compute, and the fenced completion would be rejected anyway.
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement claimJob and completeJob against these tables.",
@@ -991,6 +1520,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "Claim with one atomic statement; the row lock makes the hand-over atomic, the lease holds ownership.",
+          "Count attempts at claim time so crashes count against the budget.",
+          "Complete in one transaction conditioned on the lease token, and treat a lost token as normal.",
+        ],
         reasoning: md`
           The pattern generalizes: **ownership is a row; every write made by an owner is conditioned on proving it still owns the row.** Distributed locks, leader election and job queues all reduce to this shape, and the common bugs are the same everywhere: a check-then-act that is not atomic, a write that does not carry the token, or a failure count that only increments on paths a crash never reaches. See [[concurrency-control]].
         `,
@@ -1013,6 +1547,60 @@ export const videoPipeline = {
       context: md`
         The lease mechanism faithfully recovers the crashed job, again and again. Meanwhile other instructors' videos wait behind a job that will never succeed, and this instructor sees "processing" indefinitely.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Not every failure is worth retrying. Retries help only when the next attempt might behave differently:
+
+            | Kind | Example | Retry? |
+            | --- | --- | --- |
+            | Transient | storage returned 503, instance reclaimed | yes, with backoff |
+            | Permanent | not a valid video, unsupported codec | no: fail now, with a reason |
+            | Unknown | the worker died | yes, but within a budget |
+          `,
+        },
+        {
+          kind: "choice",
+          id: "crash-loop",
+          prompt: "A corrupt file crashes ffmpeg 40 seconds into every attempt. Leases recover the job each time. With no attempt limit, what happens?",
+          options: [
+            {
+              id: "loop",
+              label: "It's claimed, crashes a worker, and is reclaimed forever, while the instructor sees 'processing' indefinitely.",
+              correct: true,
+              why: "Leases guarantee the job comes back, not that it succeeds. A failure caused by the input recurs on every attempt.",
+            },
+            {
+              id: "succeeds",
+              label: "Eventually a worker gets through it.",
+              why: "The crash is caused by the file, not the worker. Every attempt fails the same way.",
+            },
+            {
+              id: "failed",
+              label: "It's marked failed after the first crash.",
+              why: "Nothing marks it failed: a crashed worker can't run its error handler, and without a limit the lease just keeps re-offering the job.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Failure needs to be **visible** to the person who can act on it. The video's state machine gets a terminal move, \`processing → failed\`, with a reason written for the instructor, such as "the file appears to be corrupted; try re-exporting it", not "exit code 139". Engineers can still inspect the job record or a dead-letter table.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "waste",
+          prompt: "With a budget of 5 attempts, each crashing after 40 seconds, about how many worker-minutes does one poison file waste?",
+          answer: 3.3,
+          unit: "minutes",
+          working: md`
+            5 × 40 s = 200 s ≈ **3.3 worker-minutes**. Bounded and small. Without a budget, it would cost a worker every few minutes forever.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What retry policy should the job system follow?",
@@ -1071,6 +1659,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "Classify failures: retry transient ones with backoff, fail permanent ones immediately, budget unknown ones.",
+          "Leases guarantee re-delivery, not success; bound attempts so poison inputs stop.",
+          "Give the user a terminal 'failed' state with a reason they can act on.",
+        ],
         reasoning: md`
           Retries answer the question "might this succeed if tried again?", and that depends on the error; see [[retries-and-backoff]].
 
@@ -1106,6 +1699,59 @@ export const videoPipeline = {
       context: md`
         Deletion touches every store in the system: the video row, the job row, raw and rendered objects, and whatever the CDN has cached. A worker may be mid-flight. Evaluate each statement about this situation.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Deleting a video touches several stores with no shared transaction: the database rows, objects in storage, and copies cached at CDN edges. A worker may also be in the middle of a job for it.
+
+            A **tombstone** makes deletion a state rather than an absence: \`status = 'deleted'\`. Anything later that's conditioned on another status (like the worker's \`WHERE status = 'processing'\`) quietly fails to apply.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "delete-order",
+          prompt: "Which order is safe if the process can crash at any step?",
+          options: [
+            {
+              id: "row-first",
+              label: "Tombstone the row first, then delete objects and purge caches asynchronously.",
+              correct: true,
+              why: "After the tombstone, nothing references the objects. A crash leaves unreferenced files, which cost money but break nothing, and a reconciler can finish the cleanup.",
+            },
+            {
+              id: "objects-first",
+              label: "Delete the objects first, then the row.",
+              why: "A crash between them leaves a 'ready' video pointing at missing files: a broken video students can still open.",
+            },
+            {
+              id: "together",
+              label: "Delete both in one transaction.",
+              why: "Object storage and Postgres don't share transactions, so 'together' isn't available.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Two kinds of leftovers, and they're not equally bad:
+
+            - **Garbage**: data nothing references. Costs money. Safe to clean up later.
+            - **Dangling references**: a reference to data that's gone. Users see broken behaviour.
+
+            Order distributed steps so that every crash leaves garbage, never dangling references.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "cdn-copies",
+          prompt: "The original objects are deleted from storage. A student loads the video's manifest URL through the CDN a minute later. What might they get?",
+          answer: md`
+            Possibly the video, still playing. CDN edges keep cached copies until they expire or are purged, and deleting the origin object doesn't reach them. If deletion has to take effect quickly, it needs an explicit CDN purge, or short-lived signed URLs. See [[caching]].
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which of these hold for the design you have built?",
@@ -1148,6 +1794,11 @@ export const videoPipeline = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Make deletion a tombstone state so later conditional transitions can't resurrect the video.",
+          "Order distributed steps so a crash leaves garbage, never dangling references.",
+          "Deleting the origin doesn't clear CDN caches; purge or use short-lived URLs.",
+        ],
         reasoning: md`
           Deletion is a distributed operation across stores with no shared transaction: Postgres, object storage and every CDN edge. The recipe is the same as everywhere else in this design:
 
@@ -1175,6 +1826,60 @@ export const videoPipeline = {
       context: md`
         Before you change anything, work out what actually breaks. "It needs to scale" is not a diagnosis. Find the resource that runs out first.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            "It needs to scale" isn't a diagnosis. For each resource the system uses (coordination writes, compute, storage, network out), compute the demand at the new volume and compare it with what that resource can supply. The first one to run out is the bottleneck. Fixing anything else changes nothing.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "jobs-rate",
+          prompt: "200,000 uploads a day. About how many jobs a second is that at the 5× Sunday peak?",
+          answer: 11.6,
+          unit: "per second",
+          working: md`
+            200,000 ÷ 86,400 ≈ 2.3 a second on average; × 5 ≈ **11.6 at peak**.
+
+            Each job means a claim, a few heartbeats and a completion: a few dozen small database writes a second. Postgres handles thousands.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "transcodes",
+          prompt: "Using Little's law: 11.6 arrivals a second, 750 seconds each. About how many concurrent transcodes at peak?",
+          answer: 8700,
+          unit: "transcodes",
+          working: md`
+            11.6 × 750 ≈ **8,700 transcodes in flight**. Compute is the resource that runs out, and by a long way.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "parallel-chunks",
+          prompt: "Splitting each video into 10 chunks transcoded in parallel. What does it change?",
+          options: [
+            {
+              id: "latency",
+              label: "Each video finishes about 10× sooner; total CPU stays about the same.",
+              correct: true,
+              why: "The same work is spread over more workers at once. That helps the instructor waiting for one video, not the bill.",
+            },
+            {
+              id: "cost",
+              label: "Total CPU drops by about 10×.",
+              why: "Every frame still has to be encoded. Splitting adds a little overhead (stitching, keyframe alignment) rather than removing work.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing, because the CPU is the bottleneck either way.",
+              why: "It doesn't reduce total CPU, but it does change latency per video, which can matter to users.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements about the 100x system hold?",
@@ -1218,6 +1923,11 @@ export const videoPipeline = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Find the bottleneck by comparing demand with supply for each resource at the new volume.",
+          "Here coordination scales easily; compute (and then egress) is what runs out.",
+          "Parallel chunking cuts latency per video, not total cost.",
+        ],
         reasoning: md`
           The scale exercise has an anticlimactic answer: **the architecture holds; the bill does not.** The coordination layer (Postgres, leases, a few writes per job) scales comfortably past 100x. The resource that runs out is CPU, at about 8,700 concurrent transcodes at peak, followed by egress.
 
@@ -1242,6 +1952,60 @@ export const videoPipeline = {
       context: md`
         Under the Sunday peak, every worker is busy and each job holds a worker for around 12 minutes. Something has to give for a paid job to start within a minute.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            When every worker is busy, a new job starts only when some worker finishes. With 12-minute jobs on a saturated fleet, that wait depends on when the next job happens to finish: often seconds, sometimes minutes.
+
+            **Priority** changes which job a free worker takes next. It doesn't create a free worker.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "priority-guarantee",
+          prompt: "Paid jobs get top priority. Every worker is mid-way through a 12-minute standard job. A paid job arrives. When does it start?",
+          options: [
+            {
+              id: "next-free",
+              label: "When the next worker finishes its current job, which could be minutes away",
+              correct: true,
+              why: "Priority puts the paid job first in line, but the line still waits for a worker. Under saturation, a start-time guarantee needs capacity that isn't saturated.",
+            },
+            {
+              id: "immediately",
+              label: "Immediately, because it has priority",
+              why: "Only if a worker is free. Priority doesn't interrupt running jobs.",
+            },
+            {
+              id: "after-backlog",
+              label: "After the whole standard backlog",
+              why: "Priority prevents that: it goes ahead of everything waiting.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Three ways to make room, each with a cost:
+
+            - **Reserve** workers for paid jobs: some sit idle. That idle time is the price of the promise.
+            - **Preempt** a running standard job: its work so far is thrown away, and standard users wait longer.
+            - **Autoscale**: new instances take minutes to boot, too slow to guarantee one minute.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "reserve-size",
+          prompt: "Paid uploads arrive at 0.5 a second at peak and take 750 seconds each. Using Little's law, about how many paid transcodes are in flight at once?",
+          answer: 375,
+          unit: "transcodes",
+          working: md`
+            0.5 × 750 = **375**. A reserved pool needs at least that many workers, plus slack so one is almost always free when a paid job arrives.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you honour the promise, and what do you pay for it?",
@@ -1295,6 +2059,11 @@ export const videoPipeline = {
         },
       },
       reveal: {
+        takeaways: [
+          "Priority changes order, not capacity; under saturation, a start-time guarantee needs headroom.",
+          "Reserved capacity, preemption and autoscaling each pay for the guarantee differently.",
+          "Size a reserve with Little's law from the paid arrival rate and job duration.",
+        ],
         reasoning: md`
           Latency guarantees under load are bought with **headroom**. Every option either holds spare capacity (reserved pool), takes capacity from someone else (preemption), or acquires it too slowly to guarantee anything (autoscaling).
 
@@ -1331,6 +2100,48 @@ export const videoPipeline = {
 
         They might be right. Respond as you would in the review.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A managed service (here, a transcoding API) removes the parts it runs for you: workers, scaling, codecs. It doesn't remove guarantees that live at the boundary between it and your system.
+
+            When evaluating "just use service X", list each guarantee your design provides and ask: does X provide it, or does it move to the code that talks to X?
+          `,
+        },
+        {
+          kind: "choice",
+          id: "webhook",
+          prompt: "The managed service calls your webhook when a transcode finishes. Which guarantee is still yours?",
+          options: [
+            {
+              id: "dedupe",
+              label: "Handling webhooks that arrive twice, late or never, and updating the video's status safely",
+              correct: true,
+              why: "Webhooks are delivered at least once and can be lost. Your handler needs conditional status updates, and you need a reconciler that asks the service about jobs whose webhook never came.",
+            },
+            {
+              id: "encoding",
+              label: "Running ffmpeg correctly",
+              why: "That's exactly what the managed service takes off your hands.",
+            },
+            {
+              id: "workers",
+              label: "Keeping workers alive with leases",
+              why: "With a managed service there are no workers of yours to lease.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "delete-managed",
+          prompt: "An instructor deletes a video while the managed service is still transcoding it. Its webhook later reports success. What must your handler do?",
+          answer: md`
+            Refuse to publish: the status update must be conditional (\`WHERE status = 'processing'\`), so a deleted video stays deleted. Then clean up the service's output. The tombstone and the conditional update are still your code, whoever does the transcoding.
+          `,
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "What does the managed service actually remove, and which guarantees still need your own code?",
@@ -1368,6 +2179,11 @@ export const videoPipeline = {
         `,
       },
       reveal: {
+        takeaways: [
+          "A managed service removes infrastructure, not the guarantees at your boundary with it.",
+          "Webhooks can arrive twice, late or never: handle them with conditional updates and a reconciler.",
+          "State machines, tombstones and status honesty stay your responsibility.",
+        ],
         reasoning: md`
           A good defense is not insisting that your design is right. It is showing that you know **which parts of it are essential and which are incidental**. Here the essential parts are the state machine, the atomic transitions and the idempotent handling of at-least-once events. The workers and leases are one implementation of "run this computation reliably", and a vendor is another.
         `,

@@ -15,8 +15,10 @@ import {
   summarize,
   type Insight,
 } from "@/lib/domain/understanding";
+import { daysAgo, daysUntil, reviewQueue } from "@/lib/domain/review";
 import { labelFor, type CuratedLabels } from "@/lib/exercise-labels";
 import { useLearnerState } from "@/lib/store/learner-store";
+import { useNow } from "@/lib/use-now";
 
 export type InvestigationOutline = {
   id: string;
@@ -54,7 +56,8 @@ function Legend() {
 
 export function UnderstandingView({ investigations, concepts, curated }: Props) {
   const state = useLearnerState();
-  if (!state) {
+  const now = useNow();
+  if (!state || now === null) {
     return (
       <div aria-busy="true" className="space-y-4">
         <div className="section">
@@ -108,9 +111,10 @@ export function UnderstandingView({ investigations, concepts, curated }: Props) 
     concept: (id) => concepts[id],
     source: (ref) => label(ref)?.source ?? "an exercise",
   });
-  const revisit = [...latest.values()]
-    .filter((e) => e.evidence.signal !== "strong")
-    .sort((a, b) => (a.evidence.signal === b.evidence.signal ? 0 : a.evidence.signal === "gap" ? -1 : 1));
+  const queue = reviewQueue(state.attempts, now);
+  // Exercises that no longer exist (removed content, deleted projects) cannot be reviewed.
+  const due = queue.due.filter((item) => label(item.exercise) !== null);
+  const upcoming = queue.upcoming.filter((item) => label(item.exercise) !== null);
   const awaitingRefs = awaiting.map((a) => a.exercise);
   const touched = investigations.filter((inv) =>
     [...latest.values()].some((e) => e.exercise.kind === "stage" && e.exercise.investigationId === inv.id),
@@ -158,6 +162,70 @@ export function UnderstandingView({ investigations, concepts, curated }: Props) 
             </div>
           ))}
         </div>
+      </section>
+
+      <section aria-labelledby="review" className="section">
+        <h2 id="review" className="font-display text-[1.0625rem] leading-tight mb-1">
+          Review
+        </h2>
+        <p className="text-[0.8125rem] text-ink-3 mb-5 max-w-[66ch]">
+          Answers come back for review: a gap the next day, a partial answer after three days, a strong one after a week
+          and then at growing intervals. Answer from memory; the new answer replaces the old evidence.
+        </p>
+        {awaitingRefs.length === 0 && due.length === 0 ? (
+          <p className="text-[0.875rem] text-ink-2">
+            Nothing is due.
+            {upcoming[0] && (
+              <>
+                {" "}
+                The next review is {daysUntil(upcoming[0].dueAt, now)}
+                {upcoming.length > 1 ? `, with ${upcoming.length - 1} more after it` : ""}.
+              </>
+            )}
+          </p>
+        ) : (
+          <>
+            <ul className="panel divide-y divide-rule-soft">
+              {awaitingRefs.map((ref) => {
+                const l = label(ref);
+                if (!l) return null;
+                return (
+                  <li key={exerciseKey(ref)}>
+                    <Link href={l.href} className="group flex items-center justify-between gap-4 px-4 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block text-[0.8125rem] font-medium group-hover:text-accent">{l.title}</span>
+                        <span className="block text-[0.75rem] text-ink-3">{l.source}</span>
+                      </span>
+                      <span className="chip-flat shrink-0">Needs your assessment</span>
+                    </Link>
+                  </li>
+                );
+              })}
+              {due.map((item) => {
+                const l = label(item.exercise);
+                if (!l) return null;
+                return (
+                  <li key={item.key}>
+                    <Link href={l.href} className="group flex items-center justify-between gap-4 px-4 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block text-[0.8125rem] font-medium group-hover:text-accent">{l.title}</span>
+                        <span className="block text-[0.75rem] text-ink-3">
+                          {l.source} · answered {daysAgo(item.answeredAt, now)}
+                        </span>
+                      </span>
+                      <SignalBadge signal={item.signal} />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            {upcoming[0] && (
+              <p className="mt-3 text-xs text-ink-3">
+                {upcoming.length} more scheduled; the next {daysUntil(upcoming[0].dueAt, now)}.
+              </p>
+            )}
+          </>
+        )}
       </section>
 
       <section aria-labelledby="dimensions" className="section">
@@ -275,54 +343,6 @@ export function UnderstandingView({ investigations, concepts, curated }: Props) 
         </section>
       )}
 
-      {(revisit.length > 0 || awaitingRefs.length > 0) && (
-        <section aria-labelledby="revisit" className="section">
-          <h2 id="revisit" className="font-display text-[1.0625rem] leading-tight mb-1">
-            Worth revisiting
-          </h2>
-          <p className="text-[0.8125rem] text-ink-3 mb-5">
-            Answering again replaces the earlier evidence, so improvement shows up here instead of averaging away.
-          </p>
-          <ul className="panel divide-y divide-rule-soft">
-            {awaitingRefs.map((ref) => {
-              const l = label(ref);
-              if (!l) return null;
-              return (
-                <li key={exerciseKey(ref)}>
-                  <Link
-                    href={l.href}
-                    className="group flex items-center justify-between gap-4 px-4 py-2.5"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-[0.8125rem] font-medium group-hover:text-accent">{l.title}</span>
-                      <span className="block text-[0.75rem] text-ink-3">{l.source}</span>
-                    </span>
-                    <span className="chip-flat shrink-0">Needs your assessment</span>
-                  </Link>
-                </li>
-              );
-            })}
-            {revisit.map((e) => {
-              const l = label(e.exercise);
-              if (!l) return null;
-              return (
-                <li key={e.key}>
-                  <Link
-                    href={l.href}
-                    className="group flex items-center justify-between gap-4 px-4 py-2.5"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-[0.8125rem] font-medium group-hover:text-accent">{l.title}</span>
-                      <span className="block text-[0.75rem] text-ink-3">{l.source}</span>
-                    </span>
-                    <SignalBadge signal={e.evidence.signal} />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }

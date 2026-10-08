@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Interaction } from "@/lib/domain/content";
-import { checkedParts, responseMatches, rubricFor } from "@/lib/domain/evaluate";
+import { checkedParts, responseMatches, rubricForResponse } from "@/lib/domain/evaluate";
 import { exerciseKey, type Attempt, type AttemptContext, type Response } from "@/lib/domain/learner";
+import { daysAgo, dueReview, type ReviewItem } from "@/lib/domain/review";
 import { latestAttempt } from "@/lib/domain/understanding";
 import { assessAttempt, submitAttempt, useLearnerState } from "@/lib/store/learner-store";
 import { useHydrated } from "@/lib/use-hydrated";
+import { useNow } from "@/lib/use-now";
+import { SIGNAL_LABEL } from "@/components/ui";
 import { EvidenceSummary } from "./evidence";
 import { ClaimsFeedback, ClaimsInput } from "./interactions/claims";
 import { DecisionFeedback, DecisionInput } from "./interactions/decision";
@@ -38,8 +41,10 @@ type Props = {
 export function ExerciseWorkspace({ spec, slots, reveal, context, deferFeedback = false, pinned }: Props) {
   const state = useLearnerState();
   const hydrated = useHydrated();
+  const now = useNow();
   const [retrying, setRetrying] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
+  const [showPrevious, setShowPrevious] = useState(false);
 
   // The answer form is what a first-time visitor sees, so it is rendered on the
   // server. Whether an answer already exists is only knowable after hydration;
@@ -55,9 +60,18 @@ export function ExerciseWorkspace({ spec, slots, reveal, context, deferFeedback 
           : latestAttempt(state.attempts, spec.ref)
       : undefined;
 
-  if (!attempt) {
+  // A review that has come due reopens the question instead of showing the old
+  // answer: recalling it without the feedback in view is the point of reviewing.
+  const due =
+    attempt && !pinned && !showPrevious && !justSubmitted && state && now !== null
+      ? dueReview(state.attempts, spec.ref, now)
+      : null;
+
+  if (!attempt || due) {
     return (
-      <AnswerForm
+      <>
+        {due && now !== null && <ReviewNotice item={due} now={now} onShowPrevious={() => setShowPrevious(true)} />}
+        <AnswerForm
         interaction={spec.interaction}
         draftKey={pinned?.draftKey ?? exerciseKey(spec.ref)}
         seed={exerciseKey(spec.ref)}
@@ -73,7 +87,8 @@ export function ExerciseWorkspace({ spec, slots, reveal, context, deferFeedback 
           setJustSubmitted(true);
           pinned?.onRecorded(recorded.id);
         }}
-      />
+        />
+      </>
     );
   }
 
@@ -95,6 +110,24 @@ export function ExerciseWorkspace({ spec, slots, reveal, context, deferFeedback 
             }
       }
     />
+  );
+}
+
+function ReviewNotice({ item, now, onShowPrevious }: { item: ReviewItem; now: number; onShowPrevious: () => void }) {
+  return (
+    <div role="note" className="tint mb-6 flex gap-3 px-4 py-3.5">
+      <span className="led led-partial mt-1.5" aria-hidden="true" />
+      <div className="min-w-0 space-y-1">
+        <p className="font-medium">Due for review</p>
+        <p className="text-sm leading-relaxed text-ink-2">
+          You answered this {daysAgo(item.answeredAt, now)} ({SIGNAL_LABEL[item.signal].toLowerCase()}). Answer it again
+          from memory; your earlier answer and the feedback stay hidden until you do.
+        </p>
+        <button type="button" className="link text-sm font-normal" onClick={onShowPrevious}>
+          Show my earlier answer instead
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -214,7 +247,7 @@ function AttemptReview({
   const { interaction } = spec;
   const seed = exerciseKey(spec.ref);
   const stale = checkedParts(interaction, attempt.response) === null;
-  const rubric = rubricFor(interaction);
+  const rubric = rubricForResponse(interaction, attempt.response);
   const written = writtenPart(attempt.response);
   const answeredOn = new Date(attempt.submittedAt).toLocaleDateString(undefined, {
     day: "numeric",
@@ -246,23 +279,29 @@ function AttemptReview({
         </Section>
       </div>
 
-      {reveal && <Section title="Engineering reasoning">{reveal}</Section>}
+      {reveal && <Section title="What to take away">{reveal}</Section>}
 
       {rubric && written && (
         <Section title="Assess your writing">
           {attempt.selfAssessment && attempt.evidence ? (
-            <RubricResult rubric={rubric} marks={attempt.selfAssessment} written={written} />
+            <RubricResult
+              rubric={rubric}
+              marks={attempt.selfAssessment}
+              citations={attempt.citations}
+              written={written}
+            />
           ) : (
             <RubricAssessment
               rubric={rubric}
               written={written}
               name={`assess-${attempt.id}`}
-              onSubmit={(marks) =>
+              onSubmit={(marks, citations) =>
                 assessAttempt({
                   attempt,
                   interaction,
                   tags: spec.tags,
                   selfAssessment: marks,
+                  citations,
                 })
               }
             />

@@ -67,6 +67,33 @@ export function rubricFor(interaction: Interaction): RubricPoint[] | null {
   }
 }
 
+/** The written part of a response, empty when the learner chose not to write one. */
+function writtenText(response: Response): string {
+  switch (response.kind) {
+    case "decision":
+    case "diagnosis":
+      return response.rationale;
+    case "open":
+      return response.text;
+    case "implementation":
+      return response.code;
+    default:
+      return "";
+  }
+}
+
+/**
+ * The rubric this particular response is assessed against. Reasoning for a
+ * decision or diagnosis is optional; when it was left out there is nothing
+ * to assess and the evidence rests on the checked part alone.
+ */
+export function rubricForResponse(interaction: Interaction, response: Response): RubricPoint[] | null {
+  const rubric = rubricFor(interaction);
+  if (rubric === null) return null;
+  const optional = interaction.kind === "decision" || interaction.kind === "diagnosis";
+  return optional && writtenText(response).trim() === "" ? null : rubric;
+}
+
 function rubricLabel(kind: InteractionKind): string {
   switch (kind) {
     case "decision":
@@ -232,7 +259,7 @@ export function evaluate(
 ): Evidence | null {
   const parts = checkedParts(interaction, response);
   if (parts === null) return null;
-  const rubric = rubricFor(interaction);
+  const rubric = rubricForResponse(interaction, response);
   if (rubric !== null) {
     if (selfAssessment === null) return null;
     const signal = rubricSignal(rubric, selfAssessment);

@@ -206,6 +206,58 @@ export const paymentWorkflow = {
       context: md`
         The provider's documentation is a list of facts. A design starts by turning each one into a consequence. Before you write any code, decide which of these statements follow from the constraints.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A **timeout** ends your waiting, not the other side's work. When a request to the provider times out, three things are possible: the request never arrived, it arrived and failed, or it arrived and **succeeded** and only the response was lost.
+
+            From your side these look identical. A design that treats a timeout as "failed" will one day mark a successful charge as failed and let the buyer pay again.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            An **idempotency key** is a value you send with a request so the receiver can recognise a repeat. This provider stores each key for 24 hours: a second request with the same key returns the first result instead of charging again. See [[idempotency]].
+
+            A **webhook** is the provider calling your server when something changes. These are delivered **at least once** (possibly twice), in **no guaranteed order**, and retried for three days if your endpoint fails.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "key-after-24h",
+          prompt: "A request with idempotency key K succeeds. 30 hours later, a buggy client retries with the same key K. What does the provider do?",
+          options: [
+            {
+              id: "new-charge",
+              label: "Creates a new charge: it has forgotten K.",
+              correct: true,
+              why: "The provider only remembers keys for 24 hours. After that, the same key looks new. Your own records have to catch late retries.",
+            },
+            {
+              id: "same",
+              label: "Returns the original result.",
+              why: "Only within the 24-hour retention window.",
+            },
+            {
+              id: "error",
+              label: "Rejects the request because the key was used before.",
+              why: "It no longer knows the key was used.",
+            },
+          ],
+        },
+        {
+          kind: "estimate",
+          id: "rate",
+          prompt: "At peak, 50 orders a minute. About how many requests a second is that to the provider, counting one create per order?",
+          answer: 0.83,
+          unit: "per second",
+          working: md`
+            50 ÷ 60 ≈ **0.83 a second**. The provider allows 100. Scale isn't the problem in this design; uncertainty and concurrency are.
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements follow from how the provider behaves?",
@@ -248,6 +300,11 @@ export const paymentWorkflow = {
         ],
       },
       reveal: {
+        takeaways: [
+          "A timeout means the outcome is unknown; the charge may have succeeded.",
+          "Idempotency keys deduplicate retries only within the provider's retention window.",
+          "Webhooks arrive late, twice, out of order or not at all, so something must ask the provider directly.",
+        ],
         reasoning: md`
           Three facts drive everything that follows:
 
@@ -270,6 +327,59 @@ export const paymentWorkflow = {
       context: md`
         The buyer clicks **Pay**. Most charges complete in 1-2 seconds, a few take 10, some hang, and 3-D Secure payments complete only after the buyer finishes a challenge. The load balancer cuts requests at 30 seconds. The buyer should get an answer or a clear "processing" state within about 10 seconds.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A request has a deadline set by things outside your code: the load balancer here cuts requests at 30 seconds. If your code waits longer than that, the buyer sees the load balancer's generic error, and your handler loses control of the response.
+
+            So any wait inside a request needs its own timeout, set **shorter** than the load balancer's, with a plan for what to return when it fires.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "share-slow",
+          prompt: "Provider p99 latency is 10 s. With an 8-second wait, roughly what percentage of buyers would see 'processing' instead of an immediate answer?",
+          answer: 1.5,
+          unit: "%",
+          tolerance: 0.7,
+          working: md`
+            p99 = 10 s means 1% of charges take longer than 10 s. An 8 s cut-off catches a little more than that: roughly **1 to 2%**. The other 98% get their answer in the request.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            The "processing" path only works if something will resolve it later. That's possible only if a **durable record** of the attempt exists before the provider is called, so a webhook or a periodic check can find it and finish it.
+
+            3-D Secure payments always take this path: the buyer completes a challenge minutes later, and the result arrives by webhook.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "client-report",
+          prompt: "The browser confirms a payment with the provider's SDK. Why shouldn't the server mark the order paid when the browser says so?",
+          options: [
+            {
+              id: "forge",
+              label: "The browser's report can be forged or never sent; the server must learn the outcome from the provider.",
+              correct: true,
+              why: "Anyone can call your API saying 'I paid'. And a tab that closes right after paying never reports at all. The provider's response, a verified webhook or a lookup are the only trustworthy sources.",
+            },
+            {
+              id: "slow",
+              label: "It's slower than waiting for the webhook.",
+              why: "The browser usually knows first. The problem is trust, not speed.",
+            },
+            {
+              id: "pci",
+              label: "Card data would pass through your servers.",
+              why: "The hosted fields already keep card data away from you. The issue is whether you believe the client's claim.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should the checkout request relate to the provider call?",
@@ -324,6 +434,11 @@ export const paymentWorkflow = {
         },
       },
       reveal: {
+        takeaways: [
+          "Wait synchronously when it's usually fast, with a timeout shorter than the load balancer's.",
+          "Record the attempt before the call so a 'processing' result can be resolved later.",
+          "Learn outcomes from the provider (response, verified webhook, lookup), never from the client's claim.",
+        ],
         reasoning: md`
           This is a hybrid of synchronous and asynchronous: **synchronous when it can be, asynchronous when it must be.** The request is a fast path layered over a design that would be correct without it.
 
@@ -353,6 +468,59 @@ export const paymentWorkflow = {
       context: md`
         A buyer may try one card, get declined, and pay with another. A payment may sit in "processing" for minutes. Finance needs to know exactly which provider event made an order paid, and support needs to answer "why was I charged?" months later.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A boolean can say "paid" or "not paid". A payment can be in more states than that: we asked and don't know yet, declined (with a reason), succeeded, refunded. And one order can have several attempts: a declined card, then a different card.
+
+            A model with too few states forces you to guess whenever reality is in a state you can't represent.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "boolean-timeout",
+          prompt: "Payment state is a 'paid' boolean on the order. The provider call times out. What do you store?",
+          options: [
+            {
+              id: "guess",
+              label: "You have to guess true or false, and either can be wrong.",
+              correct: true,
+              why: "There's no value for 'unknown'. False risks the buyer paying twice; true risks granting a course that was never paid for.",
+            },
+            {
+              id: "false",
+              label: "False is safe: the buyer can just try again.",
+              why: "If the charge actually succeeded, trying again charges them twice.",
+            },
+            {
+              id: "null",
+              label: "NULL represents unknown well enough.",
+              why: "That's really adding a third state, without a name, a history or a way to resolve it.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Two kinds of table solve different problems:
+
+            - **Current state**, one row per attempt, updated as it moves: what decisions read.
+            - **An append-only ledger**, one row per change and never updated: who or what changed the state, when, and on which evidence. It's what finance and support read. See [[event-log]].
+
+            Writing both in the same transaction means they can never disagree.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "two-cards",
+          prompt: "A buyer's first card is declined and they pay with a second. Why does each attempt need its own idempotency key?",
+          answer: md`
+            The provider would treat a reused key as a retry of the first attempt and return the cached decline. The second card would never be tried. A new attempt is a new intent, so it needs a new key; retries of one attempt share its key.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should payment state be modelled?",
@@ -407,6 +575,11 @@ export const paymentWorkflow = {
         },
       },
       reveal: {
+        takeaways: [
+          "Model payment as attempts with their own keys and an explicit 'unknown' state, not a boolean.",
+          "Keep current state for decisions and an append-only ledger for history, written in one transaction.",
+          "Derive the order's status from its attempts.",
+        ],
         reasoning: md`
           Two tables, two jobs:
 
@@ -436,6 +609,57 @@ export const paymentWorkflow = {
       context: md`
         An attempt's states are \`created\`, \`processing\`, \`succeeded\`, \`failed\` and \`refunded\`. Information about it arrives from three directions: the provider's synchronous response, webhooks, and the reconciler. Decide which of these statements about transitions are true.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A state machine lists which moves are allowed. Two rules make one robust when information arrives from several directions:
+
+            1. **Move only on facts.** A decline is a fact; a timeout isn't.
+            2. **Move forward only.** Each transition names the state it starts from, so a late or repeated message can't drag the state backwards.
+
+            In SQL, each move is \`UPDATE … SET status = 'succeeded' WHERE id = $1 AND status = 'processing'\`. See [[state-machines]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "late-event",
+          prompt: "An attempt is 'succeeded'. A delayed 'processing' webhook for it arrives. With forward-only transitions, what happens?",
+          options: [
+            {
+              id: "nothing",
+              label: "Nothing: the transition to processing doesn't start from succeeded, so zero rows change.",
+              correct: true,
+              why: "The update's WHERE clause requires the earlier state. A stale event matches nothing and is harmlessly ignored.",
+            },
+            {
+              id: "regress",
+              label: "The attempt moves back to processing.",
+              why: "That's what applying events in arrival order would do. Forward-only transitions prevent it.",
+            },
+            {
+              id: "error",
+              label: "The handler errors and the provider retries the webhook.",
+              why: "Matching zero rows isn't an error. Respond 200 so the provider stops retrying.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Money coming back after a success isn't "succeeded became failed". It's a **new** move, \`succeeded → refunded\` (or a dispute), recorded as its own event. History is appended to, never rewritten.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "three-sources",
+          prompt: "The API response, a webhook and the reconciler all learn that attempt 77 succeeded, at about the same moment. Each calls the same conditional transition. What happens?",
+          answer: md`
+            Exactly one of them changes the row from \`processing\` to \`succeeded\`; the other two match zero rows. The state is correct, the ledger has one success entry, and the side effects attached to that transition run once.
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements about the attempt's lifecycle hold?",
@@ -477,6 +701,11 @@ export const paymentWorkflow = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Move only on facts: a timeout leaves an attempt processing; only a definitive answer fails it.",
+          "Forward-only conditional transitions make late and duplicate messages harmless.",
+          "Every source of truth uses the same transitions, so they converge on one answer.",
+        ],
         reasoning: md`
           The rule underneath all five: **transitions move forward only, and only on facts.**
 
@@ -507,6 +736,50 @@ export const paymentWorkflow = {
       context: md`
         This is the prototype's checkout handler. It looks reasonable. Find every line that contributes to double charges or inconsistent state.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            **Check-then-act** reads a value, decides, then acts: "if the order isn't paid, charge it". Two requests running at once can both read "not paid" before either acts, and both charge.
+
+            Only an operation the database performs atomically, like inserting under a unique constraint, can decide "first or not" correctly when requests overlap.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "double-click",
+          prompt: "A buyer double-clicks Pay. Both requests read status = 'pending', then each calls the provider without an idempotency key. What does the provider see?",
+          options: [
+            {
+              id: "two",
+              label: "Two unrelated charge requests, so it charges twice.",
+              correct: true,
+              why: "Without a shared key, the provider has no way to know the second request is a repeat of the first.",
+            },
+            {
+              id: "one",
+              label: "The same card twice, so it merges them.",
+              why: "Providers don't guess. Same card and amount can be a legitimate second purchase.",
+            },
+            {
+              id: "decline",
+              label: "A suspicious pattern, so it declines the second.",
+              why: "Fraud checks might sometimes catch it, but it's not something to rely on.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Look for these in any payment handler:
+
+            - **Is something durable written before the irreversible call?** If not, a crash at that moment leaves no trace that a charge may exist.
+            - **Is the same key sent on every retry?** If not, retries become new charges.
+            - **Are follow-up actions recorded with the state change?** If not, a crash after the commit loses them.
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the lines responsible.",
@@ -572,6 +845,11 @@ export const paymentWorkflow = {
         },
       },
       reveal: {
+        takeaways: [
+          "Check-then-act races: dedupe with an atomic claim such as a unique idempotency key.",
+          "Record the attempt durably, with its key, before calling the provider.",
+          "The unit of reliability is a durable attempt, not the request.",
+        ],
         reasoning: md`
           Two clicks, both reading \`status = 'pending'\`, both calling the provider with no key. The provider saw two unrelated requests and did exactly what it was asked.
 
@@ -590,6 +868,61 @@ export const paymentWorkflow = {
       context: md`
         Rewrite the handler. The client sends an \`Idempotency-Key\` header that it generates once per checkout attempt and reuses on every retry of that attempt. Use whatever mix of SQL and TypeScript you like. What matters is which operations are atomic, what is recorded when, and what each path returns.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            The atomic claim in SQL:
+
+            \`\`\`sql
+            INSERT INTO payment_attempts (order_id, idempotency_key, status)
+            VALUES ($1, $2, 'processing')
+            ON CONFLICT (idempotency_key) DO NOTHING
+            RETURNING *;
+            \`\`\`
+
+            If a row comes back, this request created the attempt and should call the provider. If nothing comes back, another request already did, and this one should read and return that attempt's state.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "duplicate-in-flight",
+          prompt: "A second request with the same key arrives while the first is still waiting on the provider. What should it do?",
+          options: [
+            {
+              id: "return-state",
+              label: "Return the existing attempt's current state ('processing', 202)",
+              correct: true,
+              why: "The first request owns the call. The second just reports what's known. If the buyer keeps polling, they'll see the result once it's applied.",
+            },
+            {
+              id: "call-again",
+              label: "Call the provider again with the same key",
+              why: "The provider would deduplicate it, but it's an unnecessary call, and it relies entirely on the provider's retention window.",
+            },
+            {
+              id: "error",
+              label: "Return an error so the client stops retrying",
+              why: "The buyer's payment may be succeeding. An error would invite them to start over with a new key.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            The same key can be reused by mistake for a different purchase: a bug that sends a cached key with a new order. Compare the stored attempt's order and amount with the request's, and reject a mismatch (422) rather than returning the old result.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "crash-after-insert",
+          prompt: "The process crashes right after inserting the attempt and before calling the provider. What state is the system in, and how does it recover?",
+          answer: md`
+            An attempt in \`processing\` that the provider has never heard of. The buyer's retry (same key) finds it. A reconciler looking at old \`processing\` attempts asks the provider, learns there's no such payment, and once no request could still be in flight, marks it failed so the buyer can try again.
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement the checkout handler so retries, double-clicks and timeouts cannot produce a second charge.",
@@ -702,6 +1035,11 @@ export const paymentWorkflow = {
         },
       },
       reveal: {
+        takeaways: [
+          "Insert the attempt under a unique key with ON CONFLICT DO NOTHING: exactly one request wins.",
+          "Send the attempt's key to the provider; a timeout leaves the attempt processing, never failed.",
+          "Apply every outcome through one conditional transition that also writes the ledger and outbox.",
+        ],
         reasoning: md`
           Notice what the handler no longer depends on: the request completing. If the process dies after the insert, the attempt sits in \`processing\` and gets resolved. If it dies after the provider call, the provider holds the key and will return the same result to any retry, and the webhook will arrive anyway. If the buyer clicks five times, four of the clicks read an existing row.
 
@@ -721,6 +1059,64 @@ export const paymentWorkflow = {
       context: md`
         The key decides which requests count as "the same". If it is too broad, legitimate new attempts get the old answer. If it is too narrow, retries become new charges. A buyer whose card was declined must be able to pay with a different card. A buyer whose connection dropped must not pay twice.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            An idempotency key names an **intent**. Requests that are the same intent must share the key; a new intent must get a new one. Getting the scope wrong fails in one of two directions:
+
+            - **Too broad:** different intents share a key, so a new attempt gets an old attempt's cached answer.
+            - **Too narrow:** retries of one intent get different keys, so each retry is treated as new.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "order-as-key",
+          prompt: "The key is the order id. The buyer's card is declined and they enter a different card. What happens?",
+          options: [
+            {
+              id: "stuck",
+              label: "The provider returns the cached decline: the new card is never tried.",
+              correct: true,
+              why: "Same key, so the provider treats it as a repeat of the declined attempt for 24 hours. Too broad.",
+            },
+            {
+              id: "charged",
+              label: "The new card is charged normally.",
+              why: "Only if the key changed. The order id is the same for both attempts.",
+            },
+            {
+              id: "double",
+              label: "Both cards are charged.",
+              why: "The first card was declined, so nothing was charged on it.",
+            },
+          ],
+        },
+        {
+          kind: "choice",
+          id: "hash-as-key",
+          prompt: "The key is a hash of the request body, including the single-use payment token. The request times out, and the buyer re-enters the same card, which produces a new token. What happens?",
+          options: [
+            {
+              id: "double",
+              label: "New token, new hash, new key: if the first charge succeeded, the buyer is charged twice.",
+              correct: true,
+              why: "The retry is the same intent but looks different in bytes. Too narrow, which is the dangerous direction with money.",
+            },
+            {
+              id: "dedupe",
+              label: "The provider recognises the same card and amount.",
+              why: "It only recognises the same key.",
+            },
+            {
+              id: "declined",
+              label: "The token is rejected as reused.",
+              why: "It's a new token, so it's accepted.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What should the idempotency key identify, and who generates it?",
@@ -779,6 +1175,11 @@ export const paymentWorkflow = {
         },
       },
       reveal: {
+        takeaways: [
+          "An idempotency key names one intent: retries share it, a genuinely new attempt gets a new one.",
+          "Too broad traps buyers on cached declines; too narrow double-charges.",
+          "Keep your own record of keys, since the provider forgets them after 24 hours.",
+        ],
         reasoning: md`
           An idempotency key is a name for an **intent**, and getting its scope right is the whole problem. There are two ways to get it wrong:
 
@@ -810,6 +1211,60 @@ export const paymentWorkflow = {
       context: md`
         The provider's documentation says it all plainly: events can be delivered more than once, in any order, and your endpoint must respond within 10 seconds or the delivery is retried.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A webhook is a **hint that something may have changed**, not an instruction. Handlers that treat it as an instruction ("set status to X, then send the receipt") break in two ways:
+
+            - A **duplicate** delivery repeats the instruction: two receipts.
+            - A **late** delivery applies an old status over a newer one.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Two ways to make a webhook handler safe:
+
+            - **Deduplicate and move forward only:** record each event id under a unique constraint, skip ones already seen, and apply only forward transitions.
+            - **Fetch current state:** treat the webhook as a nudge and ask the provider for the payment's latest state. Ordering stops mattering, at the cost of one API call per event.
+
+            Either way, verify the signature first, so nobody can forge "payment succeeded".
+          `,
+        },
+        {
+          kind: "choice",
+          id: "effects-where",
+          prompt: "Where should the 'send receipt' action be triggered?",
+          options: [
+            {
+              id: "transition",
+              label: "By the transition to succeeded, as an outbox row written in the same transaction",
+              correct: true,
+              why: "The transition happens once, however many times the event arrives. Attaching effects to it means a duplicate event, matching zero rows, triggers nothing.",
+            },
+            {
+              id: "receipt-on-event",
+              label: "By receiving the payment.succeeded event",
+              why: "Events can arrive several times, so effects attached to them run several times.",
+            },
+            {
+              id: "inline",
+              label: "Inside the webhook request, before responding",
+              why: "Slow effects risk the 10-second deadline, which causes redelivery, which runs them again.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "respond-200",
+          prompt: "A duplicate payment.succeeded event arrives for an attempt that's already succeeded. What should the handler respond, and why?",
+          answer: md`
+            200 OK. The event was handled: there was simply nothing left to do. Responding with an error would make the provider retry it for days, for no benefit.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should the webhook receiver handle events?",
@@ -868,6 +1323,11 @@ export const paymentWorkflow = {
         },
       },
       reveal: {
+        takeaways: [
+          "Treat webhooks as hints: verify, deduplicate by event id, and apply forward-only transitions.",
+          "Attach side effects to transitions (which happen once), not to messages (which repeat).",
+          "Respond quickly, and with 200 for duplicates, so the provider stops retrying.",
+        ],
         reasoning: md`
           A webhook is a **hint that something may have changed**, not a command to do something. Handling it means:
 
@@ -910,6 +1370,56 @@ export const paymentWorkflow = {
       context: md`
         The payment state is right. What is missing is everything that was supposed to *follow* from it. The state change and the follow-up actions live in different systems.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            After a payment succeeds, other things must follow: grant the course, send a receipt. These live in other systems. If your code commits the payment and then calls them, a crash between the two loses the follow-up, and nothing records that it was owed.
+
+            Logging an error doesn't help: a killed process writes no log line.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            The **transactional outbox** records the obligation inside the same transaction as the state change: "grant course for attempt 77" and "send receipt for attempt 77" as rows in an outbox table. Either the payment and its obligations commit together, or neither does.
+
+            A worker then reads outbox rows, performs each action, and marks it done. If it crashes, the row is still there and is retried. See [[transactional-outbox]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "at-least-once",
+          prompt: "The outbox worker grants the course, then crashes before marking the row done. What happens next, and what must the handler do about it?",
+          options: [
+            {
+              id: "again-idempotent",
+              label: "The row is retried and the course granted again, so granting must be idempotent (an upsert on user and course).",
+              correct: true,
+              why: "Outbox delivery is at least once. Each handler has to tolerate running twice, for example with ON CONFLICT DO NOTHING.",
+            },
+            {
+              id: "lost",
+              label: "The grant is lost.",
+              why: "The opposite: it happened, and will be attempted again.",
+            },
+            {
+              id: "once",
+              label: "Nothing; the outbox guarantees exactly once.",
+              why: "It guarantees the action isn't lost, not that it runs only once.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "effect-order",
+          prompt: "The worker grants the course and sends the receipt. If it can only finish one before crashing, which order leaves the buyer better off?",
+          answer: md`
+            Grant first, then send the receipt. The worst partial state is a buyer with access and no email, which nobody notices. The reverse leaves a buyer with a receipt and no course, which is a support ticket.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should side effects follow a successful payment?",
@@ -968,6 +1478,11 @@ export const paymentWorkflow = {
         },
       },
       reveal: {
+        takeaways: [
+          "Record follow-up actions as outbox rows in the same transaction as the state change.",
+          "Outbox delivery is at least once, so every handler must be idempotent.",
+          "Order effects so the least harmful partial state comes first.",
+        ],
         reasoning: md`
           The [[transactional-outbox]] turns "do these things after the commit" into "**record that these things are owed, as part of the commit**". The worker then makes the record true, retrying until it is.
 
@@ -998,6 +1513,51 @@ export const paymentWorkflow = {
       context: md`
         Every component behaved as designed: the provider retried as documented, your handler rejected what it could not verify, and the attempts stayed in \`processing\` instead of guessing. Now the system needs a way to finish what messages could not.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Messages can't guarantee resolution: a webhook endpoint broken for longer than the provider's retry window loses those events permanently. **Reconciliation** asks the source of truth directly and fixes what the messages missed. See [[reconciliation]].
+
+            A reconciler has no special powers. It learns a fact, then submits it through the **same** transitions as the API and webhooks, so it can't conflict with them.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "no-record",
+          prompt: "The reconciler asks the provider about an attempt that has been processing for 20 minutes. The provider has no record of it. What should happen?",
+          options: [
+            {
+              id: "fail-after",
+              label: "Mark it failed, once it's well past any request timeout so no request could still land.",
+              correct: true,
+              why: "After minutes, a request that never arrived can't arrive any more. Failing it lets the buyer try again. A retry carrying the same key would be deduplicated anyway.",
+            },
+            {
+              id: "succeed",
+              label: "Mark it succeeded so the buyer isn't blocked.",
+              why: "That grants a course nobody paid for. Never move on a guess.",
+            },
+            {
+              id: "leave",
+              label: "Leave it processing forever, to be safe.",
+              why: "Then the buyer is stuck and the attempt blocks a new one. 'Not received by provider' is a fact you can act on once enough time has passed.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Two kinds of reconciliation catch different things:
+
+            - **Targeted, every few minutes:** old \`processing\` attempts, looked up one by one.
+            - **Full, daily:** the provider's settlement report compared with your ledger in both directions: charged but not recorded, and recorded but not charged.
+
+            One metric would have caught the broken endpoint on day one: the **age of the oldest processing attempt**.
+          `,
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Design the reconciliation process: what it looks for, how it decides each case, how it applies what it learns, and what it must never decide on its own.",
@@ -1046,6 +1606,11 @@ export const paymentWorkflow = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Reconciliation resolves what messages couldn't, by asking the source of truth.",
+          "Apply what it learns through the same conditional transitions as every other path.",
+          "Alert on the age of the oldest unresolved attempt, and diff settlement reports daily.",
+        ],
         reasoning: md`
           Reconciliation is not an admission that the design failed. It is the part of the design that handles **the messages no design can guarantee**. Webhooks make resolution fast; reconciliation makes it certain.
 
@@ -1071,6 +1636,46 @@ export const paymentWorkflow = {
       context: md`
         A refund is money moving the other way, through the same provider, with the same latency and the same uncertainty.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A refund is money moving the other way through the same provider, with the same latency, timeouts and uncertainty as a charge. Everything that made charges safe applies again: a durable record before the call, an idempotency key, a state for "unknown", and resolution from the provider.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "status-first",
+          prompt: "The handler sets the attempt to 'refunded', revokes access, then calls the provider's refund endpoint, which times out. What's wrong?",
+          answer: md`
+            Your records say the buyer was refunded when they may not have been. The state moved on a hope rather than a fact. If the refund never happened, the buyer lost access and kept paying.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "admin-double",
+          prompt: "An admin double-clicks Refund. Without an idempotency key on the refund call, what can happen?",
+          options: [
+            {
+              id: "two",
+              label: "Two refunds are issued for one payment.",
+              correct: true,
+              why: "Each click is a separate refund request to the provider. A refund record with its own key makes the second click a repeat.",
+            },
+            {
+              id: "rejected",
+              label: "The provider rejects the second because the payment is already refunded.",
+              why: "For a full refund it may reject it; for partial refunds it won't. Relying on that is fragile.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing, because the UI disables the button.",
+              why: "UIs aren't a guarantee: retries, two tabs and network repeats bypass them.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should a refund be performed?",
@@ -1124,6 +1729,11 @@ export const paymentWorkflow = {
         },
       },
       reveal: {
+        takeaways: [
+          "A refund has the same uncertainty as a charge: give it its own record, key and unknown state.",
+          "Move to refunded only on a confirmed provider outcome; revoke access as an outbox effect.",
+          "A design that absorbs new features by reusing its own pattern captured the problem.",
+        ],
         reasoning: md`
           The design absorbed a new requirement by **reusing its own pattern**: new entity, key, conditional transitions, outbox effects, reconciliation. That is the test of whether a design captured the problem or just the first feature. Refunds did not need a new idea; they needed the old idea applied again.
 
@@ -1146,8 +1756,50 @@ export const paymentWorkflow = {
           "Volume grows to 500,000 orders a day, with flash sales reaching 5,000 orders a minute. Some currencies must be routed to a second provider, B.",
       },
       context: md`
-        The patterns hold. The question is what new pressure appears, and which tempting shortcuts would quietly break the guarantees.
+        The patterns hold. The question is what new pressure appears, and which tempting shortcuts would break the guarantees.
       `,
+      lesson: [
+
+        {
+          kind: "estimate",
+          id: "flash-rate",
+          prompt: "Flash sales reach 5,000 orders a minute. About how many create-payment requests a second is that?",
+          answer: 83,
+          unit: "per second",
+          working: md`
+            5,000 ÷ 60 ≈ **83 a second**, before any retries, lookups or refunds. The provider's limit is 100, so the limit now shapes the design: shared outbound rate limiting, and queueing for anything not interactive.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            During a provider brownout, retries arrive exactly when the provider can least absorb them, and they use up your own rate limit. Bound them: exponential backoff with jitter, a retry budget, and a circuit breaker that stops new charges and tells buyers clearly. See [[retries-and-backoff]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "failover",
+          prompt: "Provider A times out on a charge. Is it safe to immediately retry the same charge with provider B?",
+          options: [
+            {
+              id: "no",
+              label: "No: A's outcome is unknown, and the buyer may already have been charged.",
+              correct: true,
+              why: "A new attempt with B is only safe once A's attempt is definitively failed. Otherwise failover creates the double charge the design exists to prevent.",
+            },
+            {
+              id: "yes",
+              label: "Yes: that's what failover is for.",
+              why: "Failover is safe for requests that haven't happened. A timed-out charge might have.",
+            },
+            {
+              id: "with-key",
+              label: "Yes, if you send B the same idempotency key.",
+              why: "Keys are per provider. B has never seen A's key and can't know about A's charge.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold at the new scale?",
@@ -1190,6 +1842,11 @@ export const paymentWorkflow = {
         ],
       },
       reveal: {
+        takeaways: [
+          "At scale the provider's rate limit binds first; add a shared outbound limiter and circuit breakers.",
+          "Never fail over or retry elsewhere while an outcome is unknown.",
+          "Bind each attempt to one provider and reconcile each provider separately.",
+        ],
         reasoning: md`
           At scale, the biggest risk is not throughput. It is **operational shortcuts that bypass uncertainty**: failing over on a timeout, retrying harder during an outage, or treating "slow" as "failed" to keep queues moving. Each is tempting during an incident, and each reintroduces double charges.
 
@@ -1210,6 +1867,47 @@ export const paymentWorkflow = {
 
         Answer in one page, the way you would in a design review or an interview.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A convincing guarantee walks through each way the bad outcome could happen and names the mechanism that stops it:
+
+            | Threat | Mechanism |
+            | --- | --- |
+            | Double-click | unique key on the attempt |
+            | Retry after timeout | same key sent to the provider |
+            | Crash mid-flight | attempt stays processing; resolved later |
+            | Duplicate or late webhook | forward-only transitions; effects on transitions |
+
+            Then it names the paths the mechanisms don't cover.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "residual",
+          prompt: "Which of these is a real residual risk to state honestly?",
+          options: [
+            {
+              id: "dashboard",
+              label: "A charge made in the provider's dashboard or a script bypasses the attempt table; only reconciliation catches it.",
+              correct: true,
+              why: "The guarantees cover money that moves through the attempt table. Anything that moves around it is caught after the fact, which is worth saying out loud.",
+            },
+            {
+              id: "double-click",
+              label: "A buyer double-clicking Pay.",
+              why: "That's covered: the unique key makes the second click read the first attempt.",
+            },
+            {
+              id: "late-webhook",
+              label: "A webhook arriving late.",
+              why: "Covered by forward-only transitions.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Explain why the system cannot double-charge, which mechanism covers each failure, and the residual risks it does not cover.",
@@ -1256,6 +1954,11 @@ export const paymentWorkflow = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Defend a guarantee threat by threat, naming the mechanism that covers each.",
+          "Name residual risks: manual charges, late retries past key retention, failover, clients that mint new keys.",
+          "Distinguish what's guaranteed (no double charge) from what isn't (instant resolution).",
+        ],
         reasoning: md`
           The strongest defence of a design names its own limits. "It can't double-charge" invites disbelief; "it can't double-charge through any path that goes through the attempt table, and here are the three paths that don't" invites trust, and tells the reader exactly where to look during an incident.
         `,

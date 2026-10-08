@@ -3,7 +3,7 @@ import { md } from "../md";
 
 export const liveQueries = {
   id: "live-queries",
-  title: "Screens that update themselves",
+  title: "Live queries: screens that update in real time",
   searchTitle: "Design a Reactive Database (Live Queries)",
   premise:
     "Replace polling with live queries: work out which writes change which results, keep every screen consistent with itself, stop two people breaking a rule at the same moment, and survive one query that a whole company is watching.",
@@ -145,6 +145,63 @@ export const liveQueries = {
       context: md`
         Use the numbers in the scenario: 40,000 people online, five queries per screen, a poll every five seconds, 2,000 mutations a second.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Polling and push put cost in different places:
+
+            - **Polling** costs (viewers × queries per screen ÷ interval), whether anything changed or not.
+            - **Push** costs (writes × queries each write affects), plus sending each new result to whoever watches it.
+
+            Which is cheaper depends on how often data changes compared with how often it's viewed. See [[server-push]].
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "poll-runs",
+          prompt: "40,000 people online, 5 queries per screen, polling every 5 seconds. How many query runs a second?",
+          answer: 40000,
+          unit: "per second",
+          working: md`
+            40,000 × 5 ÷ 5 = **40,000 runs a second**, even if nothing changed.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "faster-poll",
+          prompt: "To cut the delay to one second, polling every second. How many runs a second?",
+          answer: 200000,
+          unit: "per second",
+          working: md`
+            40,000 × 5 ÷ 1 = **200,000 a second**: five times the load for a fifth of the delay. Polling is a dial between staleness and waste.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "push-cheap",
+          prompt: "When is push dramatically cheaper than polling?",
+          options: [
+            {
+              id: "rare-change",
+              label: "When data changes rarely relative to how often it's viewed, and the server can tell exactly which queries a write affects",
+              correct: true,
+              why: "Then most of polling's work re-reads unchanged data, and push only does work for real changes.",
+            },
+            {
+              id: "always",
+              label: "Always",
+              why: "If one write affects a query thousands of people watch, sending the result to all of them is real work.",
+            },
+            {
+              id: "many-writes",
+              label: "When writes are very frequent",
+              why: "Frequent writes make push do more work, not less.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements follow?",
@@ -178,6 +235,11 @@ export const liveQueries = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Polling costs viewers × queries ÷ interval, whether or not anything changed.",
+          "Push costs writes × affected queries, plus delivery to viewers.",
+          "Push wins when change is rare relative to viewing, if affected queries can be found exactly.",
+        ],
         reasoning: md`
           Polling makes cost proportional to **viewers × queries ÷ interval**. Push makes it proportional to **writes × the queries each write affects**, plus sending results to the people watching them. When change is rare relative to viewing, push wins by orders of magnitude, but only if the server can tell cheaply and exactly which queries a write affects. That is the rest of this investigation.
         `,
@@ -193,6 +255,56 @@ export const liveQueries = {
       context: md`
         A query is a function the app's developers wrote. It might read a board's columns through one index, then each column's tasks through another, and filter them in code. The server cannot read the function and know in advance what it depends on.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            To push only what changed, the server must answer, for each write: **which live queries could this change?** Queries are code the developers wrote, so the server can't read their dependencies off the source.
+
+            But it can **watch them run**. Whatever index ranges a query scans while running are exactly the data its answer depends on. That record is the query's **read set**.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "rerun-all",
+          prompt: "200,000 live queries, 2,000 writes a second. Re-running every query after every write: how many runs a second?",
+          answer: 400000000,
+          unit: "runs per second",
+          working: md`
+            200,000 × 2,000 = **400 million runs a second**. Correct, and impossible.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "table-level",
+          prompt: "Re-run every query that read a table whenever that table changes. Why isn't that enough here?",
+          options: [
+            {
+              id: "coarse",
+              label: "The tasks table changes 2,000 times a second, so nearly every query re-runs nearly constantly.",
+              correct: true,
+              why: "Table-level tracking is too coarse when every query reads the same busy table. It's polling, only faster.",
+            },
+            {
+              id: "misses",
+              label: "It misses changes.",
+              why: "It doesn't miss anything; it just does far too much.",
+            },
+            {
+              id: "fine",
+              label: "It's precise enough.",
+              why: "A move on board 17 would re-run queries for every board.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Developer-declared tags ("this query depends on board:17") can be precise too, but a forgotten tag fails silently: a screen that never updates. A read set recorded by the database can't forget.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How does the server decide which subscriptions to re-run after a write?",
@@ -236,6 +348,11 @@ export const liveQueries = {
         },
       },
       reveal: {
+        takeaways: [
+          "A query's dependencies are whatever it read: record the index ranges it scans.",
+          "Re-run only queries whose recorded ranges contain a written key.",
+          "Recorded read sets can't miss a dependency the way hand-written tags can.",
+        ],
         reasoning: md`
           The idea that makes live queries practical is that **a query's dependencies are whatever it read**. Run it once, write down the index ranges it touched (its *read set*), and you know exactly which future writes can change its answer. The tracker keeps every live query's read set and checks each commit against them in order.
 
@@ -265,6 +382,48 @@ export const liveQueries = {
       context: md`
         The first version of the read-set recorder is below. Select the lines that explain the bug.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A query depends on what it **didn't** find as much as on what it found. "Tasks in Backlog" depends on there being no other Backlog tasks; a new one changes the answer.
+
+            Rows that appear inside a range a query already scanned are called **phantoms**.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "rows-vs-range",
+          prompt: "The recorder saves the keys of rows a scan returned. A new task is inserted into the scanned column. Does the query re-run?",
+          options: [
+            {
+              id: "no",
+              label: "No: the new key wasn't among the returned rows, so no recorded key matches it.",
+              correct: true,
+              why: "Edits change keys that were returned, so they match. Inserts add keys that weren't, so they slip through.",
+            },
+            {
+              id: "yes",
+              label: "Yes, because it's on the same board",
+              why: "Only if the recorder knows the range covers it. Recording rows loses that.",
+            },
+            {
+              id: "sometimes",
+              label: "Only if the board is small",
+              why: "Board size doesn't matter; the recording does.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            The fix is to record the **range** scanned (from, to), including its empty parts, and check each written key with an interval test: does it fall inside any recorded range?
+
+            A move changes two keys: the old one leaves a range, the new one enters another. Both must be checked.
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the faulty lines.",
@@ -301,6 +460,11 @@ export const liveQueries = {
         },
       },
       reveal: {
+        takeaways: [
+          "Record the scanned range, not the rows returned, or inserts (phantoms) are missed.",
+          "Match written keys against recorded ranges with an interval check.",
+          "A move changes two keys; check both the old and the new.",
+        ],
         reasoning: md`
           A query's answer depends on **what it did not find** as much as on what it found. "Tasks in Backlog, ordered by position" depends on the absence of other Backlog tasks; inserting one changes the answer. Databases call these new rows *phantoms*, and the cure here is the same as in serializable transactions: lock, or in this case record, the **range**, not the rows.
 
@@ -323,6 +487,48 @@ export const liveQueries = {
       context: md`
         The board and the count are separate subscriptions. Each is re-run and pushed as soon as its own run finishes.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            When a screen shows several queries, each one is true at **some moment**. If they're re-run and pushed independently, the screen can show the board at one moment and the count at another: twelve tasks counted, eleven shown.
+
+            A **multiversion** store keeps recent versions of data, so it can answer "as of timestamp T". That makes the moment explicit.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "rule",
+          prompt: "Every result is tagged with the timestamp it was computed at. What rule should the client follow?",
+          options: [
+            {
+              id: "same-ts",
+              label: "Apply updates only once all of a screen's subscriptions have reached the same timestamp, then apply them together",
+              correct: true,
+              why: "The screen moves from one consistent moment to the next and never shows a mix.",
+            },
+            {
+              id: "newest",
+              label: "Always apply the newest result as soon as it arrives",
+              why: "That's what causes the mismatch: the count can be newer than the board.",
+            },
+            {
+              id: "delay",
+              label: "Wait 200 ms before applying anything",
+              why: "A guess about timing, not a guarantee. Under load the runs can still straddle the delay.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "server-help",
+          prompt: "How can the server make clients wait less under that rule?",
+          answer: md`
+            After each commit, re-run all of a client's affected queries at the **same** timestamp and send them together. The client then rarely holds a result back waiting for another.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you stop a screen showing two different moments?",
@@ -366,6 +572,11 @@ export const liveQueries = {
         },
       },
       reveal: {
+        takeaways: [
+          "Run every query at a snapshot timestamp and tag each result with it.",
+          "Clients apply updates only when all subscriptions reach the same timestamp.",
+          "Consistency across queries needs a store that can read as of a recent time.",
+        ],
         reasoning: md`
           Consistency across queries is a property of **time**, so the fix is to make time explicit. A versioned store can answer "as of timestamp T", every result is labelled with its T, and the client's rule is simple: never show a mix of Ts. The sync server can help by re-running all of a client's affected queries at the same timestamp after each commit, so the client rarely has to wait.
 
@@ -390,6 +601,56 @@ export const liveQueries = {
       context: md`
         The move mutation counts the tasks in the target column, refuses if the count is at the limit, and otherwise updates the task's column. Each mutation runs in a transaction at snapshot isolation: it sees the database as of the moment it started.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Under **snapshot isolation**, each transaction reads the database as of when it started, and only conflicts if two transactions write the **same row**.
+
+            A rule that spans several rows (at most five tasks in a column) isn't protected. Two transactions can each read the rows, each decide the rule holds, and each write a **different** row. Both commit. This is **write skew**. See [[concurrency-control]].
+          `,
+        },
+        {
+          kind: "predict",
+          id: "three-moves",
+          prompt: "The column has 4 tasks, limit 5. Three moves start at once, each counting 4 in its snapshot. Each updates a different task's column. What happens?",
+          answer: md`
+            All three commit: no two wrote the same row, so snapshot isolation sees no conflict. The column ends with 7 tasks, two over the limit.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            **Optimistic concurrency control** checks reads as well as writes: at commit, if anything the transaction read has been written since its snapshot, abort and re-run it. The first move commits; the other two find their read range changed, re-run, count five, and refuse.
+
+            The same read sets that power subscriptions make this check possible, which gives serializable mutations without locks.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "cost",
+          prompt: "What's the cost of validating reads at commit?",
+          options: [
+            {
+              id: "retries",
+              label: "A heavily contended range causes repeated aborts and retries.",
+              correct: true,
+              why: "If many mutations read and write the same range at once, most lose validation and re-run. Fine for occasional contention, costly for constant contention.",
+            },
+            {
+              id: "locks",
+              label: "Long-held locks and deadlocks",
+              why: "That's the cost of locking. Optimistic control takes no locks.",
+            },
+            {
+              id: "none",
+              label: "Nothing at all",
+              why: "Retries are real work under contention.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you make the limit hold?",
@@ -432,6 +693,11 @@ export const liveQueries = {
         },
       },
       reveal: {
+        takeaways: [
+          "Snapshot isolation doesn't protect rules spanning rows: concurrent writes to different rows cause write skew.",
+          "Validate a mutation's read set at commit; re-run it if anything it read has changed.",
+          "Optimistic control avoids locks but retries under heavy contention.",
+        ],
         reasoning: md`
           The three moves wrote **different rows**, so nothing collided at the row level. The rule spans rows, and snapshot isolation does not protect rules that span rows. This is *write skew*.
 
@@ -454,6 +720,48 @@ export const liveQueries = {
       context: md`
         The committer receives a mutation's snapshot timestamp, its read set (index ranges) and its writes. It keeps the writes of recent commits in memory. Write the function that decides whether the mutation may commit.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Validation asks one question about a time window: **did anything committed between my snapshot and now touch what I read?**
+
+            A single committer that assigns increasing timestamps in order makes that window well-defined, and lets the check and the append of the new commit happen as one step.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "which-commits",
+          prompt: "A mutation's snapshot is timestamp 100. Which recent commits must it be checked against?",
+          options: [
+            {
+              id: "after",
+              label: "Only commits with timestamps after 100",
+              correct: true,
+              why: "Commits at or before 100 were already visible in its snapshot, so they can't have changed what it read.",
+            },
+            {
+              id: "all",
+              label: "Every commit the committer remembers",
+              why: "Earlier ones are already reflected in what it read.",
+            },
+            {
+              id: "before",
+              label: "Commits before 100",
+              why: "Those are what it saw. The risk is what happened after.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "too-old",
+          prompt: "The committer keeps only the last few seconds of commits in memory. A mutation arrives with a snapshot older than anything it still holds. What should it do?",
+          answer: md`
+            Refuse and force a retry. It can no longer tell whether anything since that snapshot touched the read set, so committing would be a guess.
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement tryCommit.",
@@ -511,6 +819,11 @@ export const liveQueries = {
         },
       },
       reveal: {
+        takeaways: [
+          "Check only commits after the mutation's snapshot against its read ranges.",
+          "Assign timestamps and record the commit in the same atomic step as the check.",
+          "Refuse snapshots older than the commit history you still hold.",
+        ],
         reasoning: md`
           Validation is a question about a time window: did anything committed between my snapshot and now touch what I read? A single committer that assigns timestamps in order makes that window well defined, and makes the check and the append one step. It is also the natural place to publish each commit, in order, to the subscription tracker.
         `,
@@ -532,6 +845,56 @@ export const liveQueries = {
       context: md`
         Every comment changes the board's result. The board query returns the same thing for everyone in the company.
       `,
+      lesson: [
+
+        {
+          kind: "estimate",
+          id: "naive",
+          prompt: "100,000 viewers watch one board; 5 comments a second change it. Re-running the board query per viewer per change: how many runs a second?",
+          answer: 500000,
+          unit: "runs per second",
+          working: md`
+            5 × 100,000 = **500,000 runs a second**, for a result that's identical for everyone.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            A result can be shared if the query, its arguments and its timestamp are the same **and** it doesn't depend on who's asking. Run it once per change and send the result to every subscriber. That's [[request-coalescing]].
+
+            If changes arrive faster than runs finish, skip the intermediate versions: run once for the latest timestamp.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "not-shared",
+          prompt: "Which query can't simply share one result across all viewers?",
+          options: [
+            {
+              id: "my-tasks",
+              label: "\"My assigned tasks\", or anything filtered by the viewer's permissions",
+              correct: true,
+              why: "Its result depends on who's asking, so each viewer has a different answer.",
+            },
+            {
+              id: "board",
+              label: "The announcements board",
+              why: "It's the same for everyone in the company: the ideal case for sharing.",
+            },
+            {
+              id: "count",
+              label: "The total number of comments on the board",
+              why: "Same for everyone, so shareable.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Computing once doesn't remove **delivery**: sending a result to 100,000 sockets is [[fan-out]], spread across the sync servers that hold those connections.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you keep this from overwhelming the function runners?",
@@ -573,6 +936,11 @@ export const liveQueries = {
         },
       },
       reveal: {
+        takeaways: [
+          "Run each distinct (query, arguments, timestamp) once and share the result with every subscriber.",
+          "Collapse bursts of invalidations into one run for the newest timestamp.",
+          "Viewer-specific queries can't be shared directly, and delivery fan-out remains.",
+        ],
         reasoning: md`
           A hot query is a [[request-coalescing]] problem: many people asking the same question at the same moment should cause one computation. Cache results by (function, arguments, timestamp), and the hundred-thousandth viewer costs a lookup. Coalescing invalidations means work follows how often the answer can be **observed** to change, not how often it changes.
 
@@ -597,6 +965,42 @@ export const liveQueries = {
       context: md`
         The connection is back. Mutations carry a client-generated ID. The server can run queries at its current timestamp.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            An **optimistic** UI shows a change immediately, before the server confirms it, and queues it while offline. On reconnect, three rules keep that safe:
+
+            - **Idempotent mutations:** each carries a client-generated ID, so the server can skip any it already committed.
+            - **One timestamp:** re-subscribed queries are answered at a single moment, including the replayed mutations.
+            - **Server results win:** the client drops optimistic changes that the server's results now include.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "replay-twice",
+          prompt: "The connection dropped just after a mutation was sent. The client doesn't know if it committed, and resends it. What prevents it applying twice?",
+          options: [
+            {
+              id: "id",
+              label: "Its client-generated ID: the server skips an ID it already committed",
+              correct: true,
+              why: "The same idempotency idea as payments, applied to app mutations. See [[idempotency]].",
+            },
+            {
+              id: "order",
+              label: "Sending mutations in order",
+              why: "Order matters for correctness, but doesn't stop a duplicate.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing; moves are naturally idempotent",
+              why: "Some are, many aren't ('add a comment').",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "ordering",
         prompt: "Put the reconnection steps in order.",
@@ -612,6 +1016,11 @@ export const liveQueries = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Give every mutation a client ID so replays after reconnect are skipped if already committed.",
+          "Re-subscribe and answer all queries at one timestamp that includes the replayed mutations.",
+          "Server results win: drop optimistic changes once they're included.",
+        ],
         reasoning: md`
           Reconnection is where optimistic UIs earn or lose trust. The rules are the ones from earlier stages, applied in order: **idempotent mutations** so replays are safe, **one timestamp** so the screen stays consistent, and **server results win** so the client converges on what actually happened.
         `,
@@ -627,6 +1036,40 @@ export const liveQueries = {
       context: md`
         Your interviewer: "This is a lot of machinery. Why not keep Postgres, add a cache, and use change data capture or LISTEN/NOTIFY to tell clients to re-fetch?"
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Change data capture (CDC) and \`LISTEN/NOTIFY\` tell you **a row changed**. They don't tell you **which queries** that change affects. Mapping one to the other needs either read sets or hand-written rules, which is the problem this design solved.
+
+            A strong defence names the **properties** the simpler route lacks, not just the mechanism yours has.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "when-simple",
+          prompt: "When is \"Postgres + cache + notify clients to re-fetch\" the right call?",
+          options: [
+            {
+              id: "few-writes",
+              label: "For apps with few writes, coarse invalidation, or users who tolerate brief inconsistency",
+              correct: true,
+              why: "Then the missing properties (exactness, one moment per screen, serializable rules) cost little, and the simpler route costs far less to build.",
+            },
+            {
+              id: "never",
+              label: "Never; live queries need the full design",
+              why: "Many apps run fine on the simpler route.",
+            },
+            {
+              id: "huge",
+              label: "Only at very large scale",
+              why: "Scale makes the simpler route's waste and inconsistency more expensive, not less.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Defend the design, concede what the simpler route gets right, and say when you would choose it.",
@@ -648,6 +1091,11 @@ export const liveQueries = {
         `,
       },
       reveal: {
+        takeaways: [
+          "A change notification says a row changed, not which queries it affects.",
+          "Name the properties the simpler route lacks: exactness, one moment per screen, serializable rules.",
+          "Concede that re-fetch on notify is right for apps with few writes or tolerant users.",
+        ],
         reasoning: md`
           Strong defences name the **property** the simpler design lacks, not just the mechanism the complex one has. Here those properties are exactness (no missed or wasted re-runs), consistency (one moment per screen) and serializability (rules hold under concurrency), and all three come from one idea: knowing precisely what each function read.
         `,

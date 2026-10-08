@@ -46,8 +46,9 @@ export default function UnderstandingPage() {
             </p>
             <p>
               <strong className="font-medium text-ink">Self-assessed</strong> evidence comes from your written reasoning.
-              After seeing the reference, you mark which specific points your answer covered. Nothing grades your writing
-              automatically, so it is only as honest as your marks.
+              After seeing the reference, you mark which specific points your answer covered, and for each one you point
+              to the part of your answer that says it. Nothing grades your writing automatically, so it is only as honest
+              as your marks.
             </p>
             <p>
               Every exercise trains some of six dimensions (trace, explain, defend, change, break, implement) and touches

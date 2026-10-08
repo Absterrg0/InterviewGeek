@@ -3,7 +3,7 @@ import { md } from "../md";
 
 export const productAnalytics = {
   id: "product-analytics",
-  title: "Analytics that answers in seconds",
+  title: "Product analytics over billions of events",
   searchTitle: "Design a Product Analytics System",
   premise:
     "Take in billions of product events a day and answer questions nobody planned for in seconds: choose where events live, keep ingestion alive through spikes and outages, make filters on people fast, and decide what happens when two anonymous visitors turn out to be one person.",
@@ -141,6 +141,47 @@ export const productAnalytics = {
       context: md`
         Use 86,400 seconds a day and 1 KB an event. A large team sends 300 million events a month, and its daily-signups chart filters on two properties over 90 days.
       `,
+      lesson: [
+
+        {
+          kind: "estimate",
+          id: "rate",
+          prompt: "2 billion events a day. About how many events a second on average?",
+          answer: 23000,
+          unit: "per second",
+          working: md`
+            2,000,000,000 ÷ 86,400 ≈ **23,000 a second**; peaks at 4× are about 93,000. A busy write rate, but an ordinary one if writes are batched.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "volume",
+          prompt: "At about 1 KB per event, how many terabytes of raw events arrive per day?",
+          answer: 2,
+          unit: "TB",
+          working: md`
+            2,000,000,000 × 1 KB = **2 TB a day**, about 180 TB over 90 days. Far too much to answer charts from memory.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            A **row store** like Postgres keeps each row's fields together on disk. To count rows, it reads whole rows, every field, even if the query uses three of them.
+
+            An index helps **find** rows. It doesn't make **reading** them cheaper once they're found.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "bytes-read",
+          prompt: "A chart needs 900 million events, using 3 small fields from each 1 KB event. Reading whole rows, about how many gigabytes are read?",
+          answer: 900,
+          unit: "GB",
+          working: md`
+            900,000,000 × 1 KB = **900 GB** read, for perhaps 10 to 20 GB of fields actually used. The query isn't slow at finding rows; it's slow because it reads everything else in them.
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements follow?",
@@ -173,6 +214,11 @@ export const productAnalytics = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Analytics queries are wide in rows and narrow in columns.",
+          "Row stores read whole rows, so a three-field question pays for every field.",
+          "Indexes find rows; they don't make reading them cheaper.",
+        ],
         reasoning: md`
           Analytical questions are **wide in rows and narrow in columns**: they touch a large share of a team's events but only a few fields of each. A store that keeps whole rows together must read everything to answer them. That is the bottleneck to design around, not the write rate.
         `,
@@ -188,6 +234,56 @@ export const productAnalytics = {
       context: md`
         Charts are built by customers, so the questions are not known in advance. They nearly always filter by team and time range, then by event name and some properties.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A **column store** keeps each column's values together on disk: all timestamps in one place, all event names in another. A query reads only the columns it uses. See [[columnar-storage]].
+
+            Values in one column are similar (the same few event names, increasing timestamps), so they **compress** very well, often 5 to 10×.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Column stores also keep data **sorted** by a chosen key, and record the min and max of each block. A query whose filter matches the sort key can skip whole blocks without reading them.
+
+            With the sort key (team, event, time), "team 42's signups last quarter" reads a thin slice and skips every block from other teams, events and dates.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "rollups",
+          prompt: "Why not precompute daily counts for every event and property instead?",
+          options: [
+            {
+              id: "unplanned",
+              label: "Customers ask questions nobody planned (combined filters, funnels), and rollups only answer the ones you prepared.",
+              correct: true,
+              why: "Rollups are great for fixed dashboards. A funnel needs individual events in order, which a count can't give you.",
+            },
+            {
+              id: "slow",
+              label: "Rollups are slower to query than raw events.",
+              why: "They're much faster for the questions they cover. The problem is coverage.",
+            },
+            {
+              id: "storage",
+              label: "Rollups take more storage than the events.",
+              why: "They're far smaller. That's their appeal.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "column-costs",
+          prompt: "What does a column store do badly?",
+          answer: md`
+            Updates and deletes (they rewrite compressed blocks), fetching one whole row (every column is a separate read), and many tiny inserts (each creates a small part to merge later). It wants large, append-only batches.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "Where should events be stored for querying?",
@@ -230,6 +326,11 @@ export const productAnalytics = {
         },
       },
       reveal: {
+        takeaways: [
+          "Store by column: queries read only the columns they use, and columns compress well.",
+          "Sort by team, event and time so queries skip most blocks.",
+          "Column stores dislike updates, single-row reads and tiny inserts; batch your writes.",
+        ],
         reasoning: md`
           The choice follows from the first stage: if queries use few columns of many rows, store data **by column**. The sort key is the other half: with (team, event, time) first, a query for one team's signups in one quarter reads a thin slice of a few columns. See [[columnar-storage]].
 
@@ -258,6 +359,56 @@ export const productAnalytics = {
       context: md`
         Today the capture API inserts each request's events straight into the database. Twenty minutes at peak is about 100 million events.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Events arrive at a rate you don't control; the database absorbs them at a rate that varies, sometimes zero during an upgrade. A **durable log** (a stream like Kafka) between the two lets each run at its own pace. See [[event-log]].
+
+            The capture API's job shrinks to: check, stamp, append to the stream, acknowledge.
+          `,
+        },
+        {
+          kind: "estimate",
+          id: "outage-backlog",
+          prompt: "The database is down for 20 minutes at a peak of about 90,000 events a second. Roughly how many million events must be held?",
+          answer: 108,
+          unit: "million events",
+          working: md`
+            90,000 × 1,200 s ≈ **108 million events**, about 100 GB at 1 KB each. A stream holding days of data absorbs that easily; capture servers' memory doesn't.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "retry-snippet",
+          prompt: "Capture returns an error during the outage and relies on the snippet to retry later. What happens to many of those events?",
+          options: [
+            {
+              id: "lost",
+              label: "They're lost: tabs close and phones go offline before retrying.",
+              correct: true,
+              why: "Client retries are best effort. Accepting events into a durable buffer is the only way not to depend on them.",
+            },
+            {
+              id: "fine",
+              label: "They arrive later, when the database is back.",
+              why: "Some will. Many clients are gone by then.",
+            },
+            {
+              id: "duplicated",
+              label: "They're duplicated.",
+              why: "Duplicates are possible with retries, but the bigger risk here is loss.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            After an outage, the workers have the backlog **plus** live traffic. Size them, and the database, for the catch-up, not only for the average. See [[backpressure]].
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should events get from the capture API into the column store?",
@@ -300,6 +451,11 @@ export const productAnalytics = {
         },
       },
       reveal: {
+        takeaways: [
+          "A durable stream between capture and the database lets each run at its own pace.",
+          "Capture depends only on the stream, so database outages delay charts but lose nothing.",
+          "Workers insert large batches and must be sized for catching up, not just the average.",
+        ],
         reasoning: md`
           Ingestion has two speeds: the speed events **arrive**, which you do not control, and the speed the database can **take** them, which varies. A durable log between them lets each run at its own pace. The capture API becomes simple and very hard to break: check, stamp, append, acknowledge.
 
@@ -323,6 +479,44 @@ export const productAnalytics = {
       context: md`
         Properties are stored as one JSON string column, because every customer sends different keys. Select the lines that point at the cause.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A column store only helps when the data is actually **in columns**. A single JSON column holding every property is, for those fields, a row store again: to read one property, the query reads and parses the whole blob for every row.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "profile",
+          prompt: "A query profile shows 98% of blocks skipped by the sort key, but 37 of 38 GB read are the properties column. What's the problem?",
+          options: [
+            {
+              id: "inside-row",
+              label: "The sort key works; the waste is inside each row, in the JSON blob.",
+              correct: true,
+              why: "Skipping found the right rows efficiently. Then, to use two properties, each row's whole JSON was read and parsed.",
+            },
+            {
+              id: "sort-key",
+              label: "The sort key is wrong.",
+              why: "98.6% of blocks skipped means it's doing its job.",
+            },
+            {
+              id: "memory",
+              label: "The server needs more memory.",
+              why: "Peak memory was modest. Bytes read and JSON parsing dominate.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            The usual fix is a hybrid: keep the JSON for the long tail of rare keys, and **promote** the most-queried keys to real, typed columns, extracted from the JSON as rows are inserted. Which keys? Look at what queries actually filter on. Old data needs a backfill for the new columns to be useful over long ranges.
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the lines that explain the slowness.",
@@ -358,8 +552,13 @@ export const productAnalytics = {
         },
       },
       reveal: {
+        takeaways: [
+          "One JSON column for all properties turns a column store back into a row store for those fields.",
+          "Promote frequently queried keys to typed columns computed at insert time.",
+          "Choose which keys to promote from real query patterns, and backfill recent data.",
+        ],
         reasoning: md`
-          A column store only helps if the data is actually in columns. Free-form properties tempt you into one big JSON column, which quietly turns the column store back into a row store for exactly the fields people filter on.
+          A column store only helps if the data is actually in columns. Free-form properties tempt you into one big JSON column, which turns the column store back into a row store for exactly the fields people filter on.
 
           The usual answer is a hybrid: keep the JSON for the long tail of rare keys, and **promote** the keys that queries use most into real columns, computed from the JSON as rows are inserted. Find them by looking at which keys queries actually filter on. Old data needs a backfill for the new column; recent data is what most charts read, so start there.
         `,
@@ -375,6 +574,48 @@ export const productAnalytics = {
       context: md`
         Customers filter charts by **person** properties too: "signups from people on the Pro plan", where *plan* belongs to the person and changes when they upgrade. People live in Postgres: about 2 billion of them across all teams, keyed by ID, with their current properties.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            **Denormalisation** copies data to where it's read, so queries don't have to join. It costs storage and write-time work, and the copy is a **snapshot**: it records what was true when it was copied.
+
+            In analytics, reads are the expensive part and writes are append-only, so the trade usually pays.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "in-list",
+          prompt: "Why not fetch Pro users' IDs from Postgres and filter events with WHERE person_id IN (…)?",
+          options: [
+            {
+              id: "huge",
+              label: "A big team can have millions of Pro users; shipping millions of IDs into a query is slow and fragile.",
+              correct: true,
+              why: "It works for small teams and breaks as customers grow, which is exactly when it matters.",
+            },
+            {
+              id: "wrong",
+              label: "It gives wrong answers.",
+              why: "It's correct, using current properties. The problem is cost at scale.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing; IN lists are fast.",
+              why: "Short ones are. Millions of values aren't.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "snapshot-meaning",
+          prompt: "Person properties are copied onto each event at ingestion. A user upgraded from Free to Pro last week. A chart asks 'signups by plan'. Which plan does their signup event show?",
+          answer: md`
+            Free: the plan they were on when they signed up. That's often the right answer ("what plan were people on when they did X?"), but it differs from "people who are Pro now". Write down which questions use snapshots, and offer current properties through a join for the ones that need them.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do charts filter events by person properties?",
@@ -417,6 +658,11 @@ export const productAnalytics = {
         },
       },
       reveal: {
+        takeaways: [
+          "Copy person properties onto events at ingestion to remove the join from every chart.",
+          "Copied properties are snapshots as of the event, not current values.",
+          "Offer current properties through a join for the questions that need them.",
+        ],
         reasoning: md`
           This is denormalisation on purpose: pay once at write time to avoid paying on every read. In an analytics system reads are the expensive part and writes are append-only, so the trade usually wins.
 
@@ -444,6 +690,48 @@ export const productAnalytics = {
       context: md`
         Anonymous events carry a random device ID. At signup, the snippet sends an *identify* call linking that device ID to the new account. Person data is copied onto events at ingestion, as decided in the last stage.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Before signup, a visitor's events carry a random device ID. At signup, an **identify** call links that device ID to the new account. But earlier events were already stored with the device ID, and in a column store nothing rewrites stored events cheaply.
+
+            So after the link, the same human appears as two people in older data.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "fix-history",
+          prompt: "What's a cheap way to make funnels count them as one person without rewriting events?",
+          options: [
+            {
+              id: "override-table",
+              label: "Keep a small table mapping old IDs to merged ones and apply it at query time, folding it in periodically",
+              correct: true,
+              why: "Merges are rare compared with events, so the table stays small and the join is cheap. A background job can rewrite events in bulk occasionally.",
+            },
+            {
+              id: "update-each",
+              label: "Update the person ID on every past event at each merge",
+              why: "Correct, but each update rewrites whole compressed blocks, and merges happen constantly.",
+            },
+            {
+              id: "ignore",
+              label: "Ignore it; it's a small error",
+              why: "It breaks funnels in exactly the case customers care most about: anonymous visitors becoming users.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "order",
+          prompt: "The identify call and the user's next event are processed by different workers, and the event is processed first. What goes wrong?",
+          answer: md`
+            The event is tagged with the old anonymous person, because the link didn't exist yet when it was enriched. Partitioning the stream by team and person ID puts both on one worker, in order. See [[ordering]].
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -477,6 +765,11 @@ export const productAnalytics = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Identity merges change the meaning of old events, which a column store can't cheaply rewrite.",
+          "Keep a small table of ID overrides applied at query time, folded in periodically.",
+          "Partition the stream by person so identify calls and events are processed in order.",
+        ],
         reasoning: md`
           Identity is the place where "events are never edited" meets reality: the meaning of old events changes when you learn who they belonged to. You can rewrite history (expensive in a column store), or keep a small, separate record of corrections and apply it when querying, folding it in from time to time.
 
@@ -495,6 +788,47 @@ export const productAnalytics = {
       context: md`
         Write the loop each ingestion worker runs for one stream partition. Inserts can fail, and workers can crash at any point. The database deduplicates an insert whose \`dedupToken\` it has seen recently.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A stream consumer has two steps per batch: **insert** the batch, then **commit** its position ("I've processed up to offset 5,000"). The order decides what a crash does:
+
+            - Commit then insert: a crash in between skips the batch. **Lost.**
+            - Insert then commit: a crash in between re-reads the batch. **Duplicated**, unless the database can recognise it.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "dedup-token",
+          prompt: "To let the database recognise a retried batch, what should its deduplication token be?",
+          options: [
+            {
+              id: "offsets",
+              label: "Derived from the batch's partition and offset range, so the same work always gets the same token",
+              correct: true,
+              why: "A retry of the same batch covers the same offsets and produces the same token, which the database recognises as a repeat.",
+            },
+            {
+              id: "random",
+              label: "A random UUID per insert attempt",
+              why: "A retry would get a new UUID, so the database couldn't tell it's the same batch.",
+            },
+            {
+              id: "time",
+              label: "The current timestamp",
+              why: "A retry happens at a different time, so it gets a different token.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            "Exactly once" in practice is **at least once plus deduplication**. See [[delivery-guarantees]]. And batches must be large (by size or time), because a column store turns every insert into a part it later merges.
+          `,
+        },
+      ],
       interaction: {
         kind: "implementation",
         prompt: "Implement runPartition.",
@@ -565,6 +899,11 @@ export const productAnalytics = {
         },
       },
       reveal: {
+        takeaways: [
+          "Insert, then commit the stream position: crashes then cause repeats, never loss.",
+          "Derive the dedup token from the batch's offsets so retries are recognised.",
+          "Accumulate large batches, and retry failed inserts with backoff instead of skipping.",
+        ],
         reasoning: md`
           "Exactly once" here is really **at least once, plus deduplication**: the stream may hand you a batch twice, and the database recognises the repeat. The two rules that make it work are the order of operations (insert, then commit) and a deduplication key that is the same every time the same work is retried. See [[delivery-guarantees]].
         `,
@@ -585,6 +924,46 @@ export const productAnalytics = {
       context: md`
         The column store runs on several servers. Each table is split into shards across them, and a query runs on every shard that holds relevant data, in parallel.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            How you split data across servers (**sharding**) decides where load lands. The natural choice is to shard by what queries filter on. But if one value of that key gets most of the traffic, one server gets most of the work. See [[partitioning]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "by-team",
+          prompt: "Events are sharded by team. One team becomes a third of all traffic. What happens?",
+          options: [
+            {
+              id: "hot",
+              label: "Its server takes a third of all writes and runs its heaviest charts alone, while others idle.",
+              correct: true,
+              why: "Sharding by team keeps each team on one machine, so the biggest team can never use more than one.",
+            },
+            {
+              id: "even",
+              label: "Load stays even, because there are 6,000 teams.",
+              why: "Teams aren't equal. One very large team concentrates load.",
+            },
+            {
+              id: "auto",
+              label: "The database splits the team automatically.",
+              why: "Not with a team-based shard key. Hashing within the team does that.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            Hashing (team, person) spreads each team over every server, so its charts run in parallel everywhere. Keeping one person's events together keeps per-person questions (funnels, retention) on one shard.
+
+            Spreading data isn't isolation, though: per-team ingestion quotas and query concurrency limits stop one team's success from becoming everyone else's outage.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should events be spread across the database servers?",
@@ -626,6 +1005,11 @@ export const productAnalytics = {
         },
       },
       reveal: {
+        takeaways: [
+          "Shard by what spreads load, not by what you filter on.",
+          "Hashing team and person spreads a big team across all servers while keeping each person local.",
+          "Add per-team quotas and query limits for isolation; spreading data isn't the same thing.",
+        ],
         reasoning: md`
           Shard by what spreads the load, not by what you filter on. Every query filters by team, but sharding by team puts the biggest team's load on one machine. Hashing **within** the team spreads it, and the sort key still lets each shard skip other teams' data.
 
@@ -643,6 +1027,47 @@ export const productAnalytics = {
       context: md`
         Your interviewer: "That is a stream, a fleet of workers and a separate database. Why not keep Postgres with good rollups, or send everything to a managed warehouse?"
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            A good defence ties every component to a requirement:
+
+            | Component | Requirement it serves |
+            | --- | --- |
+            | Column store | ad hoc questions over huge volumes |
+            | Stream | no lost events through outages and spikes |
+            | Copied person properties | fast filters without joins |
+            | Hashed sharding and quotas | fairness between customers |
+
+            A component you can't tie to a requirement shouldn't be in the design.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "when-postgres",
+          prompt: "When would Postgres with rollups be the better choice?",
+          options: [
+            {
+              id: "small",
+              label: "At smaller volumes, or when the set of charts is fixed and known in advance",
+              correct: true,
+              why: "Then rollups cover the questions, and one database is far simpler to run.",
+            },
+            {
+              id: "never",
+              label: "Never; column stores are always better for analytics",
+              why: "They're better at scale for ad hoc questions. At small scale, the extra systems cost more than they save.",
+            },
+            {
+              id: "writes",
+              label: "When writes outnumber reads",
+              why: "Analytics is append-heavy anyway. The deciding factors are volume and how open-ended the questions are.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Defend the design, concede what the alternatives do better, and say when you would pick them.",
@@ -664,6 +1089,11 @@ export const productAnalytics = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Tie each component to a requirement it serves.",
+          "Rollups alone can't answer questions nobody planned.",
+          "Concede when Postgres or a managed warehouse is the better trade.",
+        ],
         reasoning: md`
           A good defence ties each part to a requirement: ad hoc questions (column store), no lost events (stream), fast person filters (copied properties), fairness between customers (hashing and quotas). If a part cannot be tied to a requirement, it should not be in the design.
         `,

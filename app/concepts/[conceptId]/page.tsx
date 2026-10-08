@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ConceptStanding } from "@/components/concept-standing";
 import { buildSlots } from "@/components/exercise/slots";
 import { ExerciseWorkspace } from "@/components/exercise/workspace";
+import { Lesson } from "@/components/lesson/lesson";
 import { Prose } from "@/components/prose";
 import { ShareButton } from "@/components/share";
 import { SourceList } from "@/components/writeup";
@@ -11,7 +12,9 @@ import { DashList, PageHeader, Section } from "@/components/page-header";
 import { resolveExercise } from "@/lib/content/exercises";
 import { conceptsReferencing, getConcept, listConcepts, stagesUsingConcept, writeupsForConcept } from "@/lib/content";
 import { DOMAIN_LABELS } from "@/lib/domain/content";
-import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
+import { conceptQuestions } from "@/lib/concept-questions";
+import { breadcrumbs, clip, faqPage, jsonLd, pageMetadata } from "@/lib/metadata";
+import { proseToPlainText } from "@/lib/prose";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
@@ -64,6 +67,7 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
     kind: "concept-explain",
     conceptId: concept.id,
   });
+  const questions = conceptQuestions(concept.title);
   const byInvestigation = new Map<string, { title: string; stages: typeof uses }>();
   for (const use of uses) {
     const entry = byInvestigation.get(use.investigation.id) ?? {
@@ -96,6 +100,19 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
                   url: `${SITE_URL}/concepts`,
                 },
               },
+              faqPage([
+                { question: questions.problem, answer: proseToPlainText(concept.problem) },
+                { question: questions.mechanism, answer: proseToPlainText(concept.mechanism) },
+                { question: questions.assumptions, answer: concept.assumptions.join(" ") },
+                {
+                  question: questions.failures,
+                  answer: concept.failureModes.map((f) => `${f.name}: ${f.description}`).join(" "),
+                },
+                {
+                  question: questions.alternatives,
+                  answer: concept.alternatives.map((a) => `${a.name}: ${a.when}`).join(" "),
+                },
+              ]),
             ],
           }),
         }}
@@ -106,14 +123,20 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
         actions={
           <>
             <ConceptStanding conceptId={concept.id} />
-            {claims && (
-              <a href="#check" className="btn btn-secondary">
-                Check yourself
+            {concept.lesson ? (
+              <a href="#learn" className="btn btn-secondary">
+                Start the lesson
               </a>
+            ) : (
+              claims && (
+                <a href="#check" className="btn btn-secondary">
+                  Check yourself
+                </a>
+              )
             )}
             {explain && (
               <a href="#explain" className="btn btn-ghost">
-                Explain it before reading
+                Explain it in your own words
               </a>
             )}
             <ShareButton
@@ -127,37 +150,67 @@ export default async function ConceptPage(props: PageProps<"/concepts/[conceptId
         {concept.summary}
       </PageHeader>
 
-      <Section id="problem" title="The problem">
-        <div className="max-w-[66ch]">
-          <Prose text={concept.problem} />
-        </div>
-      </Section>
-      <Section id="mechanism" title="How it works">
-        <div className="max-w-[66ch]">
-          <Prose text={concept.mechanism} />
-        </div>
-      </Section>
-      <Section id="assumptions" title="What it assumes">
-        <DashList items={concept.assumptions} />
-      </Section>
-      <Section id="failures" title="How it goes wrong">
-        <Terms items={concept.failureModes.map((f) => ({ title: f.name, body: f.description }))} />
-      </Section>
-      <Section id="alternatives" title="Alternatives">
-        <Terms items={concept.alternatives.map((a) => ({ title: a.name, body: a.when }))} />
-      </Section>
-      <Section id="implementations" title="In practice" description="From simplest to most specialised.">
-        <Terms items={concept.implementations.map((impl) => ({ title: impl.name, body: impl.note }))} />
-      </Section>
+      {concept.lesson ? (
+        <>
+          <Section id="learn" title="Learn it">
+            <Lesson lessonKey={`concept:${concept.id}`} steps={concept.lesson} />
+          </Section>
+          <Section id="reference" title="Quick reference" description="The same ideas, condensed for revision.">
+            <div className="grid gap-x-12 gap-y-10 sm:grid-cols-2">
+              <div>
+                <h3 className="mb-3 text-[0.875rem] font-medium text-ink-2">How it goes wrong</h3>
+                <Terms items={concept.failureModes.map((f) => ({ title: f.name, body: f.description }))} />
+              </div>
+              <div>
+                <h3 className="mb-3 text-[0.875rem] font-medium text-ink-2">Instead, consider</h3>
+                <Terms items={concept.alternatives.map((a) => ({ title: a.name, body: a.when }))} />
+              </div>
+              <div>
+                <h3 className="mb-3 text-[0.875rem] font-medium text-ink-2">In practice</h3>
+                <Terms items={concept.implementations.map((impl) => ({ title: impl.name, body: impl.note }))} />
+              </div>
+              <div>
+                <h3 className="mb-3 text-[0.875rem] font-medium text-ink-2">It assumes</h3>
+                <DashList items={concept.assumptions} />
+              </div>
+            </div>
+          </Section>
+        </>
+      ) : (
+        <>
+          <Section id="problem" title={questions.problem}>
+            <div className="max-w-[66ch]">
+              <Prose text={concept.problem} />
+            </div>
+          </Section>
+          <Section id="mechanism" title={questions.mechanism}>
+            <div className="max-w-[66ch]">
+              <Prose text={concept.mechanism} />
+            </div>
+          </Section>
+          <Section id="assumptions" title={questions.assumptions}>
+            <DashList items={concept.assumptions} />
+          </Section>
+          <Section id="failures" title={questions.failures}>
+            <Terms items={concept.failureModes.map((f) => ({ title: f.name, body: f.description }))} />
+          </Section>
+          <Section id="alternatives" title={questions.alternatives}>
+            <Terms items={concept.alternatives.map((a) => ({ title: a.name, body: a.when }))} />
+          </Section>
+          <Section id="implementations" title="In practice" description="From simplest to most specialised.">
+            <Terms items={concept.implementations.map((impl) => ({ title: impl.name, body: impl.note }))} />
+          </Section>
 
-      {claims && (
-        <Section id="check" title="Check yourself">
-          <ExerciseWorkspace
-            spec={{ ref: claims.summary.ref, interaction: claims.interaction, tags: claims.tags }}
-            slots={buildSlots(claims.interaction)}
-            context="practice"
-          />
-        </Section>
+          {claims && (
+            <Section id="check" title="Check yourself">
+              <ExerciseWorkspace
+                spec={{ ref: claims.summary.ref, interaction: claims.interaction, tags: claims.tags }}
+                slots={buildSlots(claims.interaction)}
+                context="practice"
+              />
+            </Section>
+          )}
+        </>
       )}
       {explain && (
         <Section id="explain" title="Explain it in your own words">

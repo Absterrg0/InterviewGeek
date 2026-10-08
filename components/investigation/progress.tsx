@@ -146,11 +146,13 @@ export function ContinueLink({ investigationId, stages }: { investigationId: str
   const state = useLearnerState();
   const first = stages[0];
   if (!first) return null;
+  // Before hydration the server cannot know about progress, so it renders what
+  // a first-time visitor needs: a working link to the first stage.
   if (!state) {
     return (
-      <span className="btn btn-primary invisible" aria-hidden="true">
+      <Link href={`/investigations/${investigationId}/${first.id}`} className="btn btn-primary">
         Start the investigation
-      </span>
+      </Link>
     );
   }
   const marks = statuses(state.attempts, investigationId, stages);

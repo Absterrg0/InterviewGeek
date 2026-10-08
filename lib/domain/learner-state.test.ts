@@ -67,9 +67,16 @@ describe("learner state transitions", () => {
       conceptIds: [],
       competencyIds: [],
     };
-    const s2 = assessAttempt(s1, "a1", { x: "covered" }, evidence);
+    const s2 = assessAttempt(s1, "a1", { x: "covered" }, evidence, { x: "answer" });
     expect(s2.attempts[0]?.evidence).toEqual(evidence);
+    expect(s2.attempts[0]?.citations).toEqual({ x: "answer" });
     expect(s1.attempts[0]?.evidence).toBeNull();
+
+    const parsed = parseLearnerState(JSON.stringify(s2));
+    expect(parsed.ok && parsed.state.attempts[0]?.citations).toEqual({ x: "answer" });
+    const badCitation = JSON.parse(JSON.stringify(s2)) as { attempts: { citations: unknown }[] };
+    badCitation.attempts[0]!.citations = { x: 42 };
+    expect(parseLearnerState(JSON.stringify(badCitation)).ok).toBe(false);
   });
 
   it("removes a project's answers and interview items with it", () => {
@@ -111,6 +118,19 @@ describe("learner state transitions", () => {
     expect(parseLearnerState(JSON.stringify(state))).toEqual({ ok: true, state });
     expect(parseLearnerState("{not json").ok).toBe(false);
     expect(parseLearnerState(JSON.stringify({ ...state, version: 99 })).ok).toBe(false);
+  });
+
+  it("reads back decisions and diagnoses submitted without reasoning", () => {
+    const decision: Attempt = {
+      ...attempt("a1", { kind: "stage", investigationId: "inv", stageId: "s1" }),
+      response: { kind: "decision", optionId: "good", rationale: "" },
+    };
+    const diagnosis: Attempt = {
+      ...attempt("a2", { kind: "stage", investigationId: "inv", stageId: "s2" }),
+      response: { kind: "diagnosis", selected: [1], rationale: "" },
+    };
+    const state = addAttempt(addAttempt(createLearnerState("me", now), decision), diagnosis);
+    expect(parseLearnerState(JSON.stringify(state))).toEqual({ ok: true, state });
   });
 
   it("rejects malformed attempts, evidence and projects", () => {

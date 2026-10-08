@@ -53,6 +53,14 @@ describe("evaluate", () => {
     expect(evaluate(decision, response, null, tags)).toBeNull();
   });
 
+  it("rests on the decision alone when no reasoning was written", () => {
+    const response = { kind: "decision" as const, optionId: "good", rationale: "  " };
+    const evidence = evaluate(decision, response, null, tags);
+    expect(evidence?.signal).toBe("strong");
+    expect(evidence?.basis).toBe("checked");
+    expect(evidence?.parts.map((p) => p.label)).toEqual(["Decision"]);
+  });
+
   it("takes the weakest part as the overall signal and records the basis", () => {
     const response = { kind: "decision" as const, optionId: "good", rationale: "because" };
     const evidence = evaluate(decision, response, { a: "covered", b: "partial", c: "missed" }, tags);

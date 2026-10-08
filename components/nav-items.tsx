@@ -11,6 +11,17 @@ import {
 
 export type NavItem = { href: string; label: string; icon: ReactNode; description: string };
 
+/** Pages linked from the footer only. */
+export const ABOUT: NavItem[] = [
+  {
+    href: "/system-design-interview",
+    label: "Interview guide",
+    icon: null,
+    description: "How the system design interview works",
+  },
+  { href: "/about", label: "About", icon: null, description: "How the practice is built" },
+];
+
 export const LEARN: NavItem[] = [
   {
     href: "/investigations",

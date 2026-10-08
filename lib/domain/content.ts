@@ -11,6 +11,7 @@
  * concept references written as [[concept-id]] or [[concept-id|label]].
  */
 import { z } from "zod";
+import { SIMULATIONS } from "./simulations";
 import {
   ASSESSMENTS,
   CLAIM_VERDICTS,
@@ -215,6 +216,62 @@ export type InteractionKind = Interaction["kind"];
 export type InteractionOf<K extends InteractionKind> = Extract<Interaction, { kind: K }>;
 
 // ---------------------------------------------------------------------------
+// Lessons: teach in small steps, checking understanding as you go
+// ---------------------------------------------------------------------------
+
+/**
+ * A lesson alternates short explanations with checks that answer immediately.
+ * Checks are for learning, not assessment: a wrong answer explains itself and
+ * the learner tries again. Keep `read` steps to a short paragraph or a table.
+ */
+export const lessonStep = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("read"), body: prose }),
+  z.object({
+    kind: z.literal("choice"),
+    id: slug,
+    prompt: z.string().min(1),
+    options: z
+      .array(
+        z.object({
+          id: slug,
+          label: z.string().min(1),
+          correct: z.boolean().default(false),
+          /** Why this option is right or wrong. Shown when the option is picked. */
+          why: z.string().min(1),
+        }),
+      )
+      .min(2),
+  }),
+  z.object({
+    kind: z.literal("estimate"),
+    id: slug,
+    prompt: z.string().min(1),
+    answer: z.number(),
+    unit: z.string().optional(),
+    /** Accepted relative error: back-of-envelope answers only need the right ballpark. */
+    tolerance: z.number().positive().max(1).default(0.3),
+    /** The worked arithmetic, shown once the learner is done. */
+    working: prose,
+  }),
+  z.object({
+    kind: z.literal("predict"),
+    id: slug,
+    prompt: z.string().min(1),
+    answer: prose,
+  }),
+  /** An interactive model of a mechanism, with a short note on what to try. Not a check. */
+  z.object({
+    kind: z.literal("simulation"),
+    simulation: z.enum(SIMULATIONS),
+    body: prose.optional(),
+  }),
+]);
+export type LessonStep = z.infer<typeof lessonStep>;
+
+export const lesson = z.array(lessonStep).min(1);
+export type Lesson = z.infer<typeof lesson>;
+
+// ---------------------------------------------------------------------------
 // Investigations
 // ---------------------------------------------------------------------------
 
@@ -244,8 +301,12 @@ export const stage = z.object({
   competencyIds: z.array(slug).min(1),
   event: stageEvent.optional(),
   context: prose,
+  /** What the learner needs to know to answer, taught before the question. */
+  lesson: lesson.optional(),
   interaction,
   reveal: z.object({
+    /** The two or three things to remember from this stage. */
+    takeaways: z.array(z.string().min(1)).max(4).optional(),
     reasoning: prose,
     tradeoffs: z.array(tradeoff).optional(),
     /** Where another engineer could reasonably land differently, and why. */
@@ -317,6 +378,8 @@ export const concept = z.object({
   summary: z.string().min(1).max(240),
   problem: prose,
   mechanism: prose,
+  /** A step-by-step lesson. When present, the concept page teaches with it instead of the problem and mechanism prose. */
+  lesson: lesson.optional(),
   assumptions: z.array(z.string().min(1)).min(1),
   alternatives: z.array(z.object({ name: z.string().min(1), when: z.string().min(1) })).min(1),
   failureModes: z

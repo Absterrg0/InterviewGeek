@@ -22,6 +22,83 @@ export const distributionConcepts: ConceptInput[] = [
 
       Length is a budget: a base62 string of length *k* has 62^*k* values (7 characters ≈ 3.5 trillion). The question is never "can it collide?" but "how often, and what happens when it does?". The answer to the second should always be a unique constraint that turns a collision into a retry rather than corruption.
     `,
+    lesson: [
+      {
+        kind: "read",
+        body: md`
+          Every record needs an id that no other record has. In one database, an auto-increment column does it. When many servers create records at once, you need a scheme, and uniqueness isn't the only thing it decides: ids also reveal information, take up space in URLs, and affect how fast inserts are.
+
+          | Scheme | How it stays unique | What it reveals |
+          | --- | --- | --- |
+          | Auto-increment | One counter hands out numbers | How many you've made, and every other id |
+          | Random (UUIDv4, random base62) | The space is so large that repeats are rare | Nothing |
+          | Time-ordered (Snowflake, UUIDv7, ULID) | Timestamp plus machine id or randomness | When it was created |
+          | Hash of the content | The same content always gets the same id | That two records have the same content |
+        `,
+      },
+      {
+        kind: "choice",
+        id: "enumerate",
+        prompt: "Invoice URLs look like `/invoices/10482`. A customer sees invoice 10482 one Monday and 10982 the next. What can they work out?",
+        options: [
+          {
+            id: "volume",
+            label: "That you issue about 500 invoices a week, and that nearby numbers are other people's invoices.",
+            correct: true,
+            why: "Sequential ids leak volume and invite people to try neighbouring ids. If any of those pages lacks an access check, they've found a data leak.",
+          },
+          {
+            id: "nothing",
+            label: "Nothing useful; ids are just numbers.",
+            why: "The difference between two sequential ids is a count of everything created in between.",
+          },
+          {
+            id: "creation",
+            label: "Only the date each invoice was created.",
+            why: "That's what time-ordered ids reveal. Sequential ids reveal counts.",
+          },
+        ],
+      },
+      {
+        kind: "estimate",
+        id: "collision-odds",
+        prompt: "You've issued 1 billion random 7-character base62 codes, out of about 3.5 trillion possible. The chance that the next random code is already taken is about 1 in how many?",
+        answer: 3500,
+        unit: "(1 in …)",
+        working: md`
+          3.5 trillion ÷ 1 billion = **3,500**. Each new code has about a 1 in 3,500 chance of hitting an existing one. Rare, but with millions of codes a day, it happens many times a day.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          So collisions will happen. What matters is what happens when one does. Back every scheme with a **unique constraint**: a collision becomes a failed insert followed by a retry with a new id, never an overwritten record.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "uuid-inserts",
+        prompt: "Why can random UUIDv4 primary keys slow down inserts on a very large table, compared with time-ordered ids?",
+        options: [
+          {
+            id: "scatter",
+            label: "Random keys land on random pages of the index, so inserts touch the whole index instead of just its newest end.",
+            correct: true,
+            why: "Time-ordered ids always insert at the end of the index, which stays in memory. Random ids need the whole index in memory to insert quickly. UUIDv7 keeps the uniqueness without the scattering.",
+          },
+          {
+            id: "size",
+            label: "128-bit values can't be indexed efficiently.",
+            why: "Databases index 128-bit values fine. The issue is where in the index each new key goes, not its size.",
+          },
+          {
+            id: "check",
+            label: "Each random id has to be checked for collisions before inserting.",
+            why: "The unique index does that check as part of the insert, and it costs the same for any kind of key.",
+          },
+        ],
+      },
+    ],
     assumptions: [
       "A unique constraint backs every scheme, so even a 'can't happen' collision fails loudly rather than overwriting data.",
       "Random ids use a cryptographically secure generator when guessability matters.",
@@ -96,6 +173,111 @@ export const distributionConcepts: ConceptInput[] = [
 
       **Multi-leader** and **leaderless** replication accept writes in several places, which adds write availability and locality, and makes concurrent writes to the same data a [[conflict-resolution]] problem.
     `,
+    lesson: [
+      {
+        kind: "read",
+        body: md`
+          Replication keeps copies of a database on several machines. Usually one **primary** accepts all writes and streams each change to **replicas**, which apply the changes in the same order. Replicas can then serve reads.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "not-for",
+        prompt: "Which of these does adding read replicas not give you?",
+        options: [
+          {
+            id: "writes",
+            label: "Capacity for more writes",
+            correct: true,
+            why: "Only the primary accepts writes, and every replica has to apply every write too. To spread writes, you partition the data.",
+          },
+          {
+            id: "reads",
+            label: "Capacity for more reads",
+            why: "It does give you this: each replica can serve reads.",
+          },
+          {
+            id: "survive",
+            label: "Surviving the loss of the primary",
+            why: "It does give you this: a replica can be promoted to primary.",
+          },
+          {
+            id: "near",
+            label: "Faster reads for users far from the primary",
+            why: "It does give you this: a replica in another region answers nearby users without a long round trip.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          The primary can send changes in two ways:
+
+          - **Synchronous:** it waits for a replica to confirm a change before telling the client the write succeeded.
+          - **Asynchronous:** it tells the client right away and sends the change afterwards. This is the usual default, because writes stay fast.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "failover-loss",
+        prompt: "With asynchronous replication, the primary confirms a write to a client and then crashes before sending it to any replica. You promote a replica. What happened to the write?",
+        options: [
+          {
+            id: "lost",
+            label: "It's gone, even though the client was told it succeeded.",
+            correct: true,
+            why: "The only copy was on the crashed primary. Synchronous replication prevents this, at the cost of waiting for a replica on every write.",
+          },
+          {
+            id: "replayed",
+            label: "The new primary replays it from its log.",
+            why: "The new primary's log never received it. That's what asynchronous means.",
+          },
+          {
+            id: "rejected",
+            label: "The client gets an error and retries.",
+            why: "The client already got a success. Nothing tells it to retry.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          With asynchronous replication, replicas are always slightly behind the primary. This is **replication lag**: usually milliseconds, but it can grow to seconds or more under heavy load.
+        `,
+      },
+      {
+        kind: "predict",
+        id: "read-your-writes",
+        prompt: "A user edits their profile. The write goes to the primary, then the page reloads and reads from a replica. What might they see?",
+        answer: md`
+          Their **old** profile, as if the edit had failed. This is a *read-your-writes* problem. Common fixes: read from the primary for a short time after a user writes, or only read from a replica that has caught up to that write.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "monotonic",
+        prompt: "A user refreshes a page twice. The first request goes to a replica 10 ms behind; the second to a replica 2 seconds behind. A comment was posted one second ago. What do they see?",
+        options: [
+          {
+            id: "disappears",
+            label: "The comment appears, then disappears.",
+            correct: true,
+            why: "Data seems to go backwards in time. Sending each user's reads to the same replica prevents it.",
+          },
+          {
+            id: "never",
+            label: "They never see the comment.",
+            why: "The first replica is only 10 ms behind, so it already has the comment.",
+          },
+          {
+            id: "twice",
+            label: "The comment appears twice.",
+            why: "Replicas apply each change once. Lag delays changes; it doesn't duplicate them.",
+          },
+        ],
+      },
+    ],
     assumptions: [
       "Reads dominate, or are latency-sensitive in places far from the primary.",
       "The application can tolerate, or explicitly works around, replication lag.",
@@ -171,6 +353,69 @@ export const distributionConcepts: ConceptInput[] = [
       - **Self-fencing:** an owner that fails to renew should stop work, which wastes less. But a paused process cannot stop itself during the pause, so this is an optimization, not the guarantee.
       - **Isolated side effects:** writes that cannot carry a token, such as files in object storage or calls to third parties, should go to per-owner locations or be deduplicated, so overlap between two owners cannot corrupt them.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Some work must have exactly one owner at a time: a job, a document's sequencer, a leader. Owners crash, so ownership must be reclaimable. But a crashed owner looks exactly like a slow one: a garbage-collection pause, a network blip or a frozen VM looks like death. Take ownership from a slow owner and, when it wakes, you have two.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          **Leases** handle the crash: ownership is granted until a time (\`leased_until = now() + 30s\`) and renewed by heartbeats. If renewals stop, the lease lapses and someone else may claim it, with no failure detector or cooperation from the dead process. Compute expiry with one clock (the database's or coordinator's), so skew between machines doesn't matter.
+        `,
+      },
+      {
+        kind: "simulation",
+        simulation: "lease-fencing",
+        body: md`
+          Freeze worker A past its lease and see what its late write does, first without fencing, then with it.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          **Fencing** handles the slow owner. Every grant comes with a **token that increases** (an epoch, a version), every write carries it, and the system holding the data **rejects stale tokens**:
+
+          \`\`\`sql
+          UPDATE jobs SET status = 'done' WHERE id = $1 AND lease_token = $2;
+          \`\`\`
+
+          The old owner's late write matches zero rows, and it learns it lost. The **resource** enforces exclusivity; the lease only advises it.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "self-fence",
+        prompt: "Why isn't 'the owner stops working when it fails to renew' (self-fencing) enough on its own?",
+        options: [
+          {
+            id: "paused",
+            label: "A paused process can't stop itself during the pause; when it resumes, it may write before it checks.",
+            correct: true,
+            why: "Self-fencing saves wasted work, but only the resource rejecting stale tokens guarantees safety.",
+          },
+          {
+            id: "slow",
+            label: "It's too slow.",
+            why: "Speed isn't the issue; the paused process simply isn't running to notice.",
+          },
+          {
+            id: "enough",
+            label: "It is enough.",
+            why: "The simulation shows the gap: a resumed owner writes before learning anything.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Writes that can't carry a token (files in object storage, calls to third parties) should go to per-owner locations or be deduplicated, so overlap between two owners can't corrupt them.
+        `,
+      },
+    ],
     assumptions: [
       "The resource being protected can check a token on each write (a conditional update, a versioned API).",
       "Lease duration comfortably exceeds the renewal interval plus expected pauses.",
@@ -242,6 +487,54 @@ export const distributionConcepts: ConceptInput[] = [
 
       Partitioning does not fix **hot keys**. If one key (a celebrity account, an all-hands document) receives more load than one partition can handle, you must split the *work* for that key: separate the single-writer part from the read and fan-out part, cache it, or batch it.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Eventually one machine can't handle all the load. Copies of a stateless tier are easy to add; copies of **state** aren't, because two copies accepting writes for the same thing must coordinate.
+
+          **Partitioning** (sharding) assigns each key (a user, a document, an account) to exactly one partition, and each partition is handled independently.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          - **The key** is the important decision. Operations that must be atomic or ordered together should share a partition key; operations across partitions lose those properties or need expensive coordination.
+          - **Mapping:** hashing spreads load evenly but scatters ranges; range partitioning keeps neighbours together but invites hotspots. [[consistent-hashing|Consistent hashing]] keeps most keys in place when partitions change.
+          - **Routing:** something must find the partition that owns a key, including during moves.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "single-owner",
+        prompt: "All writes for document 42 go to one owner process. What does that buy?",
+        options: [
+          {
+            id: "no-locks",
+            label: "That process can sequence document 42's writes with no distributed coordination.",
+            correct: true,
+            why: "Partitioning turns a concurrency problem into a routing problem: within the owner, ordering is a counter.",
+          },
+          {
+            id: "speed",
+            label: "Faster reads for every document",
+            why: "It's about coordination for that key, not general read speed.",
+          },
+          {
+            id: "replicas",
+            label: "Automatic replication",
+            why: "Replication is a separate concern.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Partitioning doesn't fix **hot keys**. If one key (a celebrity account, an all-hands document) gets more load than one partition can handle, adding partitions doesn't help: it still lives on one. You have to split the **work** for that key: separate the single-writer part from reads and fan-out, cache it, or batch it.
+        `,
+      },
+    ],
     assumptions: [
       "Most operations touch a single partition key.",
       "Load is spread across many keys, so no single key dominates.",
@@ -316,6 +609,64 @@ export const distributionConcepts: ConceptInput[] = [
 
       The pattern also applies to rapidly superseded data, such as cursor positions or typing indicators: send it at-most-once, coalesce updates, and keep only the latest. A lost update is replaced by the next one.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          "Who's online", "where's their cursor", "which server holds this connection": these describe the **present**. Storing them durably means a write on every change and cleanup after crashes. A client that disappears without saying goodbye leaves a ghost that's "online" forever.
+
+          **Soft state** is kept alive by periodic refresh and **expires** when refreshes stop.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          - A client announces itself and repeats every *n* seconds, often piggybacked on heartbeats.
+          - The holder stores it with a TTL a few refresh intervals long.
+          - If the client vanishes, refreshes stop and the entry expires on its own. No cleanup protocol, and no permanent ghosts.
+        `,
+      },
+      {
+        kind: "estimate",
+        id: "ttl",
+        prompt: "Clients refresh presence every 10 seconds. A TTL of about 3 refresh intervals tolerates a couple of lost refreshes. About how many seconds is that?",
+        answer: 30,
+        unit: "seconds",
+        working: md`
+          3 × 10 = **30 seconds**. Shorter, and one delayed refresh makes a present user flicker away; much longer, and departed users linger.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "restart",
+        prompt: "The server holding presence restarts and loses it all. What happens?",
+        options: [
+          {
+            id: "rebuilds",
+            label: "Clients reconnect and re-announce, and presence is rebuilt within one refresh interval.",
+            correct: true,
+            why: "Soft state is rebuilt from refreshes, so durability buys nothing.",
+          },
+          {
+            id: "gone",
+            label: "Everyone appears offline until they reload.",
+            why: "They re-announce automatically on their next refresh.",
+          },
+          {
+            id: "corrupt",
+            label: "Presence is corrupted.",
+            why: "There's nothing to corrupt; it starts empty and fills from refreshes.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          The same applies to rapidly superseded data like cursor positions and typing indicators: send it at most once, coalesce updates, keep only the latest. A lost update is replaced by the next one.
+        `,
+      },
+    ],
     assumptions: [
       "A short gap or brief staleness after a restart is acceptable.",
       "Producers refresh at a known interval, and expiry is a small multiple of it.",
@@ -386,6 +737,59 @@ export const distributionConcepts: ConceptInput[] = [
 
       Alternatives with the same goal include **rendezvous (highest-random-weight) hashing**, where each key picks the node with the highest hash(key, node), and **directory-based** placement, where a lookup table maps key ranges to nodes and can be edited deliberately.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          The obvious way to spread keys over N servers is \`hash(key) % N\`. It balances well, until N changes. Going from 10 to 11 cache servers changes the server for most keys, so the hit rate collapses and every key is fetched from the database at once.
+
+          Anything that routes by key (caches, connection servers, shards) needs a mapping that survives membership changes.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          **Consistent hashing** places nodes and keys on the same circular hash space, a **ring**. A key belongs to the **first node clockwise** from its hash. Adding a node takes over only the keys between it and its predecessor; removing one hands its keys to the next. On average only **1/N of keys move**.
+        `,
+      },
+      {
+        kind: "simulation",
+        simulation: "consistent-hashing",
+        body: md`
+          Add a node under each placement, and compare one point per node with a hundred.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "virtual",
+        prompt: "What do virtual nodes (many ring points per physical node) improve?",
+        options: [
+          {
+            id: "even",
+            label: "They even out load, and spread a failed node's keys across many survivors instead of one neighbour.",
+            correct: true,
+            why: "A few random points make uneven arcs. Many points average out, and a failure's load is shared.",
+          },
+          {
+            id: "moves",
+            label: "They reduce how many keys move to zero.",
+            why: "About 1/N still move; that's the minimum.",
+          },
+          {
+            id: "hot",
+            label: "They fix hot keys.",
+            why: "One very popular key still lands on one node.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Consistent hashing decides **where** a key lives, not **how much** load it brings: a single hot key still lands on one node. Alternatives with the same goal include **rendezvous hashing** (each key picks the node with the highest hash(key, node)) and **directory-based** placement (a lookup table you can edit deliberately).
+        `,
+      },
+    ],
     assumptions: [
       "Clients (or a router) agree on the current membership of the ring.",
       "Keys are numerous and individually small compared with a node's capacity.",

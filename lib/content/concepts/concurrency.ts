@@ -22,6 +22,107 @@ export const concurrencyConcepts: ConceptInput[] = [
 
       In distributed settings the "lock" may be a [[leases-and-fencing|lease]], and the conditional write must carry a fencing token, because a lock holder can stall and lose its lock without knowing.
     `,
+    lesson: [
+      {
+        kind: "read",
+        body: md`
+          A lot of code reads something, makes a decision, then writes: "if the seat is free, book it". Each step is fine on its own. The trouble starts when two requests run at the same time and their steps interleave:
+
+          \`\`\`
+          Request A                     Request B
+          SELECT seat 12  → free
+                                        SELECT seat 12  → free
+          UPDATE seat 12 owner = A
+                                        UPDATE seat 12 owner = B
+          \`\`\`
+        `,
+      },
+      {
+        kind: "choice",
+        id: "outcome",
+        prompt: "After that sequence, who has seat 12, and who was told they booked it?",
+        options: [
+          {
+            id: "both-told",
+            label: "B has the seat, but both A and B were told they booked it.",
+            correct: true,
+            why: "B's update overwrote A's. A was already told \"booked\", so two people turn up for one seat.",
+          },
+          {
+            id: "a-wins",
+            label: "A has it, because A checked first.",
+            why: "Checking first doesn't reserve anything. The last write wins, and that was B's.",
+          },
+          {
+            id: "error",
+            label: "The database rejects B's update.",
+            why: "Nothing told the database that only one owner is allowed. Both updates are valid on their own.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          The fix is to make read-decide-write act as one step. Three common ways:
+
+          1. **Lock the row:** \`SELECT … FOR UPDATE\`. B waits until A commits, then sees the seat is taken.
+          2. **Conditional write:** \`UPDATE seats SET owner = 'A' WHERE id = 12 AND owner IS NULL\`, then check how many rows changed. Zero means someone got there first.
+          3. **Constraint:** a unique index on (show, seat) in a bookings table. The second insert fails.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "zero-rows",
+        prompt: "The conditional UPDATE reports 0 rows changed. What should the code do?",
+        options: [
+          {
+            id: "taken",
+            label: "Tell the user the seat was just taken, and offer others.",
+            correct: true,
+            why: "Zero rows is an answer, not an error: the condition (owner IS NULL) was false because someone else booked it first.",
+          },
+          {
+            id: "retry",
+            label: "Retry the same update.",
+            why: "It will keep returning 0. The seat is taken; retrying won't change that.",
+          },
+          {
+            id: "missing",
+            label: "Report that seat 12 doesn't exist.",
+            why: "The seat exists. It just no longer matches owner IS NULL.",
+          },
+        ],
+      },
+      {
+        kind: "choice",
+        id: "robust",
+        prompt: "Which approach still protects you from an admin script someone writes next year without reading your booking code?",
+        options: [
+          {
+            id: "constraint",
+            label: "A database constraint",
+            correct: true,
+            why: "The database enforces it on every write, whichever code path it comes from.",
+          },
+          {
+            id: "lock",
+            label: "A row lock in the booking code",
+            why: "It only works for code that takes the lock. The admin script won't.",
+          },
+          {
+            id: "conditional",
+            label: "A conditional update in the booking code",
+            why: "Same problem: it protects only the code that uses it.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Rules of thumb: use a **constraint** for "no two X may share Y"; use **conditional writes** when conflicts are rare; use a **lock** for a busy row with short updates, and never hold one across a slow network call.
+        `,
+      },
+    ],
     assumptions: [
       "All writers go through the same mechanism; one unguarded path breaks the invariant.",
       "Conflict handling (retry, reject, merge) is defined for the losing side.",
@@ -93,6 +194,56 @@ export const concurrencyConcepts: ConceptInput[] = [
 
       Over a single TCP or WebSocket connection, messages arrive in the order sent. Across connections, reconnects, retries or multiple senders, nothing is ordered unless you order it.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Two users edit the same paragraph; two webhooks for one payment arrive; two servers log events. Which happened first? Wall clocks on different machines disagree by milliseconds or more, messages are delayed and retried, and "arrived first" isn't "happened first".
+
+          Order only exists where **something assigns it**.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          Ways order gets established:
+
+          - **A single sequencer:** one process, one database row or one log partition assigns increasing numbers. Everything it sequences has a total order. The cost: all writes for that sequence go through one place.
+          - **Per-key order:** usually you only need order *within* an entity. [[partitioning|Partition]] by that key and sequence each partition: parallel across keys, ordered within each.
+          - **Causal order:** "B was written by someone who'd seen A". Version vectors or Lamport timestamps capture it without a sequencer, but leave truly concurrent events unordered, needing a [[conflict-resolution]] rule.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "timestamps",
+        prompt: "Why not order events from different servers by their wall-clock timestamps?",
+        options: [
+          {
+            id: "skew",
+            label: "Clocks are skewed and adjusted, so a later event can carry an earlier timestamp.",
+            correct: true,
+            why: "Timestamps are fine for display. For correctness, 'last write wins by timestamp' silently discards writes.",
+          },
+          {
+            id: "precision",
+            label: "Timestamps aren't precise enough.",
+            why: "Even precise clocks disagree with each other.",
+          },
+          {
+            id: "fine",
+            label: "It's fine with NTP.",
+            why: "NTP narrows skew to milliseconds and still adjusts clocks, sometimes backwards.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          Over a single TCP or WebSocket connection, messages arrive in the order sent. Across connections, reconnects, retries or multiple senders, nothing is ordered unless you order it.
+        `,
+      },
+    ],
     assumptions: [
       "You know which order the application actually needs (total, per-key, or causal).",
       "The sequencer is unique, and its uniqueness is enforced during failover (fencing, unique constraints on position).",
@@ -160,6 +311,56 @@ export const concurrencyConcepts: ConceptInput[] = [
 
       Convergence (everyone ends with the same text) is the guarantee all three give. **Intent preservation** (the merged result reflects what each person meant) is where they differ, and no algorithm can fully decide it; two people rewriting the same sentence still need a human.
     `,
+    lesson: [
+
+      {
+        kind: "read",
+        body: md`
+          Two people type into the same sentence at once; a phone edits a note offline while a laptop edits it online. Both changes were made against the same starting state and both are legitimate. Applied naively one after the other, the text can be garbled or one change silently dropped.
+
+          A **convergent** merge rule makes every replica end in the same state.
+        `,
+      },
+      {
+        kind: "read",
+        body: md`
+          Three approaches:
+
+          - **Last writer wins (LWW):** keep the change with the latest timestamp or version. Simple and convergent, but it **discards** the other change. Fine for a profile photo; wrong for a shared paragraph.
+          - **Operational transformation (OT):** clients send operations tagged with the revision they were based on. A central [[ordering|sequencer]] transforms each against the ops it missed ("3 characters were inserted before position 12, so this is now 15"), then broadcasts it.
+          - **CRDTs:** operations **commute**: any order gives the same result. Each character gets a stable identity, so "insert after (alice, 41)" means the same everywhere. No central authority is needed, which suits offline editing; the cost is metadata.
+        `,
+      },
+      {
+        kind: "choice",
+        id: "transform",
+        prompt: "Text is \"abc\". Alice inserts \"X\" at position 0; concurrently Bob deletes position 2 (\"c\"). With OT, after Alice's insert is applied first, what does Bob's delete become?",
+        options: [
+          {
+            id: "three",
+            label: "Delete position 3, because Alice's insert shifted everything right by one",
+            correct: true,
+            why: "\"Xabc\": the \"c\" is now at position 3. Transforming Bob's op against Alice's keeps his intent.",
+          },
+          {
+            id: "two",
+            label: "Delete position 2, unchanged",
+            why: "That would delete \"b\" in \"Xabc\".",
+          },
+          {
+            id: "drop",
+            label: "Drop Bob's delete",
+            why: "Both edits are legitimate; transformation keeps both.",
+          },
+        ],
+      },
+      {
+        kind: "read",
+        body: md`
+          All three guarantee **convergence**: everyone ends with the same text. **Intent preservation**, the merged result reflecting what each person meant, is where they differ, and no algorithm can fully decide it. Two people rewriting the same sentence still need a human.
+        `,
+      },
+    ],
     assumptions: [
       "Every replica eventually receives every operation (delivery is reliable, possibly duplicated).",
       "Operations are applied idempotently. Duplicates are detected by operation ID.",

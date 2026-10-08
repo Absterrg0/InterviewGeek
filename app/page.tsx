@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { ContinueStrip } from "@/components/continue-strip";
 import { InvestigationIndex } from "@/components/investigation/investigation-index";
+import { Lesson } from "@/components/lesson/lesson";
 import { InlineText } from "@/components/prose-core";
-import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
-import { VERDICT_LABEL } from "@/components/ui";
 import { getConcept, getInvestigation, listCompanies, listInvestigations } from "@/lib/content";
 import { visibleAfter } from "@/lib/domain/visibility";
 
 const LOOP = [
-  { step: "Decide", text: "Choose between designs that all sound plausible, and write down why." },
+  { step: "Learn", text: "Short explanations with quick checks: estimate the numbers, predict what breaks, then see why." },
+  { step: "Decide", text: "Choose between designs that all sound plausible, using what you just worked out." },
   { step: "Break it", text: "A worker dies, a message arrives twice, a request times out after it succeeded." },
   { step: "Change it", text: "Ten times the traffic, a new requirement, a promise from sales." },
   { step: "Defend it", text: "Say what the design guarantees, what it assumes, and where it stops working." },
@@ -38,7 +38,7 @@ export default function Home() {
   }));
   const companies = listCompanies();
   const first = investigations[0];
-  const example = getConcept("caching")?.claims.find((c) => c.id === "redis-faster");
+  const demo = getConcept("caching")?.lesson?.slice(0, 3);
   const scene = heroScene();
   const stage = scene?.investigation.stages[scene.index];
   const visible = scene ? visibleAfter(scene.investigation, scene.index) : null;
@@ -116,7 +116,7 @@ export default function Home() {
         <h2 id="loop" className="max-w-[30ch] font-display text-[1.75rem] leading-tight text-balance">
           Every investigation is one system, built up from its requirements, in the same loop.
         </h2>
-        <ol className="mt-10 grid gap-y-8 lg:grid-cols-4">
+        <ol className="mt-10 grid gap-y-8 lg:grid-cols-5">
           {LOOP.map((item, i) => (
             <li key={item.step} className="min-w-0">
               <div className="flex items-center">
@@ -134,8 +134,12 @@ export default function Home() {
           ))}
         </ol>
         <p className="mt-10 max-w-[70ch] text-[0.875rem] leading-relaxed text-ink-3">
-          After each answer you see the reasoning and where another engineer could reasonably disagree. Choices are checked
-          against a key; written answers you mark yourself against specific points.
+          After each answer you see why every option is right or wrong, and the few points worth remembering. Choices are
+          checked against a key; if you write down your reasoning, you mark it yourself against specific points. New to the format? Read{" "}
+          <Link href="/system-design-interview" className="link">
+            how the system design interview works
+          </Link>
+          .
         </p>
       </section>
 
@@ -182,21 +186,18 @@ export default function Home() {
       </section>
 
       <section aria-label="More ways to practise" className="section grid gap-x-16 gap-y-14 pt-14 sm:pt-20 lg:grid-cols-2">
-        {example && (
+        {demo && (
           <div>
-            <h2 className="font-display text-[1.75rem] leading-tight">Precision over slogans</h2>
-            <p className="mt-2 text-[0.9375rem] text-ink-2">Things engineers say in design reviews, checked.</p>
-            <blockquote className="mt-7 border-l-2 border-accent-solid pl-5">
-              <p className="font-display text-[1.375rem] leading-snug">
-                “<InlineText text={example.statement} />”
-              </p>
-              <p className="mt-3 text-[0.9375rem] font-medium">{VERDICT_LABEL[example.verdict]}.</p>
-              <div className="mt-1 text-ink-2">
-                <Prose text={example.explanation} className="prose-sm" />
-              </div>
-            </blockquote>
-            <Link href="/practice" className="btn btn-secondary mt-7">
-              Check more claims
+            <h2 className="font-display text-[1.75rem] leading-tight">Learn by working it out</h2>
+            <p className="mt-2 max-w-[52ch] text-[0.9375rem] text-ink-2">
+              Every idea comes in small steps, each with a check that answers straight away. Try the start of the caching
+              lesson.
+            </p>
+            <div className="mt-7">
+              <Lesson lessonKey="home:caching" steps={demo} />
+            </div>
+            <Link href="/concepts/caching#learn" className="btn btn-secondary mt-2">
+              Continue the caching lesson
             </Link>
           </div>
         )}

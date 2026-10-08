@@ -4,7 +4,7 @@ import { InlineText } from "@/components/prose-core";
 import type { InteractionOf } from "@/lib/domain/content";
 import type { ResponseOf } from "@/lib/domain/learner";
 import { SubmitRow, WrittenField } from "../fields";
-import { MIN_RATIONALE, type InputProps } from "../types";
+import { type InputProps } from "../types";
 import { useDraft } from "../use-draft";
 
 type Diagnosis = InteractionOf<"diagnosis">;
@@ -37,7 +37,7 @@ export function DiagnosisInput({ interaction, draftKey, onSubmit }: InputProps<D
   }));
   const lineCount = interaction.artifact.lines.length;
   const selected = draft.selected.filter((i) => i < lineCount);
-  const ready = selected.length > 0 && draft.rationale.trim().length >= MIN_RATIONALE;
+  const ready = selected.length > 0;
 
   const toggle = (index: number) => {
     const next = selected.includes(index)
@@ -88,7 +88,8 @@ export function DiagnosisInput({ interaction, draftKey, onSubmit }: InputProps<D
         label={interaction.rationale.prompt}
         value={draft.rationale}
         onChange={(rationale) => setDraft({ ...draft, rationale })}
-        min={MIN_RATIONALE}
+        min={0}
+        optional
       />
       <SubmitRow
         ready={ready}

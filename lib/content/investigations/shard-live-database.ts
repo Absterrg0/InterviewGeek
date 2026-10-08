@@ -107,6 +107,54 @@ export const shardLiveDatabase = {
       context: md`
         Postgres tags each transaction with a 32-bit ID. Vacuum must periodically "freeze" old rows so IDs can be reused; if it falls too far behind, Postgres stops accepting writes rather than risk corrupting data.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Postgres gives each transaction a **32-bit transaction ID**. That's about 4 billion IDs, reused in a cycle. To make reuse safe, **vacuum** must "freeze" old rows so they no longer depend on their original transaction ID.
+
+            If vacuum falls too far behind, Postgres stops accepting writes rather than risk misreading old rows as new. That's **wraparound**, and it's a hard deadline.
+          `,
+        },
+        {
+          kind: "read",
+          body: md`
+            Three different fixes target three different limits:
+
+            | Fix | What it divides |
+            | --- | --- |
+            | Read replicas | read load (every replica still replays every write) |
+            | Partitioning tables on one host | maintenance work per table (same host limits) |
+            | Sharding across hosts | write volume, table size and vacuum work |
+
+            See [[partitioning]] and [[replication]].
+          `,
+        },
+        {
+          kind: "choice",
+          id: "replicas",
+          prompt: "Vacuum can't keep up with the primary's write volume. Do read replicas help?",
+          options: [
+            {
+              id: "no",
+              label: "No: replicas take reads, but the primary still does every write and all the vacuum work.",
+              correct: true,
+              why: "The limit is per-host writes and table size on the primary. Replicas don't touch it, and each replica replays the same writes.",
+            },
+            {
+              id: "yes",
+              label: "Yes: fewer reads leave more resources for vacuum.",
+              why: "A little, perhaps, but write volume and table size keep growing. It doesn't change the direction.",
+            },
+            {
+              id: "worse",
+              label: "They make it worse.",
+              why: "They don't make the primary worse; they just don't address its limit.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -138,6 +186,11 @@ export const shardLiveDatabase = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Name the limit first: here, per-host write volume and table size.",
+          "Replicas divide reads; partitioning on one host shrinks maintenance; only sharding divides writes.",
+          "Transaction ID wraparound makes vacuum lag a hard deadline.",
+        ],
         reasoning: md`
           Name the limit before choosing the fix. Here it is **per-host write volume and table size**: replicas do not touch it, a bigger machine is not available, and partitioning inside one host only makes maintenance smaller. Horizontal [[partitioning]] is the only option that divides the load itself. That justifies the cost, which is considerable: Notion described sharding as something they would rather have done earlier, while the data was smaller and the migration simpler.
         `,
@@ -153,6 +206,48 @@ export const shardLiveDatabase = {
       context: md`
         Most queries load a page's blocks, a workspace's sidebar or a page's comments. A workspace may have one member or thousands.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            The **shard key** decides which shard each row lives on. Choose it from the **queries**: the common query should hit one shard, and rows that are joined together should live together.
+
+            An even spread is worth little if the common query has to visit every shard.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "row-hash",
+          prompt: "Sharding by a hash of each row's own ID spreads data perfectly evenly. What happens to 'load this page's blocks'?",
+          options: [
+            {
+              id: "scatter",
+              label: "It becomes a scatter-gather across all shards, because the page's blocks are spread everywhere.",
+              correct: true,
+              why: "Every page load touches every shard. The common query gets slower as you add shards.",
+            },
+            {
+              id: "fast",
+              label: "It's fastest, because load is even.",
+              why: "Even load per shard doesn't help a query that needs all of them.",
+            },
+            {
+              id: "one",
+              label: "It hits one shard.",
+              why: "Only if the page's blocks share a key, which a per-row hash doesn't give.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "colocation",
+          prompt: "Blocks, pages and comments are all sharded by workspace ID. Why does it matter that they share the same key?",
+          answer: md`
+            So a workspace's blocks, pages and comments land on the same shard, and joins between them stay local. Tables queried together must be split the same way. Figma calls such groups "colos".
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "What should determine which shard a row lives on?",
@@ -193,6 +288,11 @@ export const shardLiveDatabase = {
         },
       },
       reveal: {
+        takeaways: [
+          "Choose the shard key from the queries: the common query should hit one shard.",
+          "Shard tables that are joined together by the same key so joins stay local.",
+          "Costs: very large tenants concentrate load, and cross-tenant queries span shards.",
+        ],
         reasoning: md`
           The shard key is chosen from **the queries**, not from the data's size or distribution. A key that sends the common query to one shard, and keeps related rows together for joins, is worth far more than a perfectly even spread. Figma calls groups of tables sharded by the same key "colos" (colocations) for exactly this reason: tables that are queried together must be split the same way.
 
@@ -210,6 +310,53 @@ export const shardLiveDatabase = {
       context: md`
         Today 32 hosts are enough. In a few years it may be 96, or more. Moving rows between shards is a migration in its own right; moving a whole shard from one host to another is much easier.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Separate two layouts:
+
+            - **Logical:** which shard a row belongs to. Fixed forever, computed from the workspace ID.
+            - **Physical:** which host a shard lives on. Changed whenever you like.
+
+            With many small logical shards (say 480), growing from 32 to 96 hosts means moving whole shards between hosts, not re-hashing rows.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "divisible",
+          prompt: "Why choose 480 logical shards rather than 500?",
+          options: [
+            {
+              id: "divides",
+              label: "480 divides evenly by 32, 40, 48, 60, 80, 96 and more, so every host count stays balanced.",
+              correct: true,
+              why: "500 divides by 20, 25 and 50 but not 32 or 96, so some hosts would hold more shards than others.",
+            },
+            {
+              id: "smaller",
+              label: "Fewer shards are faster.",
+              why: "20 fewer makes no meaningful difference to speed.",
+            },
+            {
+              id: "postgres",
+              label: "Postgres limits schemas to 480.",
+              why: "There's no such limit.",
+            },
+          ],
+        },
+        {
+          kind: "estimate",
+          id: "per-host",
+          prompt: "480 logical shards on 96 hosts. How many shards per host?",
+          answer: 5,
+          unit: "shards",
+          working: md`
+            480 ÷ 96 = **5**, down from 15 on 32 hosts. Growth is a matter of moving 10 of each host's schemas elsewhere.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How should shards map to hosts?",
@@ -253,6 +400,11 @@ export const shardLiveDatabase = {
         },
       },
       reveal: {
+        takeaways: [
+          "Separate the fixed logical layout (row to shard) from the changeable physical one (shard to host).",
+          "Growth then moves whole shards with database tools instead of re-sharding rows.",
+          "Pick a shard count that divides evenly into many host counts.",
+        ],
         reasoning: md`
           Separate the **logical** layout (which shard a row belongs to, fixed forever) from the **physical** layout (which host a shard lives on, changed whenever you like). Then growth is a routing change plus a database copy, not a data re-shuffle.
 
@@ -279,6 +431,45 @@ export const shardLiveDatabase = {
       context: md`
         Notion captured writes with an application-level audit log rather than Postgres logical replication, because replicating the initial snapshot of tables this large through logical replication was too slow for them at the time.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Moving live data has one shape, whatever the tools. See [[online-migrations]]:
+
+            1. **Capture** every new write (here, an audit log).
+            2. **Backfill** existing rows.
+            3. **Catch up** by replaying captured writes until the copy trails by seconds.
+            4. **Verify** the copy against the original.
+            5. **Switch** reads and writes, briefly.
+            6. **Keep the old store** as a fallback for a while.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "capture-first",
+          prompt: "Why start capturing writes before the backfill begins?",
+          options: [
+            {
+              id: "no-gap",
+              label: "So every write during the copy is recorded; nothing changes unseen between the copy and the switch.",
+              correct: true,
+              why: "If you copy first, writes made during the copy are missing, and you can't tell which ones.",
+            },
+            {
+              id: "speed",
+              label: "To make the backfill faster",
+              why: "It's about not missing writes, not speed.",
+            },
+            {
+              id: "test",
+              label: "To test the shards",
+              why: "Verification does that, later.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "ordering",
         prompt: "Put the migration steps in a safe order.",
@@ -297,6 +488,11 @@ export const shardLiveDatabase = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Capture writes, backfill, catch up, verify, switch, keep a fallback: in that order.",
+          "Each step depends on the previous one being complete.",
+          "A brief maintenance window is only for the final switch.",
+        ],
         reasoning: md`
           The order is the design. Each step depends on the one before it being complete: capture before copy, copy before catch-up, catch-up before verify, verify before switch. Every safe live migration published by Stripe, GitHub, Notion, Figma and Discord follows this shape, whatever the tools.
         `,
@@ -319,6 +515,54 @@ export const shardLiveDatabase = {
       context: md`
         Here is the backfill and catch-up code. Find every line that contributes to these three problems.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Backfill and catch-up run **at the same time**, against the same rows. The backfill copies a row as it was when scanned; catch-up applies newer writes from the log. Whichever writes last wins, unless writes are conditional.
+
+            The rule that works is **newest version wins**: write only if the row is absent or the stored version is older.
+          `,
+        },
+        {
+          kind: "predict",
+          id: "overwrite",
+          prompt: "Catch-up writes version 7 of a block to its shard. A moment later the backfill reaches the same block, which it scanned at version 5, and upserts it unconditionally. What's on the shard?",
+          answer: md`
+            Version 5: the backfill overwrote a newer version with an older one. Nothing will correct it unless that block is edited again. A version check on every write prevents it, and makes replays harmless too.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "restart",
+          prompt: "Catch-up always starts reading the audit log from position 0. A deploy restarts it on day 4. What happens?",
+          options: [
+            {
+              id: "replay",
+              label: "It replays four days of entries again: correct only if writes are versioned, and slow either way",
+              correct: true,
+              why: "Persist the position of the last applied entry and resume from it. Versioned writes make the overlap harmless.",
+            },
+            {
+              id: "fine",
+              label: "Nothing; it resumes where it was",
+              why: "Not without a stored position.",
+            },
+            {
+              id: "lose",
+              label: "It loses the entries from the first four days",
+              why: "It re-reads them rather than losing them.",
+            },
+          ],
+        },
+        {
+          kind: "read",
+          body: md`
+            The backfill also competes with production for the primary's CPU and disk. Throttle it, back off when production latency rises, or read from a replica or snapshot. See [[backpressure]].
+          `,
+        },
+      ],
       interaction: {
         kind: "diagnosis",
         prompt: "Select the faulty lines.",
@@ -364,6 +608,11 @@ export const shardLiveDatabase = {
         },
       },
       reveal: {
+        takeaways: [
+          "Backfill and catch-up race on the same rows: write only if the stored version is older.",
+          "Versioned writes also make replaying log entries idempotent.",
+          "Throttle the copy and checkpoint progress so restarts resume instead of starting over.",
+        ],
         reasoning: md`
           Backfill and catch-up run **concurrently** against the same rows, so they need a rule for who wins, and "the last one to write" is wrong. "The newest version wins" is right, and it makes every write idempotent too: replaying an entry twice, or backfilling a row that catch-up already wrote, changes nothing.
 
@@ -381,6 +630,49 @@ export const shardLiveDatabase = {
       context: md`
         Before the shards serve a single user, the team wants evidence that they match. Notion compared randomly sampled records and ran dark reads: queries sent to both databases with results compared, while users still got the monolith's answer. Stripe used GitHub's Scientist library for the same kind of comparison.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Verification is [[reconciliation]] between two stores: compare, explain every difference, fix its cause. Two techniques:
+
+            - **Sampled comparison:** pick random rows and compare them field by field.
+            - **Dark reads:** send real production queries to both stores, compare results, and still give users the old store's answer.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "counts",
+          prompt: "Row counts match for every table. Is the copy correct?",
+          options: [
+            {
+              id: "not-necessarily",
+              label: "Not necessarily: counts catch missing rows, not stale ones.",
+              correct: true,
+              why: "The overwrite bug from the last stage leaves counts identical while content differs.",
+            },
+            {
+              id: "yes",
+              label: "Yes: same counts means same data.",
+              why: "A row can be present with old content.",
+            },
+            {
+              id: "no",
+              label: "No: counts are never useful.",
+              why: "They're useful for missing rows, just not sufficient.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "lag-mismatch",
+          prompt: "A comparison runs right after a user edits a block, and reports a mismatch. Is it a bug?",
+          answer: md`
+            Probably not: catch-up trails by a few seconds, so the shard hasn't received the edit yet. Compare after a short delay, or re-check a mismatch before alerting.
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -412,6 +704,11 @@ export const shardLiveDatabase = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Matching counts catch missing rows, not stale ones; compare content.",
+          "Dark reads test real query patterns against both stores without affecting users.",
+          "Allow for catch-up lag before reporting a mismatch.",
+        ],
         reasoning: md`
           Verification is [[reconciliation]] between two stores: compare, explain every difference, fix the cause. It only has value while the old store is still authoritative, which is why it sits before the cutover in every published migration plan.
         `,
@@ -432,6 +729,50 @@ export const shardLiveDatabase = {
       context: md`
         Each of the 32 hosts holds 15 of the 480 logical shards.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            With fixed logical shards, adding hosts means moving whole schemas. Postgres **logical replication** can copy a schema to a new host and keep it in sync. Cutover is a brief pause at the connection poolers while replication drains, then a routing change.
+
+            No workspace changes shard, so no row-level migration code is needed.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "rehash",
+          prompt: "Why not change the hash to spread workspaces over 96 shards?",
+          options: [
+            {
+              id: "full",
+              label: "Changing the hash moves almost every workspace: another full row-by-row migration.",
+              correct: true,
+              why: "The fixed logical layout exists so growth never requires this.",
+            },
+            {
+              id: "fine",
+              label: "It's equivalent to moving schemas.",
+              why: "Moving schemas copies shards whole with standard tools; rehashing moves rows individually.",
+            },
+            {
+              id: "faster",
+              label: "It's faster.",
+              why: "It's the slowest, riskiest option available.",
+            },
+          ],
+        },
+        {
+          kind: "estimate",
+          id: "connections",
+          prompt: "Each pooler held 50 connections per host to 32 hosts. With 96 hosts, how many connections per pooler?",
+          answer: 4800,
+          unit: "connections",
+          working: md`
+            50 × 96 = **4,800**, up from 1,600. Multiplying hosts multiplies connections. Notion split its poolers into clusters, each in front of a subset of hosts.
+          `,
+        },
+      ],
       interaction: {
         kind: "decision",
         prompt: "How do you add capacity?",
@@ -473,6 +814,11 @@ export const shardLiveDatabase = {
         },
       },
       reveal: {
+        takeaways: [
+          "Move whole logical shards between hosts; no row changes shard.",
+          "Use database replication to copy schemas, then pause briefly at the poolers to cut over.",
+          "Watch connection counts as hosts multiply.",
+        ],
         reasoning: md`
           The first migration bought the second one: because the logical layout was fixed, the expansion was "copy schemas with standard replication, flip routing". Notion reported two lessons from it worth stealing: build indexes **after** the initial sync (it cut their sync from three days to twelve hours), and watch connection counts, because every pooler connecting to three times as many hosts is three times the connections. They split PgBouncer into four clusters, each in front of 24 hosts.
         `,
@@ -493,6 +839,50 @@ export const shardLiveDatabase = {
       context: md`
         Rows for different workspaces now live in different databases.
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Sharding makes every operation **inside** the shard key cheaper and every operation **across** keys harder:
+
+            - **Queries** across shards become scatter-gathers, or need an index maintained on write.
+            - **Uniqueness** across shards needs one place that owns it.
+            - **Transactions** across shards become multi-step workflows.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "unique-email",
+          prompt: "Users are sharded by workspace. Each shard has a unique index on email. Are emails globally unique?",
+          options: [
+            {
+              id: "no",
+              label: "No: each index sees only its own shard, so two shards can each accept the same email.",
+              correct: true,
+              why: "Global uniqueness needs a single owner, such as an unsharded table keyed by email, or users sharded by email.",
+            },
+            {
+              id: "yes",
+              label: "Yes: every shard enforces it.",
+              why: "Each shard enforces it only for its own rows.",
+            },
+            {
+              id: "mostly",
+              label: "Mostly; collisions are rare.",
+              why: "Rare isn't impossible, and a duplicate email account is a security problem.",
+            },
+          ],
+        },
+        {
+          kind: "predict",
+          id: "move-page",
+          prompt: "A user moves a page to a workspace on another host. Why can't that be one local transaction any more?",
+          answer: md`
+            The two workspaces live in different databases, and a local transaction covers one database. The move becomes copy, switch, delete: a multi-step operation made safe with idempotent steps and a state machine, or a distributed transaction.
+          `,
+        },
+      ],
       interaction: {
         kind: "claims",
         prompt: "Which statements hold?",
@@ -525,6 +915,11 @@ export const shardLiveDatabase = {
         ],
       },
       reveal: {
+        takeaways: [
+          "Inside the shard key, everything gets cheaper; across keys, it gets harder.",
+          "Global uniqueness needs a single owner, not per-shard indexes.",
+          "Cross-shard moves become multi-step, idempotent workflows.",
+        ],
         reasoning: md`
           Sharding is a trade: every operation inside the key gets cheaper, and every operation across keys gets harder. Joins, uniqueness and transactions that span shards need explicit designs: an index maintained on write, a separate owner for global constraints, a multi-step workflow. Figma built a query proxy (DBProxy) that parses SQL, routes single-shard queries and scatter-gathers the rest, and still asked teams to avoid cross-shard queries where they could.
         `,
@@ -540,6 +935,40 @@ export const shardLiveDatabase = {
       context: md`
         Your interviewer: "This is months of custom work. Why not move to a distributed SQL database like CockroachDB, Spanner or Vitess, which shards for you?"
       `,
+      lesson: [
+
+        {
+          kind: "read",
+          body: md`
+            Infrastructure choices are often about **risk under a deadline** rather than which technology is best in general. Moving to a new database means a full migration **plus** new operational expertise, while the wraparound deadline approaches.
+
+            A strong answer still concedes what the alternative offers.
+          `,
+        },
+        {
+          kind: "choice",
+          id: "distributed-offers",
+          prompt: "What does a distributed SQL database (CockroachDB, Spanner) genuinely offer over hand-sharding?",
+          options: [
+            {
+              id: "auto",
+              label: "Automatic rebalancing, cross-shard transactions, and no custom routing code",
+              correct: true,
+              why: "Those are real advantages. They matter most for new projects, bigger teams, or heavy cross-shard transactions.",
+            },
+            {
+              id: "nothing",
+              label: "Nothing Postgres can't do",
+              why: "Hand-sharded Postgres doesn't give cross-shard transactions or automatic rebalancing.",
+            },
+            {
+              id: "speed",
+              label: "Faster single-row queries",
+              why: "Consensus usually makes single-row writes slower, not faster.",
+            },
+          ],
+        },
+      ],
       interaction: {
         kind: "open",
         prompt: "Make the case for hand-sharding Postgres here, concede what the alternative offers, and say when you would choose it.",
@@ -561,6 +990,11 @@ export const shardLiveDatabase = {
         `,
       },
       reveal: {
+        takeaways: [
+          "Weigh risk and timeline: a new database is a migration plus new expertise under a deadline.",
+          "Value the team's existing Postgres knowledge and tooling.",
+          "Concede what distributed SQL offers, and when you'd choose it.",
+        ],
         reasoning: md`
           Good infrastructure decisions are often about **risk under a deadline**, not about which technology is best in general. Both Notion and Figma made the "boring" choice and said why; that reasoning is what an interviewer wants to hear.
         `,

@@ -39,7 +39,7 @@ lib/store/                browser persistence
 
 | Concept | Where | Notes |
 | --- | --- | --- |
-| Investigation, Stage, Interaction, Competency | `lib/domain/content.ts` | Stages carry a phase (model/decide/break/change/defend), dimensions, concepts, an optional injected event, an interaction and a reveal. |
+| Investigation, Stage, Interaction, Competency | `lib/domain/content.ts` | Stages carry a phase (model/decide/break/change/defend), dimensions, concepts, an optional injected event, an optional lesson, an interaction and a reveal with takeaways. |
 | System model: components, flows, invariants | `lib/domain/content.ts` | Shared shape for curated systems and learners' own projects. Invariants name the components that enforce them and the mechanism. `codeLocation` evidence is reserved for repository analysis. |
 | Concept | `lib/domain/content.ts` | Problem, mechanism, assumptions, alternatives, failure modes, implementations (simplest first), claims, explain prompt. |
 | Attempt, Evidence | `lib/domain/learner.ts` | Every answer is an attempt; evidence records a signal (strong/partial/gap), its basis (checked/self-assessed/mixed), dimensions, concepts and competencies. |
@@ -63,13 +63,35 @@ Investigations live in `lib/content/investigations/*.ts` and are registered in `
 - `stage.reveals` lists components and flows that appear on the system map once the stage is answered; parts no stage reveals are given from the start.
 - Run `pnpm test` after editing; the integrity test reports dangling references, unused competencies, reserved ids and map visibility mistakes.
 
-The standard for content: never teach terminology without mechanism, never present a design without constraints, never discuss scaling without naming the bottleneck, and never discuss reliability without failure scenarios. Claims are the tool for cargo-cult statements ("Adding Redis makes an application faster": *depends*, and the explanation says on what).
+The standard for content: never teach terminology without mechanism, never present a design without constraints, never discuss scaling without naming the bottleneck, and never discuss reliability without failure scenarios.
+
+### Lessons: teach before you test
+
+A stage should not ask a question the learner has not been given the tools to answer. `stage.lesson` (and `concept.lesson`) is a list of small steps shown one chunk at a time, each chunk ending in a check that answers immediately:
+
+- `read`: a short paragraph, list, table or code block. One idea per step.
+- `choice`: one question, exactly one correct option, and a `why` on every option. A wrong pick explains itself and the learner tries again.
+- `estimate`: a back-of-envelope number with a `tolerance` (default ±30%) and the worked arithmetic. Use these for sizing.
+- `predict`: "what happens when…", answered by the learner (optionally in writing) before the answer is shown.
+- `simulation`: an interactive model of a mechanism (`rate-limit-windows`, `lease-fencing`, `cache-stampede`, `consistent-hashing`), with an optional note on what to try. It is not a check; follow it with one that asks about what the learner saw. The models are pure functions in `lib/domain/simulations.ts` (tested there); the widgets in `components/simulations/` only draw them.
+
+Every stage must have a lesson and `reveal.takeaways`, and every concept must have a lesson (on the concept page it replaces the problem and mechanism prose, so it has to carry the whole mechanism). The integrity test fails otherwise.
+
+The stage's interaction comes after the lesson, and `reveal.takeaways` (two or three sentences) is what the learner should remember. Lesson checks are practice and are not recorded as evidence; progress through them is kept separately in `lib/store/lesson-progress.ts`. Written reasoning on decisions and diagnoses is optional; when it is left out the evidence rests on the checked part alone.
+
+Write plainly. Titles say what the stage is about ("Estimate the load", not "Size it before you draw it"). No slogans, no aphorisms to close a paragraph, no "the real problem is…": state the mechanism and the numbers.
 
 ### Sources and companies
 
 `lib/content/sources.ts` lists companies and their published writeups (engineering blog posts, papers, talks, code). One company per idea: each company is there for one problem it solved and wrote about, and is paired with exactly one investigation (the tests enforce the pairing both ways). Company pages, the "Read and practise next" links on investigations and the "Further reading" section of concepts all read from it.
 
 Rules: link the original and credit the authors. A company's `context` is our own explanation of the idea; a writeup's `note` is a sentence or two on why to read it. Neither paraphrases the post: the original is the content. Only use numbers the authors reported. Before adding prose based on a source, check it for copied wording: download the sources and look for runs of six or more words shared with our files.
+
+### Review, design rounds and self-assessment
+
+- **Review queue** (`lib/domain/review.ts`): each exercise's next review is scheduled from its latest assessed answer: a gap after 1 day, partial after 3, strong after 7, 21, 60 and 180 days in a row. It is derived from attempts alone, so it needs no state of its own. A stage that is due reopens as a fresh question with the earlier answer hidden; the Progress page and the home page list what is due.
+- **Design rounds** (`/investigations/[id]/design`, `lib/domain/design-round.ts`): one system, a blank page, five timed sections (requirements, estimates, design, deep dives, failure and change), then a comparison against a reference assembled by `lib/content/design-reference.ts` from the investigation itself (requirements, lesson estimates, components, decide/break/change stages). Rounds are saved in learner state (`rounds`), so export and import include them.
+- **Citations** (`lib/domain/passages.ts`): marking a rubric point covered or partly requires picking the sentence (or line of code) in the learner's answer that shows it. Citations are stored on the attempt and shown with the assessment.
 
 ### Adding an interaction type
 

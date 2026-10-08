@@ -8,7 +8,8 @@ import { Prose } from "@/components/prose";
 import { SystemMap } from "@/components/system-map";
 import { DashList, PageHeader, Section } from "@/components/page-header";
 import { getInvestigation, listInvestigations } from "@/lib/content";
-import { breadcrumbs, clip, jsonLd, pageMetadata } from "@/lib/metadata";
+import { breadcrumbs, clip, faqPage, jsonLd, pageMetadata } from "@/lib/metadata";
+import { proseToPlainText } from "@/lib/prose";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
@@ -17,6 +18,15 @@ export function generateStaticParams() {
 
 export const dynamicParams = false;
 
+function lowerFirst(text: string) {
+  return /^[A-Z][a-z]/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
+}
+
+/** "How to design a URL Shortener": the walkthrough answers the question people type, the overview asks it. */
+function howTo(searchTitle: string) {
+  return `How to ${lowerFirst(searchTitle)}`;
+}
+
 export async function generateMetadata(
   props: PageProps<"/investigations/[investigationId]/review">,
 ): Promise<Metadata> {
@@ -24,14 +34,12 @@ export async function generateMetadata(
   const inv = getInvestigation(investigationId);
   if (!inv) return {};
   return pageMetadata({
-    title: `${inv.searchTitle}: System Design Walkthrough`,
-    description: clip(`Full walkthrough: ${inv.premise}`),
+    title: `${howTo(inv.searchTitle)}: Step-by-Step System Design`,
+    description: clip(
+      `${howTo(inv.searchTitle)}, step by step: ${inv.system.components.map((c) => c.label).join(", ")}. ${inv.premise}`,
+    ),
     path: `/investigations/${inv.id}/review`,
   });
-}
-
-function lowerFirst(text: string) {
-  return /^[A-Z][a-z]/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
 }
 
 export default async function ReviewPage(props: PageProps<"/investigations/[investigationId]/review">) {
@@ -42,6 +50,9 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
   const componentName = new Map(system.components.map((c) => [c.id, c.label]));
   const lastStage = inv.stages[inv.stages.length - 1];
   const firstStage = inv.stages[0];
+  const shortAnswer = `${howTo(inv.searchTitle)}: ${system.components
+    .map((c) => `${c.label} (${lowerFirst(c.responsibility).replace(/\.$/, "")})`)
+    .join("; ")}.`;
 
   return (
     <div>
@@ -67,6 +78,13 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
                 inLanguage: "en",
                 provider: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
               },
+              faqPage([
+                { question: `How do you ${lowerFirst(inv.searchTitle)}?`, answer: shortAnswer },
+                ...inv.stages.map((stage) => ({
+                  question: proseToPlainText(stage.interaction.prompt),
+                  answer: proseToPlainText(stage.reveal.reasoning),
+                })),
+              ]),
             ],
           }),
         }}
@@ -74,13 +92,31 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
       <div className="measure">
         <PageHeader
           eyebrow="The finished design, decision by decision"
-          title={`${inv.searchTitle}: the full walkthrough`}
+          title={howTo(inv.searchTitle)}
           meta={inv.title}
         >
           Not the one correct diagram, but a design you can defend under these constraints: the finished architecture, then
           every stage&apos;s question with the reasoning that answers it, the tradeoffs it accepts, and where another
           engineer could land differently.
         </PageHeader>
+
+        <section aria-labelledby="short-answer" className="section pt-0 sm:pt-0">
+          <h2 id="short-answer" className="font-display text-[1.5rem] leading-tight">
+            The short answer
+          </h2>
+          <p className="mt-3 max-w-[66ch] text-[1rem] leading-relaxed text-ink-2">
+            {system.components.length} parts, each with one job. The map below shows how requests and data move between
+            them; the stages after it explain why each part is there.
+          </p>
+          <dl className="mt-6 max-w-[66ch] divide-y divide-rule border-y border-rule">
+            {system.components.map((c) => (
+              <div key={c.id} className="grid gap-x-6 gap-y-1 py-3 sm:grid-cols-[11rem_minmax(0,1fr)]">
+                <dt className="text-[0.9375rem] font-medium">{c.label}</dt>
+                <dd className="text-[0.9375rem] leading-relaxed text-ink-2">{c.responsibility}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
       </div>
 
       <section aria-label="Final architecture" className="section pt-0 sm:pt-0">
@@ -88,7 +124,7 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
       </section>
 
       <div className="measure">
-        <Section id="why" title="Why it works">
+        <Section id="why" title="Why does this design work?">
           <div className="max-w-[66ch]">
             <Prose text={synthesis.whyItWorks} />
           </div>
@@ -110,11 +146,11 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
           </ul>
         </Section>
 
-        <Section id="relies" title="What it relies on">
+        <Section id="relies" title="What does it rely on?">
           <DashList items={synthesis.reliesOn} />
         </Section>
 
-        <Section id="tradeoffs" title="Tradeoffs it makes">
+        <Section id="tradeoffs" title="What tradeoffs does it make?">
           <div className="panel overflow-x-auto px-5 py-1">
             <table className="data-table min-w-[560px]">
               <thead>
@@ -139,7 +175,7 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
           </div>
         </Section>
 
-        <Section id="alternatives" title="Reasonable alternatives">
+        <Section id="alternatives" title="What are the reasonable alternatives?">
           <dl className="max-w-[66ch] space-y-4">
             {synthesis.alternatives.map((a) => (
               <div key={a.design}>
@@ -150,7 +186,7 @@ export default async function ReviewPage(props: PageProps<"/investigations/[inve
           </dl>
         </Section>
 
-        <Section id="breaks" title="Where it stops working">
+        <Section id="breaks" title="When does it stop working?">
           <DashList items={synthesis.breaksWhen} />
         </Section>
 
